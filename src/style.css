@@ -87,6 +87,39 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink-soft); 
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
 }
 
+.controls-hud {
+  position: fixed;
+  left: max(20px, env(safe-area-inset-left, 0px));
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 8px;
+  max-width: 260px;
+  padding: 10px 12px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.ch-status { display: flex; gap: 12px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.ch-status .on { color: var(--ink); }
+.ch-keys { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; font-size: 12px; color: var(--ink-soft); }
+.ch-keys li { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ch-keys kbd { font-size: 10px; padding: 1px 5px; }
+.map-wrap {
+  position: fixed;
+  top: calc(44px + env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  width: 210px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+}
+.minimap { width: 210px; height: 170px; display: block; }
+.map-tools { display: flex; align-items: center; gap: 6px; padding: 0 6px 6px; }
+.map-tools .pos { flex: 1; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-tools button { width: 26px; height: 22px; background: transparent; border: 1px solid var(--line); cursor: pointer; font-size: 14px; line-height: 1; }
+.map-wrap { background: rgba(10, 13, 15, 0.3); }
 .status {
   position: fixed;
   left: max(20px, env(safe-area-inset-left, 0px));
@@ -341,6 +374,9 @@ kbd { font-family: var(--font-body); font-size: 11px; font-weight: 600; padding:
   .chart-card { grid-template-columns: 1fr; }
   .chart { min-height: 260px; border-left: 0; border-top: 1px solid rgba(27, 29, 31, 0.12); }
   .compass { width: 104px; height: 104px; }
+  .controls-hud { display: none; }
+  .map-wrap { width: 150px; }
+  .minimap { width: 150px; height: 120px; }
   .watch { gap: 10px; font-size: 12px; }
   .radio { bottom: 0; right: 0; width: 100%; max-height: 72vh; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
 }

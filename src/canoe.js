@@ -235,6 +235,8 @@ export function createCanoe(scene) {
     canoe.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.006, 5), new THREE.MeshStandardMaterial({ color: 0xd9667a, roughness: 0.9 })));
   }
 
+  const hullParts = canoe.children.slice(); // the built-in canoe, replaced if the Magnific model loads
+
   // Small sprit sail on a mast stepped at the forward thwart
   const woodSpar = new THREE.MeshStandardMaterial({ color: 0xc9995a, roughness: 0.6 });
   const rig = new THREE.Group();
@@ -304,7 +306,7 @@ export function createCanoe(scene) {
 
   // Hurricane lantern on the floor in front of the paddler
   const lantern = new THREE.Group();
-  lantern.position.set(0.12, keelAt(sAt(1.0)) + 0.012, 1.0);
+  lantern.position.set(0, sheerAt(sAt(BOW_Z + 0.32)) - 0.005, BOW_Z + 0.32); // on the bow deck, lighting the water ahead
   canoe.add(lantern);
   const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a35, roughness: 0.55, metalness: 0.6 });
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xfff3dd, roughness: 0.15, transparent: true, opacity: 0.35, emissive: 0x000000 });
@@ -371,18 +373,19 @@ export function createCanoe(scene) {
     const sol = solve3([[S0, Sa, Sc], [Sa, Saa, Sac], [Sc, Sac, Scc]], [Sy, Say, Scy]);
     const heave = sol[0];
     const pitch = Math.atan(sol[1]);
-    const roll = Math.atan(sol[2]) * 0.8;
+    const roll = Math.atan(sol[2]) * 1.15; // an open canoe is tender and rolls readily
     // After a long frame (a hidden tab, a slow device) the hull simply settles where the sea now is
     if (!settled || (o.rawDt || 0) > 0.3) { heaveS = heave; pitchS = pitch; rollS = roll; heaveV = pitchV = rollV = 0; settled = true; }
-    // Mass on a spring, integrated in small steps so it stays true at any frame rate
+    // Buoyancy: the hull is a lightly damped mass, so it lifts, overshoots a little and settles,
+    // pitching over each wave and rolling with the chop. Integrated in small steps at any frame rate.
     let left = Math.min(o.rawDt || o.dt, 0.3);
     while (left > 1e-4) {
       const dt = Math.min(left, 1 / 120);
-      heaveV += (60 * (heave - heaveS) - 11 * heaveV) * dt;
+      heaveV += (26 * (heave - heaveS) - 4.2 * heaveV) * dt;
       heaveS += heaveV * dt;
-      pitchV += (40 * (pitch - pitchS) - 10 * pitchV) * dt;
+      pitchV += (20 * (pitch - pitchS) - 3.6 * pitchV) * dt;
       pitchS += pitchV * dt;
-      rollV += (30 * (roll - rollS) - 7 * rollV) * dt;
+      rollV += (16 * (roll - rollS) - 2.6 * rollV) * dt;
       rollS += rollV * dt;
       left -= dt;
     }
@@ -446,7 +449,7 @@ export function createCanoe(scene) {
     canoe.updateMatrixWorld();
     outPos.copy(SEAT).applyMatrix4(canoe.matrixWorld);
     // The paddler keeps their head steadier than the hull
-    e.set(pitchS * 0.5, yawS, rollS * 0.45, 'YXZ');
+    e.set(pitchS * 0.85, yawS, rollS * 0.8, 'YXZ');
     q.setFromEuler(e);
     outQuat.copy(q);
   }
@@ -479,7 +482,45 @@ export function createCanoe(scene) {
     flame.position.y = halo.position.y = lampLight.position.y = 0.3 * 0.47;
   }
 
-  return { group: canoe, update, eye, lamp, applyLantern, get heave() { return heaveS; } };
+  /**
+   * Replace the built-in canoe with a generated model: turned so its length runs bow to stern,
+   * scaled to 5.2 m, centred, and lowered so its keel sits at the waterline draft.
+   * Returns the measured half-beam so the sea can wrap around it.
+   */
+  function applyCanoe(root) {
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].colorSpace = THREE.NoColorSpace;
+        m.side = THREE.DoubleSide;
+        if (m.metalness !== undefined) m.metalness = Math.min(m.metalness, 0.05);
+        if (m.roughness !== undefined) m.roughness = Math.max(0.35, Math.min(m.roughness, 0.7));
+      }
+    });
+    const box = new THREE.Box3().setFromObject(root);
+    const size = box.getSize(new THREE.Vector3());
+    const holder = new THREE.Group();
+    const inner = new THREE.Group();
+    holder.add(inner);
+    inner.add(root);
+    const alongX = size.x > size.z;
+    if (alongX) inner.rotation.y = Math.PI / 2;
+    const length = alongX ? size.x : size.z;
+    const beam = alongX ? size.z : size.x;
+    const scale = LENGTH / length;
+    const c = box.getCenter(new THREE.Vector3());
+    root.position.set(-c.x, -box.min.y, -c.z);
+    holder.scale.setScalar(scale);
+    holder.position.y = KEEL;
+    holder.traverse((o) => o.layers.set(LAYER_NEAR));
+    canoe.add(holder);
+    for (const p of hullParts) p.visible = false;
+    return { halfBeam: (beam * scale) / 2, depth: size.y * scale };
+  }
+
+  return { group: canoe, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; } };
 }
 
 /** Sea mask settings for this hull: (along from, along to, half-beam) and no float. */

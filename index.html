@@ -31,7 +31,29 @@
     <div class="compass-readout" id="compassReadout">000°</div>
   </div>
 
-  <div class="status"><span id="sailOut">Sail down</span></div>
+  <div class="map-wrap" id="mapWrap">
+    <canvas id="minimap" class="minimap" aria-label="Map of the canoe's position and trail"></canvas>
+    <div class="map-tools">
+      <span id="posOut" class="pos"></span>
+      <button type="button" id="mapOut" aria-label="Zoom the map out">−</button>
+      <button type="button" id="mapIn" aria-label="Zoom the map in">+</button>
+    </div>
+  </div>
+
+  <div class="controls-hud" id="controlsHud">
+    <div class="ch-status"><span id="sailOut">Sail down</span><span id="lampOut">Lantern out</span></div>
+    <ul class="ch-keys">
+      <li><kbd>W</kbd> paddle</li>
+      <li><kbd>A</kbd><kbd>D</kbd> steer</li>
+      <li><kbd>E</kbd> sail</li>
+      <li><kbd>L</kbd> lantern</li>
+      <li><kbd>R</kbd> radio</li>
+      <li><kbd>C</kbd> stars</li>
+      <li><kbd>N</kbd> map</li>
+      <li><kbd>M</kbd> sound</li>
+      <li><kbd>H</kbd> hide controls</li>
+    </ul>
+  </div>
 
   <aside class="radio" id="radio" aria-hidden="true" aria-label="Radio">
     <div class="radio-head">
@@ -113,6 +135,7 @@
         <li><kbd>R</kbd> radio</li>
         <li><kbd>L</kbd> lantern</li>
         <li><kbd>C</kbd> star chart</li>
+        <li><kbd>N</kbd> map</li>
         <li><kbd>Mouse</kbd> look around</li>
         <li><kbd>M</kbd> sound</li>
         <li><kbd>Esc</kbd> pause</li>

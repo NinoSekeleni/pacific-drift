@@ -160,8 +160,11 @@ export function createOcean(renderer, scene, skyUniforms) {
           disp.xz += Q * A * w.xy * cos(ph);
           disp.y += A * sin(ph);
         }
-        vec3 hm = hullMask(base);
-        wp.xz += disp.xz * (1.0 - hm.x);
+        // Judge the hull against where this point of the surface actually ends up after the waves
+        // have carried it sideways, so swell can never slide water in under the hull
+        vec2 moved = base + disp.xz;
+        vec3 hm = hullMask(moved);
+        wp.xz = moved;
         wp.y = mix(disp.y, hm.y - 0.5 * hm.z, hm.x);
         vWorld = wp.xyz;
         vBase = base;

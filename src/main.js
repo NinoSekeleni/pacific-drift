@@ -11,6 +11,7 @@ import { createAudio } from './audio.js';
 import { createRadio } from './radio.js';
 import { createCompass } from './compass.js';
 import { drawVoyageChart } from './landfall.js';
+import { createMinimap } from './minimap.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 THREE.ColorManagement.enabled = false;
@@ -179,6 +180,10 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') toggleRadio();
   if (e.code === 'KeyC') toggleStars();
   if (e.code === 'KeyL') toggleLantern();
+  if (e.code === 'KeyN') { $('mapWrap').hidden = !$('mapWrap').hidden; }
+  if (e.code === 'KeyH') { $('controlsHud').hidden = !$('controlsHud').hidden; }
+  if (e.code === 'Equal' || e.code === 'NumpadAdd') minimap && minimap.zoom(-1);
+  if (e.code === 'Minus' || e.code === 'NumpadSubtract') minimap && minimap.zoom(1);
   if (e.code === 'KeyM') { audio.setMuted(!audio.muted); toast(audio.muted ? 'Sound off.' : 'Sound on.'); }
   if (e.code === 'Escape' && dragMode) pause();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
@@ -284,6 +289,7 @@ const eyePos = new THREE.Vector3(), eyeQuat = new THREE.Quaternion(), lookQuat =
 const fwd = new THREE.Vector3();
 const lampPos = new THREE.Vector3();
 let lanternOn = false;
+let minimap = null;
 const sunV = new THREE.Vector3(), moonV = new THREE.Vector3();
 const clock = new THREE.Clock();
 let lastSave = 0, lastHud = 0, firstFrame = true, prevHeave = 0;
@@ -477,9 +483,13 @@ function frame() {
     $('dayOut').textContent = `Day ${Math.floor((tNow - voyage.start) / 864e5) + 1}`;
     $('sailOut').textContent = voyage.sail ? 'Sail up' : 'Sail down';
     $('sailOut').classList.toggle('on', voyage.sail);
+    $('lampOut').textContent = lanternOn ? 'Lantern lit' : 'Lantern out';
+    $('lampOut').classList.toggle('on', lanternOn);
+    $('posOut').textContent = `${Math.abs(voyage.lat).toFixed(2)}° ${voyage.lat < 0 ? 'S' : 'N'}  ${Math.abs(voyage.lng).toFixed(2)}° ${voyage.lng < 0 ? 'W' : 'E'}`;
   }
   sky.updateLabels(camNear, window.innerWidth, window.innerHeight);
 
+  if (minimap && !$('mapWrap').hidden) minimap.update(voyage);
   if (elapsed - lastSave > 15) { lastSave = elapsed; saveVoyage(voyage); }
 
   /* ----- Render ----- */
@@ -511,9 +521,18 @@ async function boot() {
   land = new Land(landData);
   islands = createIslands(scene, land, sky.uniforms);
   sky.buildStars(skyData);
+  minimap = createMinimap($('minimap'), land);
+  $('mapIn').addEventListener('click', () => minimap.zoom(-1));
+  $('mapOut').addEventListener('click', () => minimap.zoom(1));
 
   // Generated models (Magnific); the built-in canoe and lantern stay until these arrive
   const loader = new GLTFLoader();
+  loader.load(BASE + 'models/canoe.glb', (g) => {
+    try {
+      const r = canoe.applyCanoe(g.scene);
+      ocean.uniforms.uHullSeg.value.y = Math.min(0.6, Math.max(0.3, r.halfBeam)) + 0.015;
+    } catch (e) { console.warn('Canoe model could not be fitted', e); }
+  }, undefined, () => {});
   loader.load(BASE + 'models/lantern.glb', (g) => {
     try { canoe.applyLantern(g.scene); } catch (e) { console.warn('Lantern model could not be fitted', e); }
   }, undefined, () => {});

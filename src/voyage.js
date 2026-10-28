@@ -100,7 +100,7 @@ export function step(s, dt, input, land, cache = {}) {
   s.dist += distance(prevLat, prevLng, s.lat, s.lng);
   s.t = t;
 
-  if (!s.track.length || t - s.track[s.track.length - 1][0] > 3600e3) {
+  if (!s.track.length || t - s.track[s.track.length - 1][0] > 600e3) {
     s.track.push([t, +s.lat.toFixed(4), +s.lng.toFixed(4)]);
   }
 
