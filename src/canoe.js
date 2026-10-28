@@ -489,8 +489,12 @@ export function createCanoe(scene) {
    */
   function applyCanoe(root) {
     root.updateMatrixWorld(true);
+    const pts = [];
+    const v = new THREE.Vector3();
     root.traverse((o) => {
       if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i += 3) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); pts.push(v.clone()); }
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
         for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].colorSpace = THREE.NoColorSpace;
@@ -499,25 +503,32 @@ export function createCanoe(scene) {
         if (m.roughness !== undefined) m.roughness = Math.max(0.35, Math.min(m.roughness, 0.7));
       }
     });
-    const box = new THREE.Box3().setFromObject(root);
+    const box = new THREE.Box3().setFromPoints(pts);
     const size = box.getSize(new THREE.Vector3());
+    const alongX = size.x > size.z;
+    const len = alongX ? size.x : size.z, wid = alongX ? size.z : size.x;
+    const c = box.getCenter(new THREE.Vector3());
+    // Gunwale height amidships: the highest points near the sides in the middle tenth of the length
+    let gun = -Infinity;
+    for (const p of pts) {
+      const al = (alongX ? p.x - c.x : p.z - c.z) / len, ac = (alongX ? p.z - c.z : p.x - c.x) / wid;
+      if (Math.abs(al) < 0.05 && Math.abs(ac) > 0.35) gun = Math.max(gun, p.y);
+    }
+    const depth = (Number.isFinite(gun) ? gun : box.max.y) - box.min.y;
+    // Fit to a real 17 ft canoe: 5.2 m long, 0.92 m beam, 0.33 m from keel to gunwale amidships
+    const sL = LENGTH / len, sW = (BEAM * 2 + 0.02) / wid, sH = (GUN - KEEL) / depth;
     const holder = new THREE.Group();
     const inner = new THREE.Group();
     holder.add(inner);
     inner.add(root);
-    const alongX = size.x > size.z;
-    if (alongX) inner.rotation.y = Math.PI / 2;
-    const length = alongX ? size.x : size.z;
-    const beam = alongX ? size.z : size.x;
-    const scale = LENGTH / length;
-    const c = box.getCenter(new THREE.Vector3());
     root.position.set(-c.x, -box.min.y, -c.z);
-    holder.scale.setScalar(scale);
+    if (alongX) inner.rotation.y = Math.PI / 2;
+    holder.scale.set(sW, sH, sL);
     holder.position.y = KEEL;
     holder.traverse((o) => o.layers.set(LAYER_NEAR));
     canoe.add(holder);
     for (const p of hullParts) p.visible = false;
-    return { halfBeam: (beam * scale) / 2, depth: size.y * scale };
+    return { halfBeam: BEAM, depth: GUN - KEEL };
   }
 
   return { group: canoe, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; } };
