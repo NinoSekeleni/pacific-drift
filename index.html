@@ -51,6 +51,7 @@
       <li><kbd>C</kbd> stars</li>
       <li><kbd>N</kbd> map</li>
       <li><kbd>M</kbd> sound</li>
+      <li><kbd>J</kbd> ship's log</li>
       <li><kbd>H</kbd> hide controls</li>
     </ul>
   </div>
@@ -109,18 +110,34 @@
   </aside>
 
   <div class="touch" id="touch" hidden>
-    <div class="touch-steer">
-      <button type="button" class="hud-btn" data-hold="left" aria-label="Steer to port">◂</button>
-      <button type="button" class="hud-btn wide" data-hold="paddle">Paddle</button>
-      <button type="button" class="hud-btn" data-hold="right" aria-label="Steer to starboard">▸</button>
-    </div>
-    <div class="touch-tools">
+    <div class="touch-tools" role="toolbar" aria-label="Canoe">
       <button type="button" class="hud-btn" id="tSail">Sail</button>
-      <button type="button" class="hud-btn" id="tRadio">Radio</button>
-      <button type="button" class="hud-btn" id="tStars">Stars</button>
       <button type="button" class="hud-btn" id="tLamp">Lantern</button>
+      <button type="button" class="hud-btn" id="tRadio">Radio</button>
+      <button type="button" class="hud-btn" id="tMap">Map</button>
+      <button type="button" class="hud-btn" id="tStars">Stars</button>
+      <button type="button" class="hud-btn" id="tLog">Log</button>
+      <button type="button" class="hud-btn" id="tTilt" aria-pressed="false">Tilt to look</button>
     </div>
+    <div class="touch-steer">
+      <button type="button" class="steer-btn" data-hold="left" aria-label="Steer to port">◂</button>
+      <button type="button" class="steer-btn" data-hold="right" aria-label="Steer to starboard">▸</button>
+    </div>
+    <button type="button" class="paddle-btn" data-hold="paddle">Paddle</button>
   </div>
+
+  <section class="overlay logbook" id="logbook" hidden>
+    <div class="log-card">
+      <header class="log-head">
+        <div>
+          <p class="eyebrow">Ship's log</p>
+          <h2>Pacific Drift</h2>
+        </div>
+        <button type="button" class="icon-btn dark" id="logClose" aria-label="Close the log">×</button>
+      </header>
+      <div class="log-body" id="logBody"></div>
+    </div>
+  </section>
 
   <section class="overlay" id="intro">
     <div class="panel">
@@ -157,6 +174,7 @@
         <h2 id="landfallPlace">—</h2>
         <p id="landfallText"></p>
         <dl id="landfallStats" class="stats"></dl>
+        <button id="readLog" class="mode-toggle paper" type="button">Read the ship's log</button>
         <button id="newVoyage" class="begin dark" type="button">Start a new voyage</button>
       </div>
       <canvas id="chart" class="chart" aria-label="Chart of your voyage"></canvas>

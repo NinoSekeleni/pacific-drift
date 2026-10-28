@@ -103,6 +103,7 @@ export function step(s, dt, input, land, cache = {}) {
 
   // Dead reckoning: what a navigator would plot from compass heading and speed through the water.
   // Currents and leeway are invisible to it, so the estimate slowly parts from the truth.
+  s.estDist = (s.estDist || 0) + s.speed * dt;
   if (!s.est) s.est = { lat: s.lat, lng: s.lng, track: [[t, +s.lat.toFixed(4), +s.lng.toFixed(4)]] };
   s.est.lat += (hy * s.speed * dt) / (R_EARTH * DEG);
   s.est.lng += (hx * s.speed * dt) / (R_EARTH * DEG * Math.max(0.05, Math.cos(s.est.lat * DEG)));

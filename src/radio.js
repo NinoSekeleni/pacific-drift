@@ -33,7 +33,7 @@ function savePrefs(p) {
   try { localStorage.setItem(PREFS, JSON.stringify(p)); } catch (e) { /* storage unavailable */ }
 }
 
-export function createRadio({ audio, getState, onPlaylist }) {
+export function createRadio({ audio, getState, onPlaylist, onStation }) {
   const $ = (id) => document.getElementById(id);
   const panel = $('radio');
   const dial = $('dial');
@@ -209,6 +209,7 @@ export function createRadio({ audio, getState, onPlaylist }) {
       state.playing = true;
       playBtn.textContent = 'Pause';
       setStateText('On air');
+      if (onStation) onStation(s.name, s.country);
     }).catch(() => {
       if (my !== attempt) return;
       skipDead(dir);

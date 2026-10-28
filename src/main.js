@@ -13,6 +13,7 @@ import { createCompass } from './compass.js';
 import { drawVoyageChart } from './landfall.js';
 import { createMinimap } from './minimap.js';
 import { createSpray } from './spray.js';
+import { createLog } from './log.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 THREE.ColorManagement.enabled = false;
@@ -74,6 +75,7 @@ ocean.uniforms.uHullSeg.value.set(...HULL_MASK.seg, 0);
 ocean.uniforms.uAmaSeg.value.set(...HULL_MASK.ama);
 const rain = createRain(scene);
 const spray = createSpray(scene);
+const log = createLog();
 const birds = createBirds(scene);
 const audio = createAudio();
 const compass = createCompass($('compass'));
@@ -111,7 +113,8 @@ const radio = createRadio({
   audio,
   toast,
   getState: () => (voyage ? { lat: voyage.lat, lng: voyage.lng, heading: voyage.heading, night: nightNow, playlist: voyage.playlist } : { lat: 0, lng: 0, heading: 0, night: false, playlist: '' }),
-  onPlaylist: (p) => { voyage.playlist = p; saveVoyage(voyage); }
+  onPlaylist: (p) => { voyage.playlist = p; saveVoyage(voyage); },
+  onStation: (name, country) => log.radio(name, country)
 });
 
 /* ---------- Input ---------- */
@@ -136,7 +139,7 @@ function requestLock() {
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
   if (locked) { dragMode = false; return; }
-  if (started && !radio.open && !dragMode) pause();
+  if (started && !radio.open && $('logbook').hidden && !dragMode) pause();
 });
 document.addEventListener('pointerlockerror', () => { dragMode = true; });
 document.addEventListener('mousemove', (e) => {
@@ -153,6 +156,7 @@ window.addEventListener('mouseup', () => { dragging = false; });
 
 function toggleSail() {
   voyage.sail = !voyage.sail;
+  log.add(voyage.sail ? `Raised the sail and lashed the steering, heading ${Math.round(voyage.heading)}°.` : 'Lowered the sail and let her drift.', 'canoe');
   toast(voyage.sail ? 'Sail raised. With the steering oar lashed, the canoe holds its heading.' : 'Sail lowered. The canoe will drift with the wind and current.');
   saveVoyage(voyage);
 }
@@ -162,6 +166,7 @@ function toggleStars() {
 }
 function toggleLantern() {
   voyage.lantern = !lanternOn;
+  log.add(voyage.lantern ? 'Lit the lantern.' : 'Put the lantern out to see the stars.', 'canoe');
   toast(voyage.lantern ? 'Lantern lit.' : 'Lantern out. Your eyes will adjust to the starlight.');
   saveVoyage(voyage);
 }
@@ -172,6 +177,7 @@ function toggleRadio() {
 
 window.addEventListener('keydown', (e) => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (!$('logbook').hidden && (e.code === 'Escape' || e.code === 'KeyJ')) { openLog(false); return; }
   if (!started || paused) {
     if (e.code === 'Enter' && !$('begin').hidden && document.activeElement === document.body) begin();
     return;
@@ -182,6 +188,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') toggleRadio();
   if (e.code === 'KeyC') toggleStars();
   if (e.code === 'KeyL') toggleLantern();
+  if (e.code === 'KeyJ') openLog($('logbook').hidden);
   if (e.code === 'KeyN') { $('mapWrap').hidden = !$('mapWrap').hidden; }
   if (e.code === 'KeyH') { $('controlsHud').hidden = !$('controlsHud').hidden; }
   if (e.code === 'Equal' || e.code === 'NumpadAdd') minimap && minimap.zoom(-1);
@@ -205,7 +212,8 @@ window.addEventListener('touchstart', (e) => {
 window.addEventListener('touchmove', (e) => {
   for (const t of e.changedTouches) {
     if (t.identifier === lookTouch.id) {
-      look(t.clientX - lookTouch.x, t.clientY - lookTouch.y, 0.005);
+      if (tilt && tilt.yaw0 !== null) tilt.yaw0 += (t.clientX - lookTouch.x) * 0.005;
+      else look(t.clientX - lookTouch.x, t.clientY - lookTouch.y, 0.005);
       lookTouch.x = t.clientX; lookTouch.y = t.clientY;
     }
   }
@@ -226,6 +234,52 @@ $('tSail').addEventListener('click', toggleSail);
 $('tRadio').addEventListener('click', toggleRadio);
 $('tStars').addEventListener('click', toggleStars);
 $('tLamp').addEventListener('click', toggleLantern);
+$('tMap').addEventListener('click', () => { $('mapWrap').hidden = !$('mapWrap').hidden; });
+
+/* ---------- Tilt to look (phone motion sensor) ---------- */
+let tilt = null;
+const devQ = new THREE.Quaternion(), devE = new THREE.Euler(), zAxis = new THREE.Vector3(0, 0, 1);
+const qScreen = new THREE.Quaternion(), qUpright = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+function onOrient(ev) {
+  if (!tilt || ev.alpha == null) return;
+  const orient = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * DEG;
+  devE.set(ev.beta * DEG, ev.alpha * DEG, -ev.gamma * DEG, 'YXZ');
+  devQ.setFromEuler(devE).multiply(qUpright).multiply(qScreen.setFromAxisAngle(zAxis, -orient));
+  const e = new THREE.Euler().setFromQuaternion(devQ, 'YXZ');
+  if (tilt.yaw0 === null) tilt.yaw0 = e.y - yawRel;
+  let y = e.y - tilt.yaw0;
+  y = Math.atan2(Math.sin(y), Math.cos(y));
+  yawRel = Math.max(-170 * DEG, Math.min(170 * DEG, y));
+  pitch = Math.max(-LIMIT, Math.min(LIMIT, e.x));
+}
+async function toggleTilt() {
+  const btn = $('tTilt');
+  if (tilt) {
+    window.removeEventListener('deviceorientation', onOrient);
+    tilt = null;
+    btn.setAttribute('aria-pressed', 'false');
+    return;
+  }
+  try {
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== 'granted') { toast('Motion access was declined, so drag to look around instead.'); return; }
+    }
+  } catch (e) { toast('This browser does not share motion, so drag to look around instead.'); return; }
+  if (!('DeviceOrientationEvent' in window)) { toast('This device has no motion sensor, so drag to look around instead.'); return; }
+  tilt = { yaw0: null };
+  window.addEventListener('deviceorientation', onOrient);
+  btn.setAttribute('aria-pressed', 'true');
+  toast('Hold your phone up and turn to look around. Drag to turn your view.');
+}
+$('tTilt').addEventListener('click', toggleTilt);
+$('tLog').addEventListener('click', () => openLog(true));
+function openLog(open) {
+  $('logbook').hidden = !open;
+  if (open) { log.render($('logBody')); if (locked) document.exitPointerLock(); }
+}
+$('logClose').addEventListener('click', () => openLog(false));
+$('readLog').addEventListener('click', () => openLog(true));
 
 /* ---------- Overlays ---------- */
 function pause() {
@@ -264,6 +318,7 @@ $('navToggle').addEventListener('click', () => {
 
 function showLandfall() {
   landfallShown = true;
+  if (!voyage.log || !voyage.log.some((e) => e.kind === 'landfall')) log.add(`Landfall. ${voyage.landfall.name === 'an unnamed shore' ? 'An unnamed shore' : voyage.landfall.name}, after ${humanDuration(voyage.landfall.t - voyage.start)} at sea.`, 'landfall', voyage.landfall.t);
   paused = true;
   if (locked) document.exitPointerLock();
   const L = voyage.landfall;
@@ -285,6 +340,7 @@ $('newVoyage').addEventListener('click', () => {
   clearVoyage();
   voyage = newVoyage(now());
   voyage.playlist = keep;
+  log.attach(voyage);
   saveVoyage(voyage);
   landfallShown = false;
   origin = null;
@@ -329,6 +385,7 @@ function frame() {
     const gap = (tNow - voyage.t) / 1000;
     if (gap > 5) {
       const r = catchUp(voyage, tNow, land);
+      if (r.away > 30 * 60e3) log.add(`Away from the canoe for ${humanDuration(r.away)}. ${voyage.sail ? 'She sailed on by herself.' : 'She drifted on the wind and current.'}`, 'away');
       if (started && r.away > 60000) toast(`You were away for ${humanDuration(r.away)}. ${voyage.sail ? 'The canoe kept sailing on its heading.' : 'The canoe drifted with the wind and current.'}`, 5000);
       origin = null;
     }
@@ -339,6 +396,7 @@ function frame() {
     const g = Math.max(0, (tNow - voyage.t) / 1000);
     cond = step(voyage, g, input, land, simCache);
     cond.input = input;
+    if (started) log.tick(cond.w);
   } else if (!cond) {
     cond = step(Object.assign({}, voyage, { track: [] }), 0.001, { paddle: 0, steer: 0 }, null, simCache);
     cond.input = { paddle: 0, steer: 0 };
@@ -395,6 +453,7 @@ function frame() {
     flash = 0.7 + Math.random() * 0.8;
     const distKm = 1 + Math.random() * 9;
     audio.thunder(distKm / 0.343, Math.min(1, 2.2 / distKm + 0.25));
+    log.storm();
   }
   if (flash > 0.001) {
     const f = flash * (0.6 + 0.4 * Math.sin(elapsed * 90));
@@ -605,6 +664,7 @@ async function boot() {
   }, undefined, () => {});
 
   const fresh = !voyage;
+  let bootAway = 0;
   if (!voyage) voyage = newVoyage(now());
   if (DEBUG && params.get('at')) {
     const [la, lo] = params.get('at').split(',').map(Number);
@@ -615,6 +675,7 @@ async function boot() {
 
   if (!voyage.landfall) {
     const r = catchUp(voyage, now(), land);
+    bootAway = r.away;
     if (!fresh && r.away > 120000) {
       const note = $('awayNote');
       note.hidden = false;
@@ -626,6 +687,8 @@ async function boot() {
     $('introLede').textContent = `Day ${Math.floor((now() - voyage.start) / 864e5) + 1} of your voyage from Point Nemo. Your compass, your radio and the sky are where you left them.`;
     $('begin').textContent = 'Return to the canoe';
   }
+  log.attach(voyage);
+  if (!fresh && bootAway > 30 * 60e3) log.add(`Away from the canoe for ${humanDuration(bootAway)}. ${voyage.sail ? 'She sailed on by herself.' : 'She drifted on the wind and current.'}`, 'away');
   syncNav();
   $('loadNote').hidden = true;
   $('begin').disabled = false;

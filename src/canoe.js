@@ -145,7 +145,7 @@ export function createCanoe(scene) {
   const ash = new THREE.MeshStandardMaterial({ color: 0xd9ab6a, roughness: 0.45 });
   const walnut = new THREE.MeshStandardMaterial({ color: 0x8a4a26, roughness: 0.4 });
   const cane = new THREE.MeshStandardMaterial({ map: caneTex(), alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, roughness: 0.7 });
-  const sailMat = new THREE.MeshStandardMaterial({ color: 0xe6dcc4, roughness: 0.92, side: THREE.DoubleSide });
+  const sailMat = new THREE.MeshStandardMaterial({ color: 0xf0e6cf, roughness: 0.95, side: THREE.DoubleSide, transparent: true, opacity: 0.94 });
 
   const canoe = new THREE.Group();
   const hullGeo = hullGeometry();
@@ -242,7 +242,7 @@ export function createCanoe(scene) {
   const rig = new THREE.Group();
   rig.position.set(0, keelAt(sAt(-0.95)) + 0.02, -0.95);
   canoe.add(rig);
-  const MAST_H = 3.3, BOOM_Y = 0.5, BOOM_L = 2.1;
+  const MAST_H = 2.7, BOOM_Y = 0.55, BOOM_L = 1.7;
   rig.add(rod(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, MAST_H, 0), 0.028, woodSpar));
   const boom = rod(new THREE.Vector3(0, BOOM_Y, 0), new THREE.Vector3(0, BOOM_Y, BOOM_L), 0.022, woodSpar);
   rig.add(boom);
@@ -411,7 +411,7 @@ export function createCanoe(scene) {
     const swing = leeward * Math.min(75, Math.max(8, Math.abs(rel) * 0.5));
     sailState.angle += (swing * DEG - sailState.angle) * Math.min(1, o.dt * 0.8);
     rig.rotation.y = sailState.angle; // boom trails aft and swings to leeward
-    shapeSail(leeward * Math.min(0.5, 0.1 + o.windSpeed * 0.03) * (o.sailUp ? 1 : 0.2), o.t);
+    shapeSail(leeward * Math.min(0.42, 0.14 + o.windSpeed * 0.03) * (o.sailUp ? 1 : 0.2), o.t);
 
     // Lantern: a kerosene flame flickers; light fades in and out when trimmed
     lampLevel += ((o.lantern ? 1 : 0) - lampLevel) * Math.min(1, o.dt * 3);

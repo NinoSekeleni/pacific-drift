@@ -104,7 +104,8 @@ const WAVE_GLSL = /* glsl */`
     float dHull = max(abs(across) - hb, abs(along) - uHullSeg.x);
     float dAma = segDist(q, vec2(uAmaSeg.x, uAmaSeg.y), vec2(uAmaSeg.x, uAmaSeg.z)) - uAmaSeg.w;
     float d = min(dHull, dAma);
-    float w = 1.0 - smoothstep(0.0, 1.5, d);
+    // Only the water that would show inside the hull is touched; the open sea outside is left alone
+    float w = 1.0 - smoothstep(-0.1, 0.02, dHull);
     float plane = uHull.z + along * uHullAx.z + across * uHullAx.w;
     float inside = 1.0 - smoothstep(-0.14, 0.04, dHull);
     return vec3(w, plane, inside);
@@ -167,7 +168,7 @@ export function createOcean(renderer, scene, skyUniforms) {
         vec2 moved = base + disp.xz;
         vec3 hm = hullMask(moved);
         wp.xz = moved;
-        wp.y = mix(disp.y, hm.y - 0.5 * hm.z, hm.x);
+        wp.y = mix(disp.y, min(disp.y, hm.y - 0.5), hm.x);
         vWorld = wp.xyz;
         vBase = base;
         vH = disp.y * (1.0 - hm.x);
