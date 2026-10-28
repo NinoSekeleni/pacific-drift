@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Land, toLocal, distance } from './geo.js';
 import { skyBodies, bodyDir, equatorialToLocal } from './astro.js';
-import { newVoyage, loadVoyage, saveVoyage, clearVoyage, step, catchUp } from './voyage.js';
+import { newVoyage, loadVoyage, saveVoyage, clearVoyage, step, catchUp, useStorageKey } from './voyage.js';
 import { createSky, palette, LAYER_FAR, LAYER_NEAR } from './sky.js';
 import { createOcean } from './ocean.js';
 import { createIslands, createBirds } from './islands.js';
@@ -16,6 +16,7 @@ THREE.ColorManagement.enabled = false;
 const DEG = Math.PI / 180;
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
+if (DEBUG) useStorageKey('pacific-drift-debug'); // test runs never touch a player's real voyage
 const $ = (id) => document.getElementById(id);
 const BASE = import.meta.env.BASE_URL;
 
@@ -98,6 +99,7 @@ let paused = true;
 let landfallShown = false;
 const simCache = {};
 let cond = null;
+let nightNow = false;
 
 const radio = createRadio({
   audio,
@@ -105,7 +107,6 @@ const radio = createRadio({
   getState: () => (voyage ? { lat: voyage.lat, lng: voyage.lng, heading: voyage.heading, night: nightNow, playlist: voyage.playlist } : { lat: 0, lng: 0, heading: 0, night: false, playlist: '' }),
   onPlaylist: (p) => { voyage.playlist = p; saveVoyage(voyage); }
 });
-let nightNow = false;
 
 /* ---------- Input ---------- */
 const keys = new Set();

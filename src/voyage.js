@@ -3,7 +3,8 @@ import { weatherAt, currentAt, lowsAt } from './weather.js';
 import { distance, R_EARTH } from './geo.js';
 
 const DEG = Math.PI / 180;
-const KEY = 'pacific-drift-voyage-v1';
+let KEY = 'pacific-drift-voyage-v1';
+export function useStorageKey(k) { KEY = k; }
 export const POINT_NEMO = { lat: -48.8767, lng: -123.3933 };
 export const DEFAULT_PLAYLIST = 'spotify:playlist:2crIyukpd3DVtlDBIK8ERM';
 
