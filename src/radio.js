@@ -7,6 +7,40 @@ const PREFS = 'pacific-drift-radio-v1';
 const HLS_OK = (() => { try { return !!new Audio().canPlayType('application/vnd.apple.mpegurl'); } catch (e) { return false; } })();
 const playable = (url) => url.startsWith('https://') && (HLS_OK || !/\.m3u8|\/hls\//i.test(url));
 
+
+// The listener's own country, so their home stations sit at the top of the dial. Taken from the
+// browser's region, or failing that its time zone.
+const TZ_COUNTRY = {
+  'Africa/Johannesburg': 'ZA', 'Africa/Maseru': 'LS', 'Africa/Mbabane': 'SZ', 'Africa/Windhoek': 'NA', 'Africa/Gaborone': 'BW',
+  'Africa/Harare': 'ZW', 'Africa/Maputo': 'MZ', 'Africa/Lusaka': 'ZM', 'Africa/Nairobi': 'KE', 'Africa/Lagos': 'NG', 'Africa/Accra': 'GH',
+  'Africa/Cairo': 'EG', 'Africa/Casablanca': 'MA', 'Africa/Kampala': 'UG', 'Africa/Dar_es_Salaam': 'TZ', 'Africa/Addis_Ababa': 'ET',
+  'Africa/Kigali': 'RW', 'Africa/Abidjan': 'CI', 'Africa/Dakar': 'SN', 'Africa/Tunis': 'TN', 'Africa/Algiers': 'DZ',
+  'Europe/London': 'GB', 'Europe/Dublin': 'IE', 'Europe/Paris': 'FR', 'Europe/Berlin': 'DE', 'Europe/Madrid': 'ES', 'Europe/Rome': 'IT',
+  'Europe/Amsterdam': 'NL', 'Europe/Brussels': 'BE', 'Europe/Lisbon': 'PT', 'Europe/Zurich': 'CH', 'Europe/Vienna': 'AT', 'Europe/Stockholm': 'SE',
+  'Europe/Oslo': 'NO', 'Europe/Copenhagen': 'DK', 'Europe/Helsinki': 'FI', 'Europe/Warsaw': 'PL', 'Europe/Prague': 'CZ', 'Europe/Athens': 'GR',
+  'Europe/Istanbul': 'TR', 'Europe/Kiev': 'UA', 'Europe/Kyiv': 'UA', 'Europe/Moscow': 'RU', 'Europe/Bucharest': 'RO', 'Europe/Budapest': 'HU',
+  'America/New_York': 'US', 'America/Chicago': 'US', 'America/Denver': 'US', 'America/Los_Angeles': 'US', 'America/Phoenix': 'US',
+  'America/Anchorage': 'US', 'Pacific/Honolulu': 'US', 'America/Toronto': 'CA', 'America/Vancouver': 'CA', 'America/Mexico_City': 'MX',
+  'America/Sao_Paulo': 'BR', 'America/Argentina/Buenos_Aires': 'AR', 'America/Santiago': 'CL', 'America/Bogota': 'CO', 'America/Lima': 'PE',
+  'Asia/Tokyo': 'JP', 'Asia/Seoul': 'KR', 'Asia/Shanghai': 'CN', 'Asia/Hong_Kong': 'HK', 'Asia/Singapore': 'SG', 'Asia/Kolkata': 'IN',
+  'Asia/Calcutta': 'IN', 'Asia/Dubai': 'AE', 'Asia/Jakarta': 'ID', 'Asia/Manila': 'PH', 'Asia/Bangkok': 'TH', 'Asia/Karachi': 'PK',
+  'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Australia/Brisbane': 'AU', 'Australia/Perth': 'AU', 'Australia/Adelaide': 'AU',
+  'Pacific/Auckland': 'NZ', 'Pacific/Fiji': 'FJ', 'Pacific/Tahiti': 'PF'
+};
+function homeCountry() {
+  try {
+    for (const l of navigator.languages || [navigator.language]) {
+      const m = /[-_]([A-Za-z]{2})$/.exec(l || '');
+      if (m && !['US', 'GB'].includes(m[1].toUpperCase())) return m[1].toUpperCase();
+    }
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (TZ_COUNTRY[tz]) return TZ_COUNTRY[tz];
+    for (const l of navigator.languages || []) { const m = /[-_]([A-Za-z]{2})$/.exec(l || ''); if (m) return m[1].toUpperCase(); }
+  } catch (e) { /* no locale information */ }
+  return null;
+}
+const ALIASES = { sa: 'ZA', rsa: 'ZA', mzansi: 'ZA', uk: 'GB', britain: 'GB', england: 'GB', usa: 'US', us: 'US', america: 'US', uae: 'AE', holland: 'NL' };
+
 async function rb(path) {
   for (const host of HOSTS) {
     try {
@@ -55,13 +89,15 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   stream.preload = 'none';
 
   const prefs = loadPrefs();
+  const HOME = homeCountry();
+  let countries = [];
   const state = {
     open: false,
     on: false,
     mode: 'WORLD',
     list: [],
     index: -1,
-    source: prefs.source || { type: 'top' },
+    source: prefs.source || (HOME ? { type: 'country', code: HOME } : { type: 'top' }),
     loading: false,
     playing: false,
     staticUntil: 0
@@ -106,11 +142,19 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
     const base = '&hidebroken=true&order=clickcount&reverse=true&limit=180';
     if (source.type === 'country') res = await rb(`/json/stations/search?countrycode=${encodeURIComponent(source.code)}${base}`);
     else if (source.type === 'search') {
-      const [byName, byTag] = await Promise.all([
+      // A country typed into the search ("South Africa", "SA", "Kenya") brings up its stations first
+      const ql = source.q.toLowerCase().trim();
+      const codes = new Set();
+      if (ALIASES[ql]) codes.add(ALIASES[ql]);
+      if (ql.length === 2) codes.add(ql.toUpperCase());
+      if (ql.length >= 3) for (const c of countries) if (c.name.toLowerCase().includes(ql)) codes.add(c.iso_3166_1);
+      const byCountry = [...codes].slice(0, 3).map((code) => rb(`/json/stations/search?countrycode=${code}${base}`));
+      const all = await Promise.all([
+        ...byCountry,
         rb(`/json/stations/search?name=${encodeURIComponent(source.q)}${base}`),
-        rb(`/json/stations/search?tag=${encodeURIComponent(source.q.toLowerCase())}${base}`)
+        rb(`/json/stations/search?tag=${encodeURIComponent(ql)}${base}`)
       ]);
-      res = (byName || []).concat(byTag || []);
+      res = all.flatMap((r) => r || []);
     } else res = await rb(`/json/stations/search?${base.slice(1)}`);
     state.loading = false;
     if (!res) {
@@ -139,13 +183,25 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   async function loadCountries() {
     const res = await rb('/json/countries?order=stationcount&reverse=true&hidebroken=true');
     if (!res) return;
-    const countries = res.filter((c) => c.stationcount >= 5 && c.iso_3166_1).sort((a, b) => a.name.localeCompare(b.name));
-    for (const c of countries) {
+    countries = res.filter((c) => c.stationcount >= 5 && c.iso_3166_1).sort((a, b) => a.name.localeCompare(b.name));
+    const opt = (c, label) => {
       const o = document.createElement('option');
       o.value = c.iso_3166_1;
-      o.textContent = `${c.name} (${c.stationcount})`;
-      countrySel.appendChild(o);
+      o.textContent = label || `${c.name} (${c.stationcount})`;
+      return o;
+    };
+    // Your own country first, then every country A to Z
+    const home = countries.find((c) => c.iso_3166_1 === HOME);
+    if (home) {
+      const g = document.createElement('optgroup');
+      g.label = 'Your country';
+      g.appendChild(opt(home, `${home.name} (${home.stationcount})`));
+      countrySel.appendChild(g);
     }
+    const g = document.createElement('optgroup');
+    g.label = 'All countries';
+    for (const c of countries) if (c !== home) g.appendChild(opt(c));
+    countrySel.appendChild(g);
     if (state.source.type === 'country') countrySel.value = state.source.code;
   }
 

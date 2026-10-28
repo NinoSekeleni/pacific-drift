@@ -364,6 +364,28 @@ let lanternOn = false;
 let flash = 0, lastHeaveSign = 0, lapCool = 0, wakeDist = 0;
 let minimap = null;
 const sunV = new THREE.Vector3(), moonV = new THREE.Vector3();
+
+// Distance to the nearest land, searched outward in widening rings and refreshed every few seconds.
+// In navigator mode it is measured from where you reckon you are, not where the canoe really is.
+let landDist = { at: -Infinity, text: '' };
+function updateLandDistance(elapsed) {
+  if (!land || elapsed - landDist.at < 4) return;
+  landDist.at = elapsed;
+  const reckon = voyage.nav && voyage.est;
+  const lat = reckon ? voyage.est.lat : voyage.lat, lng = reckon ? voyage.est.lng : voyage.lng;
+  let best = { d: Infinity };
+  for (const r of [300e3, 1200e3, 3500e3, 8000e3]) {
+    best = land.nearestCoast(lat, lng, r);
+    if (best.d <= r) break;
+  }
+  const out = $('landOut');
+  if (!Number.isFinite(best.d)) { out.textContent = ''; return; }
+  const km = best.d / 1000;
+  const n = km < 10 ? km.toFixed(1) : Math.round(km).toLocaleString();
+  out.textContent = `${reckon ? '≈ ' : ''}${n} km to land`;
+  out.title = best.poly && best.poly.name ? `Nearest land: ${best.poly.name}${reckon ? ' (by your reckoning)' : ''}` : 'Distance to the nearest land';
+}
+
 const clock = new THREE.Clock();
 let lastSave = 0, lastHud = 0, firstFrame = true, prevHeave = 0;
 const off = new THREE.Vector2();
@@ -603,6 +625,7 @@ function frame() {
 
   if (elapsed - lastHud > 0.5) {
     lastHud = elapsed;
+    updateLandDistance(elapsed);
     const d = new Date(tNow);
     $('clockOut').textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     $('dayOut').textContent = `Day ${Math.floor((tNow - voyage.start) / 864e5) + 1}`;

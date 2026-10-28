@@ -19,6 +19,7 @@
   <header class="hud-top">
     <div class="wordmark">Pacific Drift</div>
     <div class="watch" aria-live="off">
+      <span id="landOut" title="Distance to the nearest land"></span>
       <span id="dayOut">Day 1</span>
       <span id="clockOut">--:--</span>
     </div>
@@ -86,8 +87,8 @@
           <option value="">Most listened worldwide</option>
         </select>
         <form id="stationSearch" class="search">
-          <label class="sr-only" for="stationQuery">Search stations by name or genre</label>
-          <input id="stationQuery" type="search" placeholder="Search a station or genre, like jazz" autocomplete="off">
+          <label class="sr-only" for="stationQuery">Search stations by name, genre or country</label>
+          <input id="stationQuery" type="search" placeholder="Search a station, genre or country" autocomplete="off">
           <button type="submit">Find</button>
         </form>
       </div>

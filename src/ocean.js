@@ -107,7 +107,7 @@ const WAVE_GLSL = /* glsl */`
     // Only the water that would show inside the hull is touched; the open sea outside is left alone
     float w = 1.0 - smoothstep(-0.1, 0.02, dHull);
     float plane = uHull.z + along * uHullAx.z + across * uHullAx.w;
-    float inside = 1.0 - smoothstep(-0.14, 0.04, dHull);
+    float inside = 1.0 - smoothstep(0.25, 0.9, dHull);
     return vec3(w, plane, inside);
   }
 `;
@@ -170,7 +170,10 @@ export function createOcean(renderer, scene, skyUniforms) {
         wp.xz = moved;
         // The sea itself is never bent around the canoe; a depth-only lid over the hull opening
         // (drawn just before the sea) keeps water from ever showing inside the boat
-        wp.y = disp.y;
+        // Beside the hull the sea is never allowed above the gunwales, so a passing crest wraps
+        // around the canoe instead of rolling over it. Ordinary water is left untouched.
+        float lid = hm.y + 0.13;
+        wp.y = mix(disp.y, min(disp.y, lid), hm.z);
         vWorld = wp.xyz;
         vBase = base;
         vH = disp.y * (1.0 - hm.x);
@@ -202,6 +205,17 @@ export function createOcean(renderer, scene, skyUniforms) {
       }
 
       void main() {
+        // Any water inside the hull's outline that stands above the gunwale line is simply not drawn
+        // (below that line the depth-only lid over the canoe already hides it)
+        if (uHull.w > 0.5) {
+          vec2 rel = vWorld.xz - uHull.xy;
+          float al = dot(rel, uHullAx.xy), ac = dot(rel, vec2(-uHullAx.y, uHullAx.x));
+          float sl = clamp(abs(al) / uHullSeg.x, 0.0, 1.0);
+          float hb = uHullSeg.y * pow(max(0.0, 1.0 - pow(sl, 2.3)), 0.72);
+          float dH = max(abs(ac) - hb, abs(al) - uHullSeg.x);
+          float pl = uHull.z + al * uHullAx.z + ac * uHullAx.w;
+          if (dH < -0.015 && vWorld.y > pl + 0.08) discard;
+        }
         vec3 toCam = cameraPosition - vWorld;
         float dist = length(toCam);
         vec3 V = toCam / dist;

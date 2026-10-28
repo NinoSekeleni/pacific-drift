@@ -421,7 +421,13 @@ export function createCanoe(scene) {
       Sy += wgt * y; Say += wgt * al * y; Scy += wgt * ac * y;
     }
     const sol = solve3([[S0, Sa, Sc], [Sa, Saa, Sac], [Sc, Sac, Scc]], [Sy, Say, Scy]);
-    const heave = sol[0];
+    // A short steep crest under part of the hull lifts the canoe over it rather than burying the bow
+    let over = 0;
+    for (const [al, ac] of WET) {
+      o.ocean.sample(o.x + fx * al + rx * ac, o.z + fz * al + rz * ac, o.waveT, samp);
+      over = Math.max(over, samp.h - (sol[0] + sol[1] * al + sol[2] * ac));
+    }
+    const heave = sol[0] + Math.max(0, over - 0.05) * 0.85;
     const pitch = Math.atan(sol[1]);
     const roll = Math.atan(sol[2]) * 1.15; // an open canoe is tender and rolls readily
     // After a long frame (a hidden tab, a slow device) the hull simply settles where the sea now is
@@ -586,22 +592,29 @@ export function createCanoe(scene) {
     const fitted = [];
     holder.traverse((o) => { if (o.isMesh) fitted.push(o); });
     buildCap(fitted);
-    // Seat the lantern on the bow deck, wherever the model's deck actually is
     canoe.updateMatrixWorld(true);
     const ray = new THREE.Raycaster();
     const meshes = [];
     holder.traverse((o) => { if (o.isMesh) meshes.push(o); });
-    const zDeck = BOW_Z + 0.4;
-    const from = new THREE.Vector3(0, 3, zDeck).applyMatrix4(canoe.matrixWorld);
     const down = new THREE.Vector3(0, -1, 0).transformDirection(canoe.matrixWorld);
-    ray.set(from, down);
     ray.layers.enableAll();
-    const hit = ray.intersectObjects(meshes, false)[0];
-    if (hit) {
-      const local = canoe.worldToLocal(hit.point.clone());
-      lantern.position.set(0, local.y + 0.004, zDeck);
+    // Seat the lantern on the yoke, the carved board across the middle of the canoe. Find it by
+    // looking for the raised run of surface amidships (beside its centre hole) and stand the lantern
+    // on top, centred over the hole.
+    let run = null, best = null;
+    for (let z = -0.4; z <= 0.4; z += 0.01) {
+      let top = -Infinity;
+      for (const x of [-0.08, 0.08]) {
+        ray.set(new THREE.Vector3(x, 3, z).applyMatrix4(canoe.matrixWorld), down);
+        const h = ray.intersectObjects(meshes, false)[0];
+        if (h) top = Math.max(top, canoe.worldToLocal(h.point.clone()).y);
+      }
+      if (top > 0.08) { if (!run) run = { z0: z, z1: z, y: top }; run.z1 = z; run.y = Math.max(run.y, top); }
+      else if (run) { if (!best || run.z1 - run.z0 > best.z1 - best.z0) best = run; run = null; }
     }
-    return { halfBeam: BEAM, depth: GUN - KEEL, deck: hit ? lantern.position.y : null };
+    if (run && (!best || run.z1 - run.z0 > best.z1 - best.z0)) best = run;
+    if (best) lantern.position.set(0, best.y + 0.004, (best.z0 + best.z1) / 2);
+    return { halfBeam: BEAM, depth: GUN - KEEL, deck: best ? lantern.position.y : null };
   }
 
   return { group: canoe, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; } };
