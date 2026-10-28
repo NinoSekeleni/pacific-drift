@@ -168,7 +168,9 @@ export function createOcean(renderer, scene, skyUniforms) {
         vec2 moved = base + disp.xz;
         vec3 hm = hullMask(moved);
         wp.xz = moved;
-        wp.y = mix(disp.y, min(disp.y, hm.y - 0.5), hm.x);
+        // The sea itself is never bent around the canoe; a depth-only lid over the hull opening
+        // (drawn just before the sea) keeps water from ever showing inside the boat
+        wp.y = disp.y;
         vWorld = wp.xyz;
         vBase = base;
         vH = disp.y * (1.0 - hm.x);

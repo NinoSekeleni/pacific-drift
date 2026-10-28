@@ -237,6 +237,56 @@ export function createCanoe(scene) {
 
   const hullParts = canoe.children.slice(); // the built-in canoe, replaced if the Magnific model loads
 
+  // A lid over the hull's opening that writes depth but no colour. It is drawn after the canoe and
+  // before the sea, so any water that would show inside the boat fails the depth test, whatever
+  // the waves are doing, while everything in the canoe has already been painted underneath it.
+  const capMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
+  let cap = null;
+  function buildCap(meshes) {
+    canoe.updateMatrixWorld(true);
+    const inv = canoe.matrixWorld.clone().invert();
+    const m = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const pts = [];
+    for (const o of meshes) {
+      const pos = o.geometry.attributes.position;
+      m.multiplyMatrices(inv, o.matrixWorld);
+      for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(m); pts.push(v.x, v.y, v.z); }
+    }
+    let z0 = Infinity, z1 = -Infinity;
+    for (let i = 2; i < pts.length; i += 3) { z0 = Math.min(z0, pts[i]); z1 = Math.max(z1, pts[i]); }
+    const N = 64, dz = (z1 - z0) / N;
+    const hb = new Float32Array(N + 1), top = new Float32Array(N + 1).fill(-Infinity);
+    for (let i = 0; i < pts.length; i += 3) {
+      const k = Math.round((pts[i + 2] - z0) / dz);
+      hb[k] = Math.max(hb[k], Math.abs(pts[i]));
+    }
+    for (let i = 0; i < pts.length; i += 3) {
+      const k = Math.round((pts[i + 2] - z0) / dz);
+      if (Math.abs(pts[i]) > hb[k] * 0.75) top[k] = Math.max(top[k], pts[i + 1]);
+    }
+    const verts = [], idx = [];
+    let n = 0;
+    for (let k = 0; k <= N; k++) {
+      if (hb[k] < 0.04 || !Number.isFinite(top[k])) continue;
+      // Tucked just inside the gunwales and a little below their tops, so it never overhangs the sea
+      const w = Math.max(0, hb[k] * 0.93 - 0.012), y = top[k] - 0.025, z = z0 + k * dz;
+      verts.push(-w, y, z, w, y, z);
+      if (n > 0) { const a = (n - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      n++;
+    }
+    if (cap) { canoe.remove(cap); cap.geometry.dispose(); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setIndex(idx);
+    cap = new THREE.Mesh(g, capMat);
+    cap.renderOrder = 1;
+    cap.frustumCulled = false;
+    cap.layers.set(LAYER_NEAR);
+    canoe.add(cap);
+  }
+  buildCap(hullParts.filter((o) => o.isMesh));
+
   // Small sprit sail on a mast stepped at the forward thwart
   const woodSpar = new THREE.MeshStandardMaterial({ color: 0xc9995a, roughness: 0.6 });
   const rig = new THREE.Group();
@@ -533,6 +583,9 @@ export function createCanoe(scene) {
     innerHull.visible = true;
     innerHull.scale.set(1.04, 1, 1.0);
     innerHull.position.y = -0.025;
+    const fitted = [];
+    holder.traverse((o) => { if (o.isMesh) fitted.push(o); });
+    buildCap(fitted);
     // Seat the lantern on the bow deck, wherever the model's deck actually is
     canoe.updateMatrixWorld(true);
     const ray = new THREE.Raycaster();
