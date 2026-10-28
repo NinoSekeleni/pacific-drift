@@ -20,7 +20,7 @@
     <div class="wordmark">Pacific Drift</div>
     <div class="watch" aria-live="off">
       <span id="dayOut">Day 1</span>
-      <span id="clockOut">--:-- UTC</span>
+      <span id="clockOut">--:--</span>
     </div>
   </header>
 
@@ -39,33 +39,37 @@
       <button id="radioPower" class="pill" type="button" aria-pressed="false">Off</button>
       <button id="radioClose" class="icon-btn" type="button" aria-label="Close the radio">×</button>
     </div>
-    <div class="bands" role="group" aria-label="Band">
-      <button type="button" data-band="SW" aria-pressed="true">SW</button>
-      <button type="button" data-band="MW" aria-pressed="false">MW</button>
-      <button type="button" data-band="FM" aria-pressed="false">FM</button>
-      <button type="button" data-band="LIST" aria-pressed="false">Tape</button>
+    <div class="bands two" role="group" aria-label="Radio source">
+      <button type="button" data-mode="WORLD" aria-pressed="true">World Radio</button>
+      <button type="button" data-mode="TAPE" aria-pressed="false">Tape</button>
     </div>
 
-    <div id="tunerPane">
-      <div class="readout-row">
-        <output id="radioFreq">9.410 MHz</output>
-        <div class="meter" id="radioMeter" aria-label="Signal strength"></div>
+    <div id="worldPane">
+      <div class="now">
+        <div id="radioStation" class="station">World Radio</div>
+        <div id="radioMeta" class="station-meta"></div>
+        <div id="radioState" class="station-state">Off</div>
       </div>
-      <div id="radioStation" class="station">Static</div>
-      <canvas id="dial" class="dial" aria-label="Tuning dial"></canvas>
-      <div class="row">
-        <button type="button" id="tuneDown">◂ Tune</button>
-        <button type="button" id="tuneUp">Tune ▸</button>
+      <canvas id="dial" class="dial" aria-label="Tuning dial: drag to move through the stations"></canvas>
+      <div class="row controls">
+        <button type="button" id="radioPrev" aria-label="Previous station">◂</button>
+        <button type="button" id="radioPlay">Play</button>
+        <button type="button" id="radioNext" aria-label="Next station">▸</button>
+        <button type="button" id="radioShuffle">Anywhere</button>
       </div>
-      <div class="antenna">
-        <span class="ant-label">Antenna</span>
-        <span class="ant-dial" aria-hidden="true"><i id="antennaArrow"></i></span>
-        <span id="antennaOut" class="ant-out">Pointing ahead</span>
-        <button type="button" id="antLeft" aria-label="Turn the antenna to port">⟲</button>
-        <button type="button" id="antRight" aria-label="Turn the antenna to starboard">⟳</button>
+      <div class="finder">
+        <label class="sr-only" for="countrySelect">Country</label>
+        <select id="countrySelect">
+          <option value="">Most listened worldwide</option>
+        </select>
+        <form id="stationSearch" class="search">
+          <label class="sr-only" for="stationQuery">Search stations by name or genre</label>
+          <input id="stationQuery" type="search" placeholder="Search a station or genre, like jazz" autocomplete="off">
+          <button type="submit">Find</button>
+        </form>
       </div>
+      <ul id="stationList" class="station-list" aria-label="Stations"></ul>
       <label class="vol" for="radioVolume">Volume <input type="range" id="radioVolume" min="0" max="100" value="75"></label>
-      <p class="radio-hint">Drag the dial or press , and . to tune, holding Shift for fine steps. Z and X turn the antenna, and a station comes in loudest when the antenna points toward it or directly away from it.</p>
     </div>
 
     <div id="tapePane" hidden>
@@ -92,6 +96,7 @@
       <button type="button" class="hud-btn" id="tSail">Sail</button>
       <button type="button" class="hud-btn" id="tRadio">Radio</button>
       <button type="button" class="hud-btn" id="tStars">Stars</button>
+      <button type="button" class="hud-btn" id="tLamp">Lantern</button>
     </div>
   </div>
 
@@ -106,12 +111,13 @@
         <li><kbd>A</kbd><kbd>D</kbd> steer</li>
         <li><kbd>E</kbd> raise or lower the sail</li>
         <li><kbd>R</kbd> radio</li>
+        <li><kbd>L</kbd> lantern</li>
         <li><kbd>C</kbd> star chart</li>
         <li><kbd>Mouse</kbd> look around</li>
         <li><kbd>M</kbd> sound</li>
         <li><kbd>Esc</kbd> pause</li>
       </ul>
-      <p class="fine">The voyage runs in real time and continues while you are away. Leave the sail up and the canoe keeps sailing its heading, or lower it and the canoe drifts.</p>
+      <p class="fine">The sky follows your own clock, so it is day on the water when it is day where you are. The voyage runs in real time and continues while you are away. Leave the sail up and the canoe keeps sailing its heading, or lower it and the canoe drifts.</p>
       <button id="begin" class="begin" type="button" disabled>Begin the voyage</button>
       <p class="fine" id="loadNote">Loading the ocean…</p>
     </div>

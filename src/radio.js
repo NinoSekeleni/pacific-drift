@@ -1,45 +1,17 @@
-// The canoe's radio: real stations from the Radio Browser directory, received the way they would be
-// from a small boat (FM by line of sight, AM further at night, shortwave from anywhere), a turnable
-// antenna for direction finding, the WWVH time signal, Taupo Maritime Radio's weather, and a tape deck
-// that plays a Spotify playlist.
-import { distance, bearing } from './geo.js';
-import { marineBulletin } from './weather.js';
+// World Radio: live stations from every country in the Radio Browser directory, all in clear reception
+// wherever the canoe is, tuned with a dial, by country or by search. The tape deck plays a Spotify playlist.
 import { DEFAULT_PLAYLIST } from './voyage.js';
 
 const HOSTS = ['https://de1.api.radio-browser.info', 'https://fi1.api.radio-browser.info', 'https://de2.api.radio-browser.info', 'https://nl1.api.radio-browser.info', 'https://at1.api.radio-browser.info'];
-const BANDS = {
-  SW: { min: 5.8, max: 17.9, step: 0.005, bw: 0.006, unit: 'MHz', digits: 3, label: 'Shortwave' },
-  MW: { min: 530, max: 1700, step: 10, bw: 6, unit: 'kHz', digits: 0, label: 'Medium wave' },
-  FM: { min: 87.5, max: 108, step: 0.1, bw: 0.09, unit: 'MHz', digits: 1, label: 'FM' },
-  LIST: { label: 'Tape' }
-};
-// [name, frequency on this dial (MHz), origin lat, lng, verified https stream or null to look up by exact name]
-const SW_BROADCASTERS = [
-  ['BBC World Service', 9.41, 51.5, -0.12, 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service'],
-  ['RFI Monde', 15.3, 48.85, 2.35, 'https://rfiafrique64k.ice.infomaniak.ch/rfimonde-64.mp3'],
-  ['Deutsche Welle', 6.075, 50.73, 7.1, 'https://dw.audiostream.io/dw/1027/mp3/64/dw08'],
-  ['ABC Radio Australia', 9.58, -33.9, 151.2, null],
-  ['NHK World', 11.815, 35.7, 139.7, null]
-];
+const PREFS = 'pacific-drift-radio-v1';
 const HLS_OK = (() => { try { return !!new Audio().canPlayType('application/vnd.apple.mpegurl'); } catch (e) { return false; } })();
 const playable = (url) => url.startsWith('https://') && (HLS_OK || !/\.m3u8|\/hls\//i.test(url));
-const WWVH = { lat: 21.99, lng: -159.76 };
-const TAUPO = { lat: -38.7, lng: 176.1 };
 
-function hashStr(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return (h >>> 0) / 4294967296;
-}
-function fade(t, seed) {
-  const a = Math.sin(t / 7.3 + seed * 40) * 0.5 + Math.sin(t / 2.9 + seed * 17) * 0.3 + Math.sin(t / 19 + seed * 9) * 0.2;
-  return 0.5 + 0.5 * a;
-}
 async function rb(path) {
   for (const host of HOSTS) {
     try {
       const ctl = new AbortController();
-      const id = setTimeout(() => ctl.abort(), 7000);
+      const id = setTimeout(() => ctl.abort(), 8000);
       const r = await fetch(host + path, { signal: ctl.signal });
       clearTimeout(id);
       if (r.ok) return await r.json();
@@ -54,219 +26,317 @@ export function parsePlaylist(input) {
   return m ? `spotify:${m[1]}:${m[2]}` : null;
 }
 
-export function createRadio({ audio, getState, onPlaylist, toast }) {
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS)) || {}; } catch (e) { return {}; }
+}
+function savePrefs(p) {
+  try { localStorage.setItem(PREFS, JSON.stringify(p)); } catch (e) { /* storage unavailable */ }
+}
+
+export function createRadio({ audio, getState, onPlaylist }) {
   const $ = (id) => document.getElementById(id);
   const panel = $('radio');
   const dial = $('dial');
   const ctx2d = dial.getContext('2d');
-  const freqOut = $('radioFreq');
-  const stationOut = $('radioStation');
-  const meter = $('radioMeter');
-  const antennaOut = $('antennaOut');
-  const antennaArrow = $('antennaArrow');
+  const nameOut = $('radioStation');
+  const metaOut = $('radioMeta');
+  const stateOut = $('radioState');
+  const listEl = $('stationList');
+  const countrySel = $('countrySelect');
+  const searchForm = $('stationSearch');
+  const searchInput = $('stationQuery');
   const powerBtn = $('radioPower');
+  const playBtn = $('radioPlay');
   const volume = $('radioVolume');
-  const listPane = $('tapePane');
-  const tunerPane = $('tunerPane');
+  const worldPane = $('worldPane');
+  const tapePane = $('tapePane');
   const playlistInput = $('playlistInput');
   const stream = new Audio();
   stream.preload = 'none';
 
+  const prefs = loadPrefs();
   const state = {
     open: false,
     on: false,
-    band: 'SW',
-    freq: { SW: 9.41, MW: 900, FM: 98.1 },
-    antenna: 0, // degrees off the bow, clockwise
-    stations: [],
-    local: [],
-    lastFetch: { lat: 999, lng: 999, t: 0 },
-    fetching: false,
-    current: null,
-    se: 0,
-    lastSecond: -1,
-    speaking: null,
-    nextBulletin: 0
+    mode: 'WORLD',
+    list: [],
+    index: -1,
+    source: prefs.source || { type: 'top' },
+    loading: false,
+    playing: false,
+    staticUntil: 0
   };
+  if (Number.isFinite(prefs.volume)) volume.value = String(prefs.volume);
 
-  for (let i = 0; i < 12; i++) meter.appendChild(document.createElement('i'));
-  const bars = Array.from(meter.children);
-
-  /* ----- Stations ----- */
-  function fixedStations() {
-    const list = [];
-    for (const f of [5, 10, 15]) list.push({ id: 'wwvh' + f, name: 'WWVH time signal, Kauaʻi', band: 'SW', freq: f, kind: 'wwvh', lat: WWVH.lat, lng: WWVH.lng });
-    list.push({ id: 'taupo', name: 'Taupo Maritime Radio, weather', band: 'SW', freq: 8.297, kind: 'bulletin', lat: TAUPO.lat, lng: TAUPO.lng });
-    return list;
-  }
-  state.stations = fixedStations();
-
-  async function loadShortwave() {
-    const found = await Promise.all(SW_BROADCASTERS.map(async ([name, freq, lat, lng, fixed]) => {
-      if (fixed) return { id: 'sw-' + name, name, band: 'SW', freq, kind: 'sw', url: fixed, lat, lng };
-      const res = await rb(`/json/stations/search?name=${encodeURIComponent(name)}&order=clickcount&reverse=true&limit=15&hidebroken=true`);
-      if (!res) return null;
-      const s = res.find((r) => (r.name || '').toLowerCase().startsWith(name.toLowerCase()) && playable(r.url_resolved || r.url || ''));
-      return s ? { id: 'sw-' + s.stationuuid, name, band: 'SW', freq, kind: 'sw', url: s.url_resolved || s.url, lat, lng } : null;
-    }));
-    for (const s of found) if (s) state.stations.push(s);
+  function persist() {
+    const cur = state.list[state.index];
+    savePrefs({ source: state.source, station: cur ? cur.id : prefs.station, volume: Number(volume.value) });
   }
 
-  async function loadLocal(lat, lng) {
-    if (state.fetching) return;
-    state.fetching = true;
-    const res = await rb(`/json/stations/search?has_geo_info=true&geo_lat=${lat.toFixed(3)}&geo_long=${lng.toFixed(3)}&geo_distance=2400000&hidebroken=true&order=clickcount&reverse=true&limit=150`);
-    state.fetching = false;
-    if (!res) return;
-    const used = new Set();
-    const local = [];
-    for (const r of res) {
+  /* ----- Station lists ----- */
+  function normalise(res) {
+    const seen = new Set();
+    const out = [];
+    for (const r of res || []) {
       const url = r.url_resolved || r.url || '';
       if (!playable(url)) continue;
-      const sl = parseFloat(r.geo_lat), sg = parseFloat(r.geo_long);
-      if (!Number.isFinite(sl) || !Number.isFinite(sg)) continue;
-      const d = distance(lat, lng, sl, sg);
-      if (d > 2400000) continue;
-      const tagText = `${r.name} ${r.tags || ''}`.toLowerCase();
-      const isAM = /\b(am|mw|medium wave)\b/.test(tagText) || /\b\d{3,4}\s?am\b/.test(tagText);
-      const band = isAM ? 'MW' : 'FM';
-      const B = BANDS[band];
-      const slots = Math.round((B.max - B.min) / (band === 'FM' ? 0.2 : 10));
-      let k = Math.floor(hashStr(r.stationuuid) * slots);
-      while (used.has(band + k)) k = (k + 7) % slots;
-      used.add(band + k);
-      const freq = band === 'FM' ? 87.7 + k * 0.2 : 540 + k * 10;
-      local.push({ id: r.stationuuid, name: (r.name || 'Unnamed station').trim().slice(0, 48), band, freq, kind: 'local', url, lat: sl, lng: sg, country: r.country });
+      const name = (r.name || '').trim().replace(/\s+/g, ' ');
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        id: r.stationuuid,
+        name: name.slice(0, 60),
+        country: r.country || '',
+        code: r.countrycode || '',
+        tags: (r.tags || '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3).join(' · '),
+        url
+      });
     }
-    state.local = local;
+    return out;
   }
 
-  /* ----- Reception ----- */
-  function reception(st, s, t, night) {
-    const d = distance(s.lat, s.lng, st.lat, st.lng);
-    const brg = bearing(s.lat, s.lng, st.lat, st.lng);
-    const rel = ((brg - (s.heading + state.antenna)) * Math.PI) / 180;
-    const directional = 0.18 + 0.82 * Math.abs(Math.cos(rel));
-    const seed = hashStr(st.id);
-    let strength;
-    if (st.kind === 'local' && st.band === 'FM') strength = Math.exp(-((d / 140000) ** 3)) * directional;
-    else if (st.kind === 'local') {
-      const R = night ? 2000000 : 340000;
-      strength = Math.exp(-((d / R) ** 2)) * directional * (night ? 0.55 + 0.45 * fade(t, seed) : 1);
-    } else if (st.kind === 'wwvh') strength = (0.18 + 0.72 * Math.exp(-((d / 9000000) ** 2))) * (0.55 + 0.45 * fade(t, seed)) * (0.8 + 0.2 * Math.abs(Math.cos(rel)));
-    else if (st.kind === 'bulletin') strength = (0.2 + 0.65 * Math.exp(-((d / 7000000) ** 2))) * (0.55 + 0.45 * fade(t, seed)) * (0.8 + 0.2 * Math.abs(Math.cos(rel)));
-    else strength = (0.22 + (night ? 0.28 : 0.12)) * (0.4 + 0.6 * fade(t, seed)) * (0.85 + 0.15 * Math.abs(Math.cos(rel)));
-    return Math.min(1, strength);
+  async function loadList(source, keepStationId) {
+    state.source = source;
+    state.loading = true;
+    setStateText('Searching the airwaves…');
+    listEl.innerHTML = '';
+    let res;
+    const base = '&hidebroken=true&order=clickcount&reverse=true&limit=180';
+    if (source.type === 'country') res = await rb(`/json/stations/search?countrycode=${encodeURIComponent(source.code)}${base}`);
+    else if (source.type === 'search') {
+      const [byName, byTag] = await Promise.all([
+        rb(`/json/stations/search?name=${encodeURIComponent(source.q)}${base}`),
+        rb(`/json/stations/search?tag=${encodeURIComponent(source.q.toLowerCase())}${base}`)
+      ]);
+      res = (byName || []).concat(byTag || []);
+    } else res = await rb(`/json/stations/search?${base.slice(1)}`);
+    state.loading = false;
+    if (!res) {
+      state.list = [];
+      setStateText('The station directory could not be reached. Check your connection and try again.');
+      renderList();
+      drawDial();
+      return;
+    }
+    state.list = normalise(res);
+    renderList();
+    let i = keepStationId ? state.list.findIndex((s) => s.id === keepStationId) : -1;
+    if (i < 0) i = 0;
+    if (!state.list.length) {
+      setStateText(source.type === 'search' ? `No stations found for “${source.q}”.` : 'No stations found here.');
+      drawDial();
+      return;
+    }
+    state.index = i;
+    drawDial();
+    if (state.on && state.mode === 'WORLD') play(i);
+    else showStation();
+    persist();
   }
 
-  function tuneMatch(st) {
-    const B = BANDS[st.band];
-    const df = (state.freq[st.band] - st.freq) / B.bw;
-    return Math.exp(-df * df);
+  async function loadCountries() {
+    const res = await rb('/json/countries?order=stationcount&reverse=true&hidebroken=true');
+    if (!res) return;
+    const countries = res.filter((c) => c.stationcount >= 5 && c.iso_3166_1).sort((a, b) => a.name.localeCompare(b.name));
+    for (const c of countries) {
+      const o = document.createElement('option');
+      o.value = c.iso_3166_1;
+      o.textContent = `${c.name} (${c.stationcount})`;
+      countrySel.appendChild(o);
+    }
+    if (state.source.type === 'country') countrySel.value = state.source.code;
   }
 
-  /* ----- Dial ----- */
+  function renderList() {
+    listEl.innerHTML = '';
+    state.list.forEach((s, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'station-row';
+      b.setAttribute('aria-current', String(i === state.index));
+      const n = document.createElement('span');
+      n.className = 'sr-name';
+      n.textContent = s.name;
+      const c = document.createElement('span');
+      c.className = 'sr-country';
+      c.textContent = s.code || '—';
+      b.append(n, c);
+      b.addEventListener('click', () => { if (!state.on) setPower(true); play(i); });
+      li.appendChild(b);
+      listEl.appendChild(li);
+    });
+  }
+  function markCurrent() {
+    [...listEl.querySelectorAll('.station-row')].forEach((b, i) => b.setAttribute('aria-current', String(i === state.index)));
+    const cur = listEl.querySelectorAll('.station-row')[state.index];
+    if (cur && state.open) cur.scrollIntoView({ block: 'nearest' });
+  }
+
+  /* ----- Playback ----- */
+  function setStateText(t) { stateOut.textContent = t; }
+  function showStation() {
+    const s = state.list[state.index];
+    nameOut.textContent = s ? s.name : 'World Radio';
+    metaOut.textContent = s ? [s.country, s.tags].filter(Boolean).join(' · ') : '';
+    markCurrent();
+  }
+  function stopStream() {
+    stream.pause();
+    stream.removeAttribute('src');
+    stream.load();
+    state.playing = false;
+    playBtn.textContent = 'Play';
+  }
+  let attempt = 0;
+  function play(i, dir = 1) {
+    if (!state.list.length) return;
+    state.index = ((i % state.list.length) + state.list.length) % state.list.length;
+    const s = state.list[state.index];
+    showStation();
+    drawDial();
+    persist();
+    stopStream();
+    const my = ++attempt;
+    state.staticUntil = performance.now() + 900;
+    setStateText('Tuning in…');
+    stream.src = s.url;
+    stream.volume = Number(volume.value) / 100;
+    stream.play().then(() => {
+      if (my !== attempt) return;
+      state.playing = true;
+      playBtn.textContent = 'Pause';
+      setStateText('On air');
+    }).catch(() => {
+      if (my !== attempt) return;
+      skipDead(dir);
+    });
+  }
+  function skipDead(dir) {
+    const s = state.list[state.index];
+    if (s) s.dead = true;
+    const alive = state.list.filter((x) => !x.dead).length;
+    if (!alive) { setStateText('None of these stations are on air right now.'); return; }
+    setStateText('That station is off air. Trying the next one…');
+    let j = state.index;
+    do { j = (j + dir + state.list.length) % state.list.length; } while (state.list[j].dead);
+    setTimeout(() => play(j, dir), 500);
+  }
+  stream.addEventListener('error', () => { if (state.on && state.mode === 'WORLD' && stream.getAttribute('src')) skipDead(1); });
+  stream.addEventListener('waiting', () => { if (state.playing) setStateText('Buffering…'); });
+  stream.addEventListener('playing', () => { setStateText('On air'); });
+
+  function next(dir) { if (state.list.length) play(state.index + dir, dir); }
+  $('radioPrev').addEventListener('click', () => { if (!state.on) setPower(true); next(-1); });
+  $('radioNext').addEventListener('click', () => { if (!state.on) setPower(true); next(1); });
+  playBtn.addEventListener('click', () => {
+    if (!state.on) { setPower(true); return; }
+    if (state.playing) { stopStream(); setStateText('Paused'); }
+    else play(state.index < 0 ? 0 : state.index);
+  });
+  $('radioShuffle').addEventListener('click', async () => {
+    if (!state.on) setPower(true);
+    countrySel.value = '';
+    searchInput.value = '';
+    state.staticUntil = performance.now() + 1500;
+    setStateText('Spinning the dial across the world…');
+    const offset = Math.floor(Math.random() * 3000);
+    const res = await rb(`/json/stations/search?hidebroken=true&order=clickcount&reverse=true&limit=60&offset=${offset}`);
+    if (!res) { setStateText('The station directory could not be reached. Check your connection and try again.'); return; }
+    state.source = { type: 'top', offset };
+    state.list = normalise(res).sort(() => Math.random() - 0.5);
+    renderList();
+    play(0);
+  });
+  countrySel.addEventListener('change', () => {
+    searchInput.value = '';
+    loadList(countrySel.value ? { type: 'country', code: countrySel.value } : { type: 'top' });
+  });
+  searchForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = searchInput.value.trim();
+    if (!q) return;
+    countrySel.value = '';
+    loadList({ type: 'search', q });
+  });
+  volume.addEventListener('input', () => { stream.volume = Number(volume.value) / 100; persist(); });
+
+  /* ----- Dial: one mark per station in the current list ----- */
   function drawDial() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = dial.clientWidth, h = dial.clientHeight;
+    if (!w) return;
     if (dial.width !== Math.round(w * dpr)) { dial.width = Math.round(w * dpr); dial.height = Math.round(h * dpr); }
     const c = ctx2d;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, w, h);
-    const B = BANDS[state.band];
-    if (!B.unit) return;
     const css = getComputedStyle(panel);
-    const ink = css.getPropertyValue('--radio-ink').trim() || '#e9e5dc';
-    const faint = css.getPropertyValue('--radio-faint').trim() || 'rgba(233,229,220,0.35)';
-    const x = (f) => 8 + ((f - B.min) / (B.max - B.min)) * (w - 16);
+    const ink = css.getPropertyValue('--radio-ink').trim() || '#efeae0';
+    const faint = css.getPropertyValue('--radio-faint').trim() || 'rgba(239,234,224,0.38)';
+    const n = state.list.length;
     c.strokeStyle = faint;
-    c.fillStyle = faint;
     c.lineWidth = 1;
-    c.font = '10px Figtree, sans-serif';
-    c.textAlign = 'center';
-    const major = state.band === 'SW' ? 1 : state.band === 'MW' ? 100 : 2;
-    const minor = state.band === 'SW' ? 0.25 : state.band === 'MW' ? 20 : 0.5;
-    for (let f = Math.ceil(B.min / minor) * minor; f <= B.max + 1e-6; f += minor) {
-      const isMajor = Math.abs(f / major - Math.round(f / major)) < 1e-6;
+    for (let i = 0; i <= 60; i++) {
+      const x = 8 + (i / 60) * (w - 16);
       c.beginPath();
-      c.moveTo(x(f) + 0.5, h - 6);
-      c.lineTo(x(f) + 0.5, h - (isMajor ? 18 : 11));
+      c.moveTo(x + 0.5, h - 6);
+      c.lineTo(x + 0.5, h - (i % 10 === 0 ? 20 : i % 5 === 0 ? 14 : 10));
       c.stroke();
-      if (isMajor) c.fillText(state.band === 'MW' ? String(Math.round(f)) : String(Math.round(f)), x(f), h - 22);
     }
-    // Faint marks where the strongest signals sit, as on a real dial
-    const s = getState();
-    for (const st of allStations()) {
-      if (st.band !== state.band) continue;
-      const r = reception(st, s, Date.now() / 1000, s.night);
-      if (r < 0.08) continue;
-      c.fillStyle = `rgba(233,229,220,${Math.min(0.5, r * 0.6)})`;
-      c.fillRect(x(st.freq) - 1, 6, 2, 6);
+    if (!n) return;
+    c.fillStyle = faint;
+    for (let i = 0; i < n; i++) {
+      const x = 8 + (n === 1 ? 0.5 : i / (n - 1)) * (w - 16);
+      c.fillRect(x - 0.5, 6, 1, state.list[i].dead ? 3 : 7);
     }
-    c.strokeStyle = ink;
-    c.lineWidth = 2;
-    c.beginPath();
-    c.moveTo(x(state.freq[state.band]), 3);
-    c.lineTo(x(state.freq[state.band]), h - 3);
-    c.stroke();
+    if (state.index >= 0) {
+      const x = 8 + (n === 1 ? 0.5 : state.index / (n - 1)) * (w - 16);
+      c.strokeStyle = ink;
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(x, 3);
+      c.lineTo(x, h - 3);
+      c.stroke();
+    }
   }
-
-  function setFreq(f) {
-    const B = BANDS[state.band];
-    if (!B.unit) return;
-    const q = Math.round((Math.min(B.max, Math.max(B.min, f)) - B.min) / B.step) * B.step + B.min;
-    state.freq[state.band] = +q.toFixed(B.digits + 1);
-    freqOut.textContent = `${state.freq[state.band].toFixed(B.digits)} ${B.unit}`;
-    drawDial();
-  }
-
-  let dragging = false;
-  function dialFreqAt(clientX) {
+  let dragging = false, dragTimer = 0;
+  function indexAt(clientX) {
     const r = dial.getBoundingClientRect();
-    const B = BANDS[state.band];
-    return B.min + ((clientX - r.left - 8) / (r.width - 16)) * (B.max - B.min);
+    const f = Math.max(0, Math.min(1, (clientX - r.left - 8) / (r.width - 16)));
+    return Math.round(f * Math.max(0, state.list.length - 1));
   }
-  dial.addEventListener('pointerdown', (e) => { dragging = true; dial.setPointerCapture(e.pointerId); setFreq(dialFreqAt(e.clientX)); });
-  dial.addEventListener('pointermove', (e) => { if (dragging) setFreq(dialFreqAt(e.clientX)); });
+  function dialTo(i) {
+    if (!state.list.length || i === state.index) return;
+    state.index = i;
+    showStation();
+    drawDial();
+    stopStream();
+    state.staticUntil = performance.now() + 600;
+    setStateText('Tuning…');
+    clearTimeout(dragTimer);
+    dragTimer = setTimeout(() => { if (state.on) play(state.index); }, 450);
+  }
+  dial.addEventListener('pointerdown', (e) => { if (!state.on) setPower(true); dragging = true; dial.setPointerCapture(e.pointerId); dialTo(indexAt(e.clientX)); });
+  dial.addEventListener('pointermove', (e) => { if (dragging) dialTo(indexAt(e.clientX)); });
   dial.addEventListener('pointerup', () => { dragging = false; });
-  dial.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const B = BANDS[state.band];
-    setFreq(state.freq[state.band] + Math.sign(e.deltaY || e.deltaX) * B.step * (e.shiftKey ? 1 : 4));
-  }, { passive: false });
-  $('tuneDown').addEventListener('click', () => nudge(-1));
-  $('tuneUp').addEventListener('click', () => nudge(1));
-  function nudge(dir, fine) {
-    const B = BANDS[state.band];
-    if (B.unit) setFreq(state.freq[state.band] + dir * B.step * (fine ? 1 : 4));
-  }
+  dial.addEventListener('wheel', (e) => { e.preventDefault(); if (state.list.length) dialTo(((state.index + Math.sign(e.deltaY || e.deltaX)) % state.list.length + state.list.length) % state.list.length); }, { passive: false });
 
-  function setAntenna(a) {
-    state.antenna = ((Math.round(a) % 360) + 360) % 360;
-    const rel = state.antenna > 180 ? state.antenna - 360 : state.antenna;
-    antennaOut.textContent = rel === 0 ? 'Pointing ahead' : `${Math.abs(rel)}° to ${rel > 0 ? 'starboard' : 'port'}`;
-    antennaArrow.style.transform = `rotate(${state.antenna}deg)`;
-  }
-  $('antLeft').addEventListener('click', () => setAntenna(state.antenna - 10));
-  $('antRight').addEventListener('click', () => setAntenna(state.antenna + 10));
-  setAntenna(0);
-
-  /* ----- Bands, power, volume ----- */
-  for (const btn of panel.querySelectorAll('[data-band]')) btn.addEventListener('click', () => setBand(btn.dataset.band));
-  function setBand(b) {
-    state.band = b;
-    for (const btn of panel.querySelectorAll('[data-band]')) btn.setAttribute('aria-pressed', String(btn.dataset.band === b));
-    const isTape = b === 'LIST';
-    listPane.hidden = !isTape;
-    tunerPane.hidden = isTape;
-    if (isTape) {
-      if (!state.on) setPower(true);
+  /* ----- Modes and power ----- */
+  for (const btn of panel.querySelectorAll('[data-mode]')) btn.addEventListener('click', () => setMode(btn.dataset.mode));
+  function setMode(m) {
+    state.mode = m;
+    for (const btn of panel.querySelectorAll('[data-mode]')) btn.setAttribute('aria-pressed', String(btn.dataset.mode === m));
+    worldPane.hidden = m !== 'WORLD';
+    tapePane.hidden = m !== 'TAPE';
+    if (m === 'TAPE') {
       stopStream();
-      stopSpeech();
-      startTape();
+      if (!state.on) setPower(true); else startTape();
     } else {
       pauseTape();
-      setFreq(state.freq[b]);
+      if (state.on && state.list.length) play(state.index < 0 ? 0 : state.index);
+      drawDial();
     }
   }
   function setPower(on) {
@@ -274,48 +344,23 @@ export function createRadio({ audio, getState, onPlaylist, toast }) {
     powerBtn.setAttribute('aria-pressed', String(on));
     powerBtn.textContent = on ? 'On' : 'Off';
     panel.classList.toggle('is-on', on);
-    if (on) audio.start();
-    if (!on) { stopStream(); stopSpeech(); pauseTape(); audio.setStatic(0); }
-    else if (state.band === 'LIST') startTape();
+    if (on) {
+      audio.start();
+      if (state.mode === 'TAPE') startTape();
+      else if (!state.list.length && !state.loading) loadList(state.source, prefs.station);
+      else if (state.list.length) play(state.index < 0 ? 0 : state.index);
+    } else {
+      stopStream();
+      pauseTape();
+      audio.setStatic(0);
+      setStateText('Off');
+    }
   }
   powerBtn.addEventListener('click', () => setPower(!state.on));
 
-  /* ----- Streams and speech ----- */
-  function stopStream() {
-    if (state.current && state.current.url) { stream.pause(); stream.removeAttribute('src'); stream.load(); }
-    state.current = null;
-  }
-  function playStream(st) {
-    if (state.current && state.current.id === st.id) return;
-    stopStream();
-    state.current = st;
-    if (!st.url) return;
-    stream.src = st.url;
-    stream.volume = 0;
-    stream.play().catch(() => { st.dead = true; if (state.current === st) state.current = null; });
-  }
-  stream.addEventListener('error', () => { if (state.current) { state.current.dead = true; state.current = null; } });
-  function stopSpeech() {
-    if (state.speaking && window.speechSynthesis) window.speechSynthesis.cancel();
-    state.speaking = null;
-  }
-  function speak(text, vol, id) {
-    if (!window.speechSynthesis) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.volume = Math.max(0.05, Math.min(1, vol));
-    u.rate = 0.95;
-    u.lang = 'en-NZ';
-    u.onend = () => { if (state.speaking === id) state.speaking = null; };
-    state.speaking = id;
-    window.speechSynthesis.speak(u);
-  }
-
   /* ----- Tape deck: Spotify ----- */
   let controller = null, apiLoading = false, pendingUri = null, tapeUri = null;
-  function currentPlaylist() {
-    const own = parsePlaylist(getState().playlist);
-    return own || DEFAULT_PLAYLIST;
-  }
+  const currentPlaylist = () => parsePlaylist(getState().playlist) || DEFAULT_PLAYLIST;
   function ensureController(uri, autoplay) {
     if (controller) {
       if (tapeUri !== uri) { controller.loadUri(uri); tapeUri = uri; }
@@ -326,11 +371,10 @@ export function createRadio({ audio, getState, onPlaylist, toast }) {
     if (apiLoading) return;
     apiLoading = true;
     window.onSpotifyIframeApiReady = (API) => {
-      const el = document.getElementById('spotifyEmbed');
-      API.createController(el, { uri: pendingUri, width: '100%', height: 152 }, (c) => {
+      API.createController(document.getElementById('spotifyEmbed'), { uri: pendingUri, width: '100%', height: 152 }, (c) => {
         controller = c;
         tapeUri = pendingUri;
-        if (state.band === 'LIST' && state.on) controller.play();
+        if (state.mode === 'TAPE' && state.on) controller.play();
       });
     };
     const sc = document.createElement('script');
@@ -357,97 +401,37 @@ export function createRadio({ audio, getState, onPlaylist, toast }) {
   });
 
   /* ----- Panel ----- */
+  let countriesLoaded = false;
   function setOpen(open) {
     state.open = open;
     panel.classList.toggle('open', open);
     panel.setAttribute('aria-hidden', String(!open));
-    if (open) { drawDial(); if (!state.on) setPower(true); }
+    if (open) {
+      if (!countriesLoaded) { countriesLoaded = true; loadCountries(); }
+      if (!state.on) setPower(true);
+      requestAnimationFrame(() => { drawDial(); markCurrent(); });
+    }
   }
   $('radioClose').addEventListener('click', () => setOpen(false));
 
-  function allStations() {
-    return state.stations.concat(state.local).filter((s) => !s.dead);
-  }
-
-  /* ----- Per-frame update ----- */
-  let dialTimer = 0;
-  function update(dt) {
-    const s = getState();
-    const now = Date.now();
-    if (state.on && (distance(s.lat, s.lng, state.lastFetch.lat, state.lastFetch.lng) > 40000 || now - state.lastFetch.t > 30 * 60e3)) {
-      state.lastFetch = { lat: s.lat, lng: s.lng, t: now };
-      loadLocal(s.lat, s.lng);
-      if (!state.swLoaded) { state.swLoaded = true; loadShortwave(); }
-    }
-    if (!state.on || state.band === 'LIST') {
-      if (state.band !== 'LIST') audio.setStatic(0);
-      return;
-    }
-    const t = now / 1000;
-    let best = null, bestSe = 0;
-    for (const st of allStations()) {
-      if (st.band !== state.band) continue;
-      const m = tuneMatch(st);
-      if (m < 0.02) continue;
-      const se = reception(st, s, t, s.night) * m;
-      if (se > bestSe) { bestSe = se; best = st; }
-    }
-    state.se += (bestSe - state.se) * Math.min(1, dt * 6);
+  function update() {
+    const now = performance.now();
+    if (!state.on || state.mode !== 'WORLD') { audio.setStatic(0); return; }
     const vol = Number(volume.value) / 100;
-    const clean = Math.min(1, state.se * 1.6);
-    audio.setStatic(vol * (0.03 + 0.2 * (1 - clean)));
-    if (Math.random() < dt * 10) audio.crackle(vol * 0.25 * (1 - clean * 0.7));
-
-    if (best && bestSe > 0.05 && best.url) {
-      playStream(best);
-      stream.volume = Math.max(0, Math.min(1, vol * clean));
-    } else if (state.current && state.current.url) {
-      stopStream();
-    }
-
-    // Time signal: 1200 Hz ticks each second (none at :29 and :59), longer tone on the minute, voice at :45
-    if (best && best.kind === 'wwvh' && bestSe > 0.05) {
-      const sec = Math.floor(t);
-      if (sec !== state.lastSecond) {
-        state.lastSecond = sec;
-        const ss = sec % 60;
-        const level = vol * clean * 0.25;
-        if (ss === 0) audio.tone(new Date(sec * 1000).getUTCMinutes() === 0 ? 1500 : 1200, 0.8, level);
-        else if (ss !== 29 && ss !== 59) audio.tone(1200, 0.005, level);
-        if (ss === 45 && !state.speaking) {
-          const nx = new Date((sec + 15) * 1000);
-          speak(`At the tone, ${nx.getUTCHours()} hours, ${nx.getUTCMinutes()} minutes, Coordinated Universal Time.`, vol * clean, 'wwvh');
-        }
-      }
-    } else if (state.speaking === 'wwvh') stopSpeech();
-
-    if (best && best.kind === 'bulletin' && bestSe > 0.08) {
-      if (!state.speaking && now > state.nextBulletin) {
-        speak(`This is Taupo Maritime Radio. ${marineBulletin(now)}`, vol * clean, 'bulletin');
-        state.nextBulletin = now + 25000;
-      }
-    } else if (state.speaking === 'bulletin') { stopSpeech(); state.nextBulletin = 0; }
-
-    // Readouts
-    const shown = Math.round(state.se * bars.length * 1.15);
-    bars.forEach((b, i) => b.classList.toggle('lit', i < shown));
-    stationOut.textContent = best && bestSe > 0.12 ? best.name : bestSe > 0.04 ? 'A faint voice under the static' : state.fetching ? 'Listening across the band…' : 'Static';
-    dialTimer += dt;
-    if (state.open && dialTimer > 1) { dialTimer = 0; drawDial(); }
+    audio.setStatic(now < state.staticUntil ? vol * 0.22 : 0);
+    if (now < state.staticUntil && Math.random() < 0.3) audio.crackle(vol * 0.2);
   }
 
   /** Keyboard while the radio is open. Returns true when handled. */
-  function key(code, shift) {
-    if (!state.open) return false;
-    if (code === 'Comma') { nudge(-1, shift); return true; }
-    if (code === 'Period') { nudge(1, shift); return true; }
-    if (code === 'KeyZ') { setAntenna(state.antenna - 10); return true; }
-    if (code === 'KeyX') { setAntenna(state.antenna + 10); return true; }
+  function key(code) {
+    if (!state.open || state.mode !== 'WORLD') return false;
+    if (code === 'Comma') { next(-1); return true; }
+    if (code === 'Period') { next(1); return true; }
     return false;
   }
 
-  setBand('SW');
-  setPower(false);
+  setMode('WORLD');
+  setStateText('Off');
   return {
     update, key, setOpen,
     toggle() { setOpen(!state.open); },

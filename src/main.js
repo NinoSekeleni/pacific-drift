@@ -5,12 +5,13 @@ import { newVoyage, loadVoyage, saveVoyage, clearVoyage, step, catchUp, useStora
 import { createSky, palette, LAYER_FAR, LAYER_NEAR } from './sky.js';
 import { createOcean } from './ocean.js';
 import { createIslands, createBirds } from './islands.js';
-import { createCanoe } from './canoe.js';
+import { createCanoe, HULL_MASK } from './canoe.js';
 import { createRain } from './rain.js';
 import { createAudio } from './audio.js';
 import { createRadio } from './radio.js';
 import { createCompass } from './compass.js';
 import { drawVoyageChart } from './landfall.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 THREE.ColorManagement.enabled = false;
 const DEG = Math.PI / 180;
@@ -67,6 +68,8 @@ scene.add(sunLight, sunLight.target);
 const sky = createSky(renderer, scene, isTouch);
 const ocean = createOcean(renderer, scene, sky.uniforms);
 const canoe = createCanoe(scene);
+ocean.uniforms.uHullSeg.value.set(...HULL_MASK.seg, 0);
+ocean.uniforms.uAmaSeg.value.set(...HULL_MASK.ama);
 const rain = createRain(scene);
 const birds = createBirds(scene);
 const audio = createAudio();
@@ -154,6 +157,11 @@ function toggleStars() {
   sky.setLines(!sky.linesOn);
   toast(sky.linesOn ? 'Star chart on: constellations and navigation stars are named.' : 'Star chart off.');
 }
+function toggleLantern() {
+  voyage.lantern = !lanternOn;
+  toast(voyage.lantern ? 'Lantern lit.' : 'Lantern out. Your eyes will adjust to the starlight.');
+  saveVoyage(voyage);
+}
 function toggleRadio() {
   radio.toggle();
   if (radio.open && locked) document.exitPointerLock();
@@ -165,11 +173,12 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Enter' && !$('begin').hidden && document.activeElement === document.body) begin();
     return;
   }
-  if (radio.key(e.code, e.shiftKey)) { e.preventDefault(); return; }
+  if (radio.key(e.code)) { e.preventDefault(); return; }
   keys.add(e.code);
   if (e.code === 'KeyE') toggleSail();
   if (e.code === 'KeyR') toggleRadio();
   if (e.code === 'KeyC') toggleStars();
+  if (e.code === 'KeyL') toggleLantern();
   if (e.code === 'KeyM') { audio.setMuted(!audio.muted); toast(audio.muted ? 'Sound off.' : 'Sound on.'); }
   if (e.code === 'Escape' && dragMode) pause();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
@@ -209,6 +218,7 @@ for (const btn of document.querySelectorAll('[data-hold]')) {
 $('tSail').addEventListener('click', toggleSail);
 $('tRadio').addEventListener('click', toggleRadio);
 $('tStars').addEventListener('click', toggleStars);
+$('tLamp').addEventListener('click', toggleLantern);
 
 /* ---------- Overlays ---------- */
 function pause() {
@@ -272,6 +282,8 @@ const SMOOTH_KEYS = ['cover', 'precip', 'dark', 'cirrus', 'cloudBase', 'cloudTop
 const tmpLocal = {};
 const eyePos = new THREE.Vector3(), eyeQuat = new THREE.Quaternion(), lookQuat = new THREE.Quaternion(), lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const fwd = new THREE.Vector3();
+const lampPos = new THREE.Vector3();
+let lanternOn = false;
 const sunV = new THREE.Vector3(), moonV = new THREE.Vector3();
 const clock = new THREE.Clock();
 let lastSave = 0, lastHud = 0, firstFrame = true, prevHeave = 0;
@@ -284,7 +296,8 @@ const smoothstep = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t
 
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(clock.getDelta(), 0.1);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.1);
   const elapsed = clock.elapsedTime;
   const tNow = now();
 
@@ -320,7 +333,10 @@ function frame() {
   const bx = tmpLocal.x, bz = tmpLocal.z;
 
   /* ----- Sky ----- */
-  const bodies = skyBodies(tNow, voyage.lat, voyage.lng);
+  // The sky keeps the viewer's own clock: local solar time on the water matches the time where they are
+  const viewerOffsetH = -new Date(tNow).getTimezoneOffset() / 60;
+  const skyT = tNow + (viewerOffsetH - voyage.lng / 15) * 3600e3;
+  const bodies = skyBodies(skyT, voyage.lat, voyage.lng);
   bodyDir(bodies.sun, sunV);
   bodyDir(bodies.moon, moonV);
   const e = bodies.sun.alt / DEG;
@@ -375,16 +391,19 @@ function frame() {
   ou.uWaveT.value = elapsed;
   const cold = smoothstep(22, 50, Math.abs(voyage.lat));
   const lum = Math.max(0.05, Math.min(1, (e + 10) / 20)) * (1 - 0.35 * dark) + ml * 0.15;
-  const body = lerp3([0.02, 0.1, 0.14], [0.025, 0.065, 0.075], cold).map((v) => v * lum);
+  const body = lerp3([0.015, 0.085, 0.15], [0.025, 0.07, 0.085], cold).map((v) => v * lum);
   ou.uBody.value.set(...body);
+
+  /* ----- Lantern: lit automatically after dusk unless the player chooses otherwise ----- */
+  lanternOn = voyage.lantern === true || (voyage.lantern !== false && sunV.y < 0.02);
 
   /* ----- Canoe and paddler ----- */
   const relWind = ((((w.from - voyage.heading) % 360) + 540) % 360) - 180;
   canoe.update({
     x: bx, z: bz, headingDeg: voyage.heading,
     paddling: cond.input.paddle > 0, sailUp: voyage.sail,
-    apparentFromRel: relWind, windSpeed: sm.speed,
-    t: elapsed, dt, waveT: elapsed, ocean,
+    apparentFromRel: relWind, windSpeed: sm.speed, lantern: lanternOn,
+    t: elapsed, dt, rawDt, waveT: elapsed, ocean,
     light: [0, 1, 2].map((i) => p.sun[i] * smoothstep(-0.04, 0.08, sunV.y) * (1 - 0.6 * dark) * 0.6 + hor[i] * 0.35),
     onCatch: (x, z) => { ocean.addRipple(x, z, elapsed, 0.06); audio.splash(0.7); }
   });
@@ -393,13 +412,22 @@ function frame() {
   lookQuat.setFromEuler(lookEuler);
   camNear.position.copy(eyePos);
   camNear.quaternion.copy(eyeQuat).multiply(lookQuat);
+  if (DEBUG && window.__cam) {
+    // Debug orbit camera: offset from the canoe in its own frame, looking at the hull
+    const c = window.__cam;
+    const off = new THREE.Vector3(c[0], c[1], c[2]).applyAxisAngle(new THREE.Vector3(0, 1, 0), -voyage.heading * DEG);
+    camNear.position.copy(canoe.group.position).add(off);
+    camNear.lookAt(canoe.group.position.x, canoe.group.position.y, canoe.group.position.z);
+  }
   camFar.position.copy(camNear.position);
   camFar.quaternion.copy(camNear.quaternion);
   camNear.updateMatrixWorld();
   camFar.updateMatrixWorld();
 
+  const lampLevel = canoe.lamp(lampPos);
+  ou.uLantern.value.set(lampPos.x, lampPos.y, lampPos.z, lampLevel * 1.6);
   sky.dome.position.copy(camNear.position);
-  sky.setOrientation(equatorialToLocal(tNow, voyage.lat, voyage.lng), camNear.position);
+  sky.setOrientation(equatorialToLocal(skyT, voyage.lat, voyage.lng), camNear.position);
   ocean.mesh.position.set(camNear.position.x, 0, camNear.position.z);
 
   /* ----- Land ----- */
@@ -445,7 +473,7 @@ function frame() {
   if (elapsed - lastHud > 0.5) {
     lastHud = elapsed;
     const d = new Date(tNow);
-    $('clockOut').textContent = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+    $('clockOut').textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     $('dayOut').textContent = `Day ${Math.floor((tNow - voyage.start) / 864e5) + 1}`;
     $('sailOut').textContent = voyage.sail ? 'Sail up' : 'Sail down';
     $('sailOut').classList.toggle('on', voyage.sail);
@@ -484,6 +512,12 @@ async function boot() {
   islands = createIslands(scene, land, sky.uniforms);
   sky.buildStars(skyData);
 
+  // Generated models (Magnific); the built-in canoe and lantern stay until these arrive
+  const loader = new GLTFLoader();
+  loader.load(BASE + 'models/lantern.glb', (g) => {
+    try { canoe.applyLantern(g.scene); } catch (e) { console.warn('Lantern model could not be fitted', e); }
+  }, undefined, () => {});
+
   const fresh = !voyage;
   if (!voyage) voyage = newVoyage(now());
   if (DEBUG && params.get('at')) {
@@ -517,7 +551,20 @@ async function boot() {
       key(code, down) { if (down) keys.add(code); else keys.delete(code); },
       stars(on) { sky.setLines(on); },
       radio() { radio.setOpen(true); },
-      get islands() { return islands.activeCount; }
+      get islands() { return islands.activeCount; },
+      profile() {
+        const out = [];
+        const o = {};
+        const h = voyage.heading * DEG;
+        for (const d of [0, 2, 4, 6, 8, 12, 20, 40]) {
+          // to port of the canoe
+          const x = canoe.group.position.x - Math.cos(h) * d, z = canoe.group.position.z - Math.sin(h) * d;
+          ocean.sample(x, z, clock.elapsedTime, o);
+          out.push([d, +o.h.toFixed(2)]);
+        }
+        return { heave: +canoe.heave.toFixed(2), eye: +camNear.position.y.toFixed(2), port: out };
+      },
+      dbg() { return { heave: canoe.heave, eye: camNear.position.y, hsWind: ocean.hsWind, swell: sm.swellH, wind: sm.speed, waves: ocean.uniforms.uWaves.value.map((w) => [w.z, +w.w.toFixed(3)]) }; }
     };
   }
   requestAnimationFrame(frame);

@@ -172,6 +172,36 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink-soft); 
 .pill[aria-pressed="true"] { background: var(--ink); color: var(--night); border-color: var(--ink); }
 .icon-btn { background: none; border: 0; font-size: 22px; line-height: 1; cursor: pointer; color: var(--ink-soft); padding: 0 4px; }
 .bands { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.bands.two { grid-template-columns: 1fr 1fr; }
+#worldPane, #tapePane { display: grid; gap: 10px; }
+.now { display: grid; gap: 2px; min-width: 0; }
+.radio .station { font-size: 18px; font-weight: 600; color: var(--ink); min-height: 1.3em; }
+.station-meta { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
+.station-state { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.radio.is-on .station-state { color: var(--ink-soft); }
+.controls button { padding: 8px 0; }
+.controls #radioShuffle { flex: 1.6; }
+.finder { display: grid; gap: 6px; }
+.finder select, .search input {
+  width: 100%;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+}
+.finder select option { background: #14181b; color: var(--ink); }
+.search { display: flex; gap: 6px; }
+.search button { background: transparent; border: 1px solid var(--line); padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.station-list { list-style: none; margin: 0; padding: 0; max-height: 172px; overflow-y: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.station-row { width: 100%; display: flex; justify-content: space-between; gap: 10px; padding: 7px 4px; background: none; border: 0; border-bottom: 1px solid rgba(239, 234, 224, 0.06); text-align: left; cursor: pointer; font-size: 13px; color: var(--ink-soft); }
+.station-row:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+.station-row[aria-current="true"] { color: var(--ink); font-weight: 600; }
+.sr-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-country { flex: none; font-size: 11px; letter-spacing: 0.1em; color: var(--ink-faint); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .bands button[aria-pressed="true"] { background: var(--ink); color: var(--night); border-color: var(--ink); }
 .readout-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #radioFreq { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
@@ -184,7 +214,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink-soft); 
 .meter i.lit { background: var(--ink); opacity: 1; }
 .station { min-height: 1.4em; font-size: 14px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .radio.is-on .station { color: var(--ink); }
-.dial { width: 100%; height: 56px; display: block; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: ew-resize; touch-action: none; }
+.dial { width: 100%; height: 40px; display: block; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: ew-resize; touch-action: none; }
 .row { display: flex; gap: 8px; }
 .row > * { flex: 1; min-width: 0; }
 .antenna { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 8px; font-size: 13px; }

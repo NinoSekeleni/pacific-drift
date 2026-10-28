@@ -1,107 +1,249 @@
-// The outrigger canoe: hull, ama, booms, crab-claw sail and paddle, riding the waves with the paddler's view.
+// A cedar-strip Canadian canoe (navy hull, cedar interior, ash gunwales, cane seats, carved yoke),
+// with a small sprit sail, a single-blade paddle and a hurricane lantern, riding the sea.
 import * as THREE from 'three';
 import { LAYER_NEAR } from './sky.js';
 
 const DEG = Math.PI / 180;
-export const SEAT = new THREE.Vector3(0, 0.92, 1.35);
-const BOW_Z = -3.6, STERN_Z = 3.0;
+export const LENGTH = 5.2;
+export const BOW_Z = -LENGTH / 2, STERN_Z = LENGTH / 2;
+export const SEAT = new THREE.Vector3(0, 0.86, 1.85); // paddler on the stern seat, facing the bow
+const BEAM = 0.45;    // half-beam at the gunwale amidships
+const KEEL = -0.13;   // waterline is y = 0 with a paddler aboard
+const GUN = 0.2;      // freeboard amidships
+
+// Wetted points: [metres forward of centre, metres to starboard, weight]
+const WET = [[2.1, 0, 0.6], [1.3, 0, 1], [0.4, 0, 1], [-0.5, 0, 1], [-1.4, 0, 1], [-2.1, 0, 0.6], [0.6, 0.32, 0.7], [0.6, -0.32, 0.7], [-0.9, 0.32, 0.7], [-0.9, -0.32, 0.7]];
+function solve3(A, b) {
+  const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const D = det(A) || 1e-9;
+  const col = (i) => A.map((row, r) => row.map((v, c) => (c === i ? b[r] : v)));
+  return [det(col(0)) / D, det(col(1)) / D, det(col(2)) / D];
+}
+
+/* ---------- Canoe lines ---------- */
+const sAt = (z) => (2 * (z - BOW_Z)) / (STERN_Z - BOW_Z) - 1; // -1 bow .. 1 stern
+export const halfBeam = (s) => BEAM * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(s), 2.3)), 0.72);
+const keelAt = (s) => KEEL + 0.075 * Math.pow(Math.abs(s), 2.6); // rocker
+const sheerAt = (s) => GUN + 0.27 * Math.pow(Math.abs(s), 3.4);  // ends sweep up
+const N_SE = 2.7; // cross-section squareness: round bilge, firm sides
+
+function sectionPoint(s, th, inset = 0) {
+  const B = Math.max(0.004, halfBeam(s) - inset);
+  const k = keelAt(s) + inset, g = sheerAt(s);
+  const st = Math.sin(th), ct = Math.cos(th);
+  const x = B * Math.sign(st) * Math.pow(Math.abs(st), 2 / N_SE);
+  const y = k + (g - k) * (1 - Math.pow(Math.abs(ct), 2 / N_SE));
+  // Slight tumblehome near the gunwale
+  const tumble = Math.pow(Math.max(0, (y - (k + (g - k) * 0.7)) / ((g - k) * 0.3)), 2) * 0.018 * Math.sign(st);
+  return [x - tumble, y];
+}
 
 function hullGeometry() {
-  const stations = 48, around = 18;
-  const pos = [], idx = [];
+  const stations = 72, around = 36;
+  const pos = [], uv = [], idx = [];
   for (let i = 0; i <= stations; i++) {
-    const s = (i / stations) * 2 - 1; // -1 bow .. 1 stern
-    const z = BOW_Z + ((s + 1) / 2) * (STERN_Z - BOW_Z);
-    const w = 0.31 * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(s), 2.4)), 0.55) + 0.006;
-    const gun = 0.34 + 0.3 * Math.pow(Math.abs(s), 3);
-    const keel = -0.24 + 0.2 * Math.pow(Math.abs(s), 4);
+    const s = (i / stations) * 2 - 1;
+    // Gentle recurve at the stems
+    const z0 = BOW_Z + ((s + 1) / 2) * (STERN_Z - BOW_Z);
     for (let j = 0; j <= around; j++) {
       const th = -Math.PI / 2 + (j / around) * Math.PI;
-      pos.push(w * Math.sin(th), keel + (gun - keel) * (1 - Math.cos(th)), z);
+      const [x, y] = sectionPoint(s, th);
+      const lift = Math.max(0, (y - GUN) / 0.27);
+      const z = z0 + Math.sign(s) * 0.05 * lift * Math.pow(Math.abs(s), 6);
+      pos.push(x, y, z);
+      uv.push(j / around, i / stations);
     }
   }
   const R = around + 1;
   for (let i = 0; i < stations; i++) for (let j = 0; j < around; j++) {
     const a = i * R + j, b = a + 1, c = a + R, d = c + 1;
-    idx.push(a, c, b, b, c, d);
+    idx.push(a, b, c, b, d, c);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
 
-function maskGeometry() {
-  // Hull opening seen from above, just below the gunwale: hides the sea inside the canoe.
-  const shape = new THREE.Shape();
-  const n = 40;
-  const pts = [];
-  for (let i = 0; i <= n; i++) {
-    const s = (i / n) * 2 - 1;
-    const z = BOW_Z + ((s + 1) / 2) * (STERN_Z - BOW_Z);
-    const w = 0.3 * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(s), 2.4)), 0.55);
-    pts.push([w, z]);
-  }
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (const [w, z] of pts) shape.lineTo(w, z);
-  for (let i = pts.length - 1; i >= 0; i--) shape.lineTo(-pts[i][0], pts[i][1]);
-  const g = new THREE.ShapeGeometry(shape);
-  g.rotateX(Math.PI / 2);
-  g.translate(0, 0.3, 0);
-  return g;
+/* ---------- Textures ---------- */
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 8;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
+  return t;
 }
+function rand(seed) { let x = seed; return () => { x = (x * 16807) % 2147483647; return x / 2147483647; }; }
 
-function rod(a, b, r, mat) {
+// Western red cedar strips, running bow to stern, with the odd dark strip and fine grain
+const cedarTex = () => canvasTex(1024, 1024, (g, w, h) => {
+  const r = rand(7);
+  const strips = 72;
+  const palette = [[178, 86, 42], [196, 112, 58], [160, 70, 34], [208, 132, 72], [120, 52, 26], [186, 98, 50], [92, 40, 22]];
+  for (let k = 0; k < strips; k++) {
+    let c = palette[Math.floor(r() * 5)];
+    if (k % 9 === 4) c = palette[6];
+    if (k % 13 === 7) c = palette[4];
+    const x0 = (k / strips) * w, x1 = ((k + 1) / strips) * w;
+    g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    g.fillRect(x0, 0, x1 - x0 + 1, h);
+    // grain
+    for (let n = 0; n < 40; n++) {
+      const y = r() * h, len = 40 + r() * 220;
+      g.fillStyle = `rgba(${r() < 0.5 ? '60,24,10' : '230,160,100'},${0.05 + r() * 0.08})`;
+      g.fillRect(x0 + r() * (x1 - x0), y, 1 + r() * 1.5, len);
+    }
+    g.fillStyle = 'rgba(40,16,6,0.35)';
+    g.fillRect(x1 - 1, 0, 1, h);
+  }
+});
+// Painted hull with a satin finish
+const navyTex = () => canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#18213a';
+  g.fillRect(0, 0, w, h);
+  const r = rand(3);
+  for (let i = 0; i < 1400; i++) {
+    g.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '0,0,0'},0.025)`;
+    g.fillRect(r() * w, r() * h, 2, 2);
+  }
+});
+// Hand-woven cane: strands at 0, 60 and 120 degrees leaving open octagons
+const caneTex = () => canvasTex(256, 256, (g, w, h) => {
+  g.clearRect(0, 0, w, h);
+  g.strokeStyle = '#c9a15e';
+  g.lineCap = 'round';
+  g.lineWidth = 5;
+  const step = 32;
+  for (let i = -w; i < w * 2; i += step) {
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke();
+    g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke();
+  }
+  g.strokeStyle = '#b48945';
+  g.lineWidth = 4;
+  for (let i = -w * 2; i < w * 2; i += step) {
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke();
+    g.beginPath(); g.moveTo(i + h, 0); g.lineTo(i, h); g.stroke();
+  }
+}, [3, 2]);
+
+function rod(a, b, r, mat, seg = 8) {
   const d = new THREE.Vector3().subVectors(b, a);
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), mat);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), seg), mat);
   m.position.copy(a).addScaledVector(d, 0.5);
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
   return m;
 }
 
 export function createCanoe(scene) {
-  const wood = new THREE.MeshStandardMaterial({ color: 0x5a3d26, roughness: 0.85, side: THREE.DoubleSide });
-  const woodLight = new THREE.MeshStandardMaterial({ color: 0x7b5b3c, roughness: 0.9 });
-  const lashing = new THREE.MeshStandardMaterial({ color: 0x9c8a66, roughness: 1 });
-  const sailMat = new THREE.MeshStandardMaterial({ color: 0xcfc3a4, roughness: 0.95, side: THREE.DoubleSide });
+  const navy = new THREE.MeshStandardMaterial({ map: navyTex(), roughness: 0.32, metalness: 0.05, side: THREE.FrontSide });
+  const cedar = new THREE.MeshStandardMaterial({ map: cedarTex(), roughness: 0.38, side: THREE.BackSide });
+  const ash = new THREE.MeshStandardMaterial({ color: 0xd9ab6a, roughness: 0.45 });
+  const walnut = new THREE.MeshStandardMaterial({ color: 0x8a4a26, roughness: 0.4 });
+  const cane = new THREE.MeshStandardMaterial({ map: caneTex(), alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, roughness: 0.7 });
+  const sailMat = new THREE.MeshStandardMaterial({ color: 0xe6dcc4, roughness: 0.92, side: THREE.DoubleSide });
 
   const canoe = new THREE.Group();
-  const hull = new THREE.Mesh(hullGeometry(), wood);
-  canoe.add(hull);
+  const hullGeo = hullGeometry();
+  const outer = new THREE.Mesh(hullGeo, navy);
+  const inner = new THREE.Mesh(hullGeo, cedar);
+  canoe.add(outer, inner);
 
-  const mask = new THREE.Mesh(maskGeometry(), new THREE.MeshBasicMaterial({ colorWrite: false }));
-  mask.renderOrder = 1;
-  canoe.add(mask);
-
-  // Seat and thwarts
-  for (const z of [-2.2, -0.9, 0.35, 1.75]) {
-    const t = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.035, 0.14), woodLight);
-    t.position.set(0, 0.3, z);
+  // Gunwales: an outwale and inwale of ash following the sheer
+  for (const side of [-1, 1]) {
+    for (const [inset, r] of [[-0.012, 0.016], [0.02, 0.013]]) {
+      const pts = [];
+      for (let i = 0; i <= 60; i++) {
+        const s = -0.985 + (i / 60) * 1.97;
+        const z = BOW_Z + ((s + 1) / 2) * (STERN_Z - BOW_Z);
+        pts.push(new THREE.Vector3(side * Math.max(0.01, halfBeam(s) - inset), sheerAt(s) - 0.006, z));
+      }
+      canoe.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, r, 6), ash));
+    }
+  }
+  // Decks: teardrop plates at bow and stern
+  for (const dir of [-1, 1]) {
+    const shape = new THREE.Shape();
+    const s0 = dir * 0.86;
+    const n = 14;
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const s = s0 + (dir * (0.995 - 0.86) * i) / n;
+      pts.push([halfBeam(s) - 0.012, BOW_Z + ((s + 1) / 2) * (STERN_Z - BOW_Z)]);
+    }
+    shape.moveTo(-pts[0][0], pts[0][1]);
+    // concave inner edge, as in the photo
+    shape.quadraticCurveTo(0, pts[0][1] + dir * 0.09, pts[0][0], pts[0][1]);
+    for (const [w, z] of pts) shape.lineTo(w, z);
+    for (let i = pts.length - 1; i >= 0; i--) shape.lineTo(-pts[i][0], pts[i][1]);
+    const geo = new THREE.ShapeGeometry(shape, 8);
+    geo.rotateX(Math.PI / 2);
+    const deck = new THREE.Mesh(geo, walnut);
+    deck.position.y = sheerAt(s0) - 0.012;
+    deck.rotation.x = dir * -0.12;
+    canoe.add(deck);
+  }
+  // Cane seats hung below the gunwales, thwarts and the carved centre yoke
+  function across(z, drop) {
+    const s = sAt(z);
+    return { w: halfBeam(s) - 0.02, y: sheerAt(s) - drop };
+  }
+  for (const [z, depth] of [[-1.85, 0.32], [1.85, 0.36]]) {
+    const a = across(z, 0.085);
+    const seat = new THREE.Group();
+    const frame = 0.035;
+    seat.add(rod(new THREE.Vector3(-a.w, a.y, z - depth / 2), new THREE.Vector3(a.w, a.y, z - depth / 2), frame / 2, ash));
+    seat.add(rod(new THREE.Vector3(-a.w, a.y, z + depth / 2), new THREE.Vector3(a.w, a.y, z + depth / 2), frame / 2, ash));
+    seat.add(rod(new THREE.Vector3(-a.w * 0.82, a.y, z - depth / 2), new THREE.Vector3(-a.w * 0.82, a.y, z + depth / 2), frame / 2, ash));
+    seat.add(rod(new THREE.Vector3(a.w * 0.82, a.y, z - depth / 2), new THREE.Vector3(a.w * 0.82, a.y, z + depth / 2), frame / 2, ash));
+    const web = new THREE.Mesh(new THREE.PlaneGeometry(a.w * 1.6, depth * 0.92), cane);
+    web.rotation.x = -Math.PI / 2;
+    web.position.set(0, a.y + 0.004, z);
+    seat.add(web);
+    canoe.add(seat);
+  }
+  for (const z of [-0.95, 0.85]) {
+    const a = across(z, 0.03);
+    const t = new THREE.Mesh(new THREE.BoxGeometry(a.w * 2, 0.022, 0.06), ash);
+    t.position.set(0, a.y, z);
     canoe.add(t);
   }
-  // Ama (float) to port, with booms
-  const AMA_X = -2.1;
-  const ama = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 3.7, 6, 12), woodLight);
-  ama.rotation.x = Math.PI / 2;
-  ama.position.set(AMA_X, 0.02, -0.3);
-  canoe.add(ama);
-  for (const z of [-1.05, 0.85]) {
-    canoe.add(rod(new THREE.Vector3(0.28, 0.4, z), new THREE.Vector3(AMA_X + 0.05, 0.42, z), 0.045, woodLight));
-    canoe.add(rod(new THREE.Vector3(AMA_X + 0.05, 0.42, z), new THREE.Vector3(AMA_X, 0.1, z), 0.035, woodLight));
-    const lash = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 6, 10), lashing);
-    lash.position.set(0.25, 0.38, z);
-    lash.rotation.y = Math.PI / 2;
-    canoe.add(lash);
+  {
+    const a = across(-0.05, 0.025);
+    const shape = new THREE.Shape();
+    shape.moveTo(-a.w, -0.035);
+    shape.lineTo(-0.16, -0.03);
+    shape.bezierCurveTo(-0.11, -0.06, -0.06, 0.05, 0, 0.05);
+    shape.bezierCurveTo(0.06, 0.05, 0.11, -0.06, 0.16, -0.03);
+    shape.lineTo(a.w, -0.035);
+    shape.lineTo(a.w, 0.035);
+    shape.lineTo(-a.w, 0.035);
+    const yoke = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.022, bevelEnabled: false }), ash);
+    yoke.rotation.x = -Math.PI / 2;
+    yoke.position.set(0, a.y, -0.05);
+    canoe.add(yoke);
+  }
+  // Painter line at the bow, as on the photo's canoe
+  {
+    const s = -0.995;
+    const p0 = new THREE.Vector3(0, sheerAt(s) - 0.02, BOW_Z + 0.02);
+    const pts = [p0, new THREE.Vector3(0.05, sheerAt(s) - 0.1, BOW_Z - 0.15), new THREE.Vector3(0.12, 0.02, BOW_Z - 0.45), new THREE.Vector3(0.2, -0.02, BOW_Z - 0.9)];
+    canoe.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.006, 5), new THREE.MeshStandardMaterial({ color: 0xd9667a, roughness: 0.9 })));
   }
 
-  // Crab-claw sail rig, pivoting at the mast step
+  // Small sprit sail on a mast stepped at the forward thwart
+  const woodSpar = new THREE.MeshStandardMaterial({ color: 0xc9995a, roughness: 0.6 });
   const rig = new THREE.Group();
-  rig.position.set(0, 0.32, -1.5);
+  rig.position.set(0, keelAt(sAt(-0.95)) + 0.02, -0.95);
   canoe.add(rig);
-  const sparA = rod(new THREE.Vector3(0, 0, -0.9), new THREE.Vector3(-0.15, 4.3, 0.9), 0.04, woodLight);
-  const sparB = rod(new THREE.Vector3(0, 0, -0.9), new THREE.Vector3(0.1, 2.2, 2.6), 0.035, woodLight);
-  rig.add(sparA, sparB);
+  const MAST_H = 3.3, BOOM_Y = 0.5, BOOM_L = 2.1;
+  rig.add(rod(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, MAST_H, 0), 0.028, woodSpar));
+  const boom = rod(new THREE.Vector3(0, BOOM_Y, 0), new THREE.Vector3(0, BOOM_Y, BOOM_L), 0.022, woodSpar);
+  rig.add(boom);
   const SU = 16, SV = 10;
   const sailGeo = new THREE.BufferGeometry();
   const sailPos = new Float32Array((SU + 1) * (SV + 1) * 3);
@@ -114,20 +256,17 @@ export function createCanoe(scene) {
   sailGeo.setIndex(sIdx);
   const sail = new THREE.Mesh(sailGeo, sailMat);
   rig.add(sail);
-  const P0 = new THREE.Vector3(0, 0, -0.9), PA = new THREE.Vector3(-0.15, 4.3, 0.9), PB = new THREE.Vector3(0.1, 2.2, 2.6);
+  const LUFF0 = new THREE.Vector3(0, BOOM_Y, 0), HEAD = new THREE.Vector3(0, MAST_H - 0.05, 0), CLEW = new THREE.Vector3(0, BOOM_Y, BOOM_L);
   const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpP = new THREE.Vector3();
   function shapeSail(billow, t) {
     for (let i = 0; i <= SU; i++) {
-      const u = i / SU; // along the spars from the foot
-      tmpA.lerpVectors(P0, PA, u);
-      tmpB.lerpVectors(P0, PB, u);
+      const u = i / SU; // foot to head
+      tmpA.lerpVectors(LUFF0, HEAD, u);
+      tmpB.lerpVectors(CLEW, HEAD, u);
       for (let j = 0; j <= SV; j++) {
-        const v = j / SV; // across between spars
+        const v = j / SV; // luff to leech
         tmpP.lerpVectors(tmpA, tmpB, v);
-        // Concave crab-claw head between the spar tips
-        const bulge = Math.sin(v * Math.PI) * u;
-        tmpP.y -= bulge * u * 0.9;
-        tmpP.x += Math.sin(v * Math.PI) * Math.sin(u * Math.PI * 0.9) * billow * (0.95 + 0.05 * Math.sin(t * 3 + u * 6));
+        tmpP.x += Math.sin(v * Math.PI) * Math.sin((u * 0.9 + 0.05) * Math.PI) * billow * (0.95 + 0.05 * Math.sin(t * 3 + u * 6 + v * 3));
         const k = (i * (SV + 1) + j) * 3;
         sailPos[k] = tmpP.x; sailPos[k + 1] = tmpP.y; sailPos[k + 2] = tmpP.z;
       }
@@ -135,76 +274,151 @@ export function createCanoe(scene) {
     sailGeo.attributes.position.needsUpdate = true;
     sailGeo.computeVertexNormals();
   }
-  shapeSail(0.3, 0);
-  // Lowered sail bundle along the hull
+  shapeSail(0.2, 0);
+  // Furled sail lying along the thwarts when lowered
   const bundle = new THREE.Group();
-  const furled = new THREE.MeshStandardMaterial({ color: 0x9d9278, roughness: 1 });
-  bundle.add(rod(new THREE.Vector3(0.1, 0.42, -2.9), new THREE.Vector3(0.1, 0.46, 0.1), 0.055, furled));
-  bundle.add(rod(new THREE.Vector3(-0.12, 0.45, -3.0), new THREE.Vector3(-0.1, 0.48, 0.0), 0.04, woodLight));
+  const canvasMat = new THREE.MeshStandardMaterial({ color: 0xd8ccb0, roughness: 1 });
+  bundle.add(rod(new THREE.Vector3(0.24, GUN - 0.04, -1.55), new THREE.Vector3(0.26, GUN - 0.03, 0.55), 0.045, canvasMat, 10));
+  bundle.add(rod(new THREE.Vector3(0.3, GUN - 0.01, -1.7), new THREE.Vector3(0.3, GUN, 0.7), 0.018, woodSpar));
+  for (const z of [-1.2, -0.5, 0.2]) {
+    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.006, 5, 12), new THREE.MeshStandardMaterial({ color: 0x6b5a40, roughness: 1 }));
+    tie.position.set(0.245, GUN - 0.035, z);
+    bundle.add(tie);
+  }
   canoe.add(bundle);
 
-  // Paddle, held from the seat
+  // Single-blade canoe paddle of ash
   const paddlePivot = new THREE.Group();
   canoe.add(paddlePivot);
   const paddle = new THREE.Group();
   paddlePivot.add(paddle);
-  paddle.add(rod(new THREE.Vector3(0, 0.55, 0), new THREE.Vector3(0, -0.95, 0), 0.018, woodLight));
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.012), woodLight);
-  blade.position.set(0, -1.15, 0);
+  paddle.add(rod(new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, -0.9, 0), 0.016, ash));
+  const blade = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 4, 10), ash);
+  blade.scale.z = 0.09;
+  blade.position.set(0, -1.12, 0);
   paddle.add(blade);
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 0.03), woodLight);
-  grip.position.set(0, 0.56, 0);
+  const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, 0.07, 4, 8), ash);
+  grip.rotation.z = Math.PI / 2;
+  grip.position.set(0, 0.52, 0);
   paddle.add(grip);
 
-  canoe.traverse((o) => { o.layers.set(LAYER_NEAR); o.renderOrder = o === mask ? 1 : 0; });
+  // Hurricane lantern on the floor in front of the paddler
+  const lantern = new THREE.Group();
+  lantern.position.set(0.12, keelAt(sAt(1.0)) + 0.012, 1.0);
+  canoe.add(lantern);
+  const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a35, roughness: 0.55, metalness: 0.6 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xfff3dd, roughness: 0.15, transparent: true, opacity: 0.35, emissive: 0x000000 });
+  const lanternFallback = new THREE.Group();
+  const lBase = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.07, 0.06, 20), brass);
+  lBase.position.y = 0.03;
+  const lGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.055, 20, 14), glassMat);
+  lGlobe.scale.y = 1.3;
+  lGlobe.position.y = 0.13;
+  const lCap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.05, 20), brass);
+  lCap.position.y = 0.225;
+  lanternFallback.add(lBase, lGlobe, lCap);
+  lantern.add(lanternFallback);
+  const flameTex = canvasTex(64, 64, (g) => {
+    const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,240,200,1)');
+    grd.addColorStop(0.25, 'rgba(255,190,90,0.85)');
+    grd.addColorStop(1, 'rgba(255,140,40,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 64);
+  });
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  flame.scale.set(0.06, 0.09, 1);
+  flame.position.y = 0.13;
+  flame.renderOrder = 6;
+  lantern.add(flame);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35 }));
+  halo.scale.set(0.6, 0.6, 1);
+  halo.position.y = 0.13;
+  halo.renderOrder = 6;
+  lantern.add(halo);
+  const lampLight = new THREE.PointLight(0xffa860, 0, 14, 2);
+  lampLight.position.y = 0.14;
+  lantern.add(lampLight);
+  let lampLevel = 0;
+
+  canoe.traverse((o) => o.layers.set(LAYER_NEAR));
+  lampLight.layers.enableAll();
   scene.add(canoe);
 
   let strokeT = 0, side = 1, strokes = 0, paddleVis = 0, lastCatch = -1;
   const sailState = { shown: 1, angle: 0 };
-  const sampA = {}, sampB = {}, sampC = {};
+  const samp = {};
   const q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ');
-  let pitchS = 0, rollS = 0, heaveS = 0, yawS = 0;
+  let pitchS = 0, rollS = 0, heaveS = 0, yawS = 0, heaveV = 0, pitchV = 0, rollV = 0, settled = false;
   const bladeWorld = new THREE.Vector3();
 
   /**
-   * Place the canoe on the sea and animate rig and paddle.
-   * opts: { x, z, headingDeg, paddling, sailUp, apparentFromRel (deg, relative to bow), windSpeed, t, dt, ocean, onCatch }
+   * Place the canoe on the sea and animate rig, paddle and lantern.
+   * opts: { x, z, headingDeg, paddling, sailUp, apparentFromRel (deg off the bow, + starboard), windSpeed, t, dt, waveT, ocean, lantern, light, onCatch }
    */
   function update(o) {
     const h = o.headingDeg * DEG;
     const fx = Math.sin(h), fz = -Math.cos(h);
     const rx = Math.cos(h), rz = Math.sin(h);
-    o.ocean.sample(o.x + fx * 2.6, o.z + fz * 2.6, o.waveT, sampA);
-    o.ocean.sample(o.x - fx * 2.4, o.z - fz * 2.4, o.waveT, sampB);
-    o.ocean.sample(o.x, o.z, o.waveT, sampC);
-    // Buoyant hull rides the local surface; never let a crest climb over the gunwale beneath the paddler
-    const heave = Math.max((sampA.h + sampB.h + sampC.h * 2) / 4, sampC.h - 0.06);
-    const pitch = Math.atan2(sampA.h - sampB.h, 5.0);
-    const roll = -Math.atan(sampC.sx * rx + sampC.sz * rz) * 0.35;
-    const k = 1 - Math.exp(-o.dt * 5);
-    heaveS += (heave - heaveS) * (1 - Math.exp(-o.dt * 9));
-    pitchS += (pitch - pitchS) * k;
-    rollS += (roll - rollS) * k;
+    // Fit a plane to the sea under the hull (least squares over the wetted points)
+    let S0 = 0, Sa = 0, Sc = 0, Saa = 0, Scc = 0, Sac = 0, Sy = 0, Say = 0, Scy = 0;
+    for (const [al, ac, wgt] of WET) {
+      o.ocean.sample(o.x + fx * al + rx * ac, o.z + fz * al + rz * ac, o.waveT, samp);
+      const y = samp.h;
+      S0 += wgt; Sa += wgt * al; Sc += wgt * ac; Saa += wgt * al * al; Scc += wgt * ac * ac; Sac += wgt * al * ac;
+      Sy += wgt * y; Say += wgt * al * y; Scy += wgt * ac * y;
+    }
+    const sol = solve3([[S0, Sa, Sc], [Sa, Saa, Sac], [Sc, Sac, Scc]], [Sy, Say, Scy]);
+    const heave = sol[0];
+    const pitch = Math.atan(sol[1]);
+    const roll = Math.atan(sol[2]) * 0.8;
+    // After a long frame (a hidden tab, a slow device) the hull simply settles where the sea now is
+    if (!settled || (o.rawDt || 0) > 0.3) { heaveS = heave; pitchS = pitch; rollS = roll; heaveV = pitchV = rollV = 0; settled = true; }
+    // Mass on a spring, integrated in small steps so it stays true at any frame rate
+    let left = Math.min(o.rawDt || o.dt, 0.3);
+    while (left > 1e-4) {
+      const dt = Math.min(left, 1 / 120);
+      heaveV += (60 * (heave - heaveS) - 11 * heaveV) * dt;
+      heaveS += heaveV * dt;
+      pitchV += (40 * (pitch - pitchS) - 10 * pitchV) * dt;
+      pitchS += pitchV * dt;
+      rollV += (30 * (roll - rollS) - 7 * rollV) * dt;
+      rollS += rollV * dt;
+      left -= dt;
+    }
     canoe.position.set(o.x, heaveS, o.z);
     yawS = -h;
     e.set(pitchS, -h, rollS, 'YXZ');
     canoe.quaternion.setFromEuler(e);
+    // Tell the sea where the hull sits so it settles around it instead of passing through
+    const ou = o.ocean.uniforms;
+    ou.uHull.value.set(o.x, heaveS, o.z, 1);
+    ou.uHullAx.value.set(fx, fz, Math.sin(pitchS), Math.sin(rollS));
 
     // Sail: raise and lower smoothly, swing to leeward and fill with the wind
     const target = o.sailUp ? 1 : 0;
     if (!sailState.init) { sailState.shown = target; sailState.init = true; }
     sailState.shown += (target - sailState.shown) * Math.min(1, o.dt * 1.5);
-    // Woven pandanus lets light through: the sail glows on its shaded side
-    if (o.light) sailMat.emissive.setRGB(o.light[0] * 0.32, o.light[1] * 0.3, o.light[2] * 0.26);
+    if (o.light) sailMat.emissive.setRGB(o.light[0] * 0.28, o.light[1] * 0.27, o.light[2] * 0.25);
     rig.visible = sailState.shown > 0.02;
     bundle.visible = sailState.shown < 0.6;
     rig.scale.set(1, Math.max(0.02, sailState.shown), 1);
-    const rel = o.apparentFromRel; // wind coming from this angle off the bow, degrees (+ starboard)
+    const rel = o.apparentFromRel;
     const leeward = rel >= 0 ? -1 : 1;
-    const swing = leeward * Math.min(70, Math.max(10, Math.abs(rel) * 0.5));
+    const swing = leeward * Math.min(75, Math.max(8, Math.abs(rel) * 0.5));
     sailState.angle += (swing * DEG - sailState.angle) * Math.min(1, o.dt * 0.8);
-    rig.rotation.y = sailState.angle;
-    shapeSail(leeward * Math.min(0.75, 0.12 + o.windSpeed * 0.04) * (o.sailUp ? 1 : 0.2), o.t);
+    rig.rotation.y = sailState.angle; // boom trails aft and swings to leeward
+    shapeSail(leeward * Math.min(0.5, 0.1 + o.windSpeed * 0.03) * (o.sailUp ? 1 : 0.2), o.t);
+
+    // Lantern: a kerosene flame flickers; light fades in and out when trimmed
+    lampLevel += ((o.lantern ? 1 : 0) - lampLevel) * Math.min(1, o.dt * 3);
+    const flick = 0.86 + 0.08 * Math.sin(o.t * 17.3) + 0.06 * Math.sin(o.t * 7.1 + Math.sin(o.t * 2.3));
+    lampLight.intensity = 1.5 * lampLevel * flick;
+    flame.visible = halo.visible = lampLevel > 0.02;
+    flame.material.opacity = lampLevel;
+    halo.material.opacity = 0.22 * lampLevel * flick;
+    flame.scale.set(0.06 * (0.95 + 0.05 * flick), 0.09 * flick, 1);
+    glassMat.emissive.setRGB(0.55 * lampLevel * flick, 0.32 * lampLevel * flick, 0.12 * lampLevel * flick);
 
     // Paddle strokes, switching sides every few strokes
     paddleVis += ((o.paddling ? 1 : 0) - paddleVis) * Math.min(1, o.dt * 4);
@@ -218,8 +432,8 @@ export function createCanoe(scene) {
     const u = pull ? ph / 0.6 : (ph - 0.6) / 0.4;
     const swingX = pull ? -0.75 + 1.2 * u : 0.45 - 1.2 * u;
     const lift = pull ? 0 : Math.sin(u * Math.PI) * 0.35;
-    paddlePivot.position.set(side * 0.36, SEAT.y + 0.08 + lift * 0.4 - (1 - paddleVis) * 0.8, SEAT.z - 0.35);
-    paddle.rotation.set(swingX, 0, side * (0.18 + lift));
+    paddlePivot.position.set(side * (halfBeam(sAt(SEAT.z - 0.4)) + 0.04), SEAT.y + 0.05 + lift * 0.4 - (1 - paddleVis) * 0.8, SEAT.z - 0.4);
+    paddle.rotation.set(swingX, 0, side * (0.14 + lift));
     if (o.paddling && pull && u < 0.12 && lastCatch !== strokes) {
       lastCatch = strokes;
       blade.getWorldPosition(bladeWorld);
@@ -232,10 +446,41 @@ export function createCanoe(scene) {
     canoe.updateMatrixWorld();
     outPos.copy(SEAT).applyMatrix4(canoe.matrixWorld);
     // The paddler keeps their head steadier than the hull
-    e.set(pitchS * 0.45, yawS, rollS * 0.4, 'YXZ');
+    e.set(pitchS * 0.5, yawS, rollS * 0.45, 'YXZ');
     q.setFromEuler(e);
     outQuat.copy(q);
   }
 
-  return { group: canoe, update, eye, get heave() { return heaveS; } };
+  /** World position and brightness of the lantern flame. */
+  function lamp(out) {
+    lampLight.getWorldPosition(out);
+    return lampLevel * (0.9 + 0.1 * Math.sin(performance.now() / 60));
+  }
+
+  /** Swap the built-in lantern for the generated model, 30 cm tall, flame inside its globe. */
+  function applyLantern(root) {
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].colorSpace = THREE.NoColorSpace;
+    });
+    const box = new THREE.Box3().setFromObject(root);
+    const size = box.getSize(new THREE.Vector3());
+    const scale = 0.3 / size.y;
+    const holder = new THREE.Group();
+    holder.add(root);
+    holder.scale.setScalar(scale);
+    const c = box.getCenter(new THREE.Vector3());
+    holder.position.set(-c.x * scale, -box.min.y * scale, -c.z * scale);
+    lantern.add(holder);
+    holder.traverse((o) => o.layers.set(LAYER_NEAR));
+    lanternFallback.visible = false;
+    flame.position.y = halo.position.y = lampLight.position.y = 0.3 * 0.47;
+  }
+
+  return { group: canoe, update, eye, lamp, applyLantern, get heave() { return heaveS; } };
 }
+
+/** Sea mask settings for this hull: (along from, along to, half-beam) and no float. */
+export const HULL_MASK = { seg: [LENGTH / 2, BEAM + 0.015, 0], ama: [0, 0, 0, -50] };

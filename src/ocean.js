@@ -78,7 +78,37 @@ function detailNormals(renderer) {
 const WAVE_GLSL = /* glsl */`
   #define NW ${N_WAVES}
   uniform vec4 uWaves[NW];
+  uniform vec4 uHull;   // canoe x, z, heave, on
+  uniform vec4 uHullAx; // forward x, z, sin(pitch), sin(roll)
+  uniform vec4 uHullSeg; // hull from (along) .x to .y, half-beam .z
+  uniform vec4 uAmaSeg;  // float across .x, from (along) .y to .z, radius .w
   float waveFade(float L, float dist) { return 1.0 - smoothstep(L * 15.0, L * 60.0, dist); }
+  float segDist(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+  }
+  // The canoe displaces the sea: around the hull and float the surface settles onto the canoe's
+  // waterline, and inside the hull it sits below the planking, so waves never pass through the boat.
+  // Returns (blend, waterline height, inside hull).
+  vec3 hullMask(vec2 base) {
+    if (uHull.w < 0.5) return vec3(0.0);
+    vec2 rel = base - uHull.xy;
+    vec2 f = uHullAx.xy;
+    vec2 r = vec2(-f.y, f.x);
+    float along = dot(rel, f), across = dot(rel, r);
+    vec2 q = vec2(across, along);
+    // Hull plan: half-beam tapering to fine stems, uHullSeg = (half length, half-beam, fullness, 0)
+    float sl = clamp(abs(along) / uHullSeg.x, 0.0, 1.0);
+    float hb = uHullSeg.y * pow(max(0.0, 1.0 - pow(sl, 2.3)), 0.72);
+    float dHull = max(abs(across) - hb, abs(along) - uHullSeg.x);
+    float dAma = segDist(q, vec2(uAmaSeg.x, uAmaSeg.y), vec2(uAmaSeg.x, uAmaSeg.z)) - uAmaSeg.w;
+    float d = min(dHull, dAma);
+    float w = 1.0 - smoothstep(0.0, 1.5, d);
+    float plane = uHull.z + along * uHullAx.z + across * uHullAx.w;
+    float inside = 1.0 - smoothstep(-0.14, 0.04, dHull);
+    return vec3(w, plane, inside);
+  }
 `;
 
 export function createOcean(renderer, scene, skyUniforms) {
@@ -97,7 +127,12 @@ export function createOcean(renderer, scene, skyUniforms) {
     uWhitecap: { value: 0 },
     uRain: { value: 0 },
     uHsWind: { value: 0.5 },
-    uWaveT: { value: 0 }
+    uWaveT: { value: 0 },
+    uHull: { value: new THREE.Vector4() },
+    uHullAx: { value: new THREE.Vector4(0, -1, 0, 0) },
+    uHullSeg: { value: new THREE.Vector4(2.6, 0.46, 0, 0) },
+    uAmaSeg: { value: new THREE.Vector4(-2.1, -1.7, 2.1, 0.16) },
+    uLantern: { value: new THREE.Vector4(0, -100, 0, 0) }
   });
 
   const mat = new THREE.ShaderMaterial({
@@ -108,6 +143,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       varying vec3 vWorld;
       varying vec2 vBase;
       varying float vH;
+      varying float vMask;
       void main() {
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vec2 base = wp.xz;
@@ -124,10 +160,13 @@ export function createOcean(renderer, scene, skyUniforms) {
           disp.xz += Q * A * w.xy * cos(ph);
           disp.y += A * sin(ph);
         }
-        wp.xyz += disp;
+        vec3 hm = hullMask(base);
+        wp.xz += disp.xz * (1.0 - hm.x);
+        wp.y = mix(disp.y, hm.y - 0.5 * hm.z, hm.x);
         vWorld = wp.xyz;
         vBase = base;
-        vH = disp.y;
+        vH = disp.y * (1.0 - hm.x);
+        vMask = hm.x;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: SKY_GLSL + WAVE_GLSL + /* glsl */`
@@ -141,9 +180,11 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform float uRain;
       uniform float uHsWind;
       uniform float uWaveT;
+      uniform vec4 uLantern; // position, brightness
       varying vec3 vWorld;
       varying vec2 vBase;
       varying float vH;
+      varying float vMask;
 
       vec2 slopeAt(vec2 uv) {
         vec3 n = texture2D(tDetail, uv).xyz * 2.0 - 1.0;
@@ -168,6 +209,7 @@ export function createOcean(renderer, scene, skyUniforms) {
           N.z -= w.y * WA * cos(ph);
           N.y -= Q * WA * sin(ph);
         }
+        N.xz *= 1.0 - vMask;
 
         float t = uTime;
         float windK = clamp(uWind / 8.0, 0.15, 1.6);
@@ -218,11 +260,15 @@ export function createOcean(renderer, scene, skyUniforms) {
         float sunUp = smoothstep(-0.03, 0.05, uSunDir.y);
         refl += uSunCol * pow(max(dot(R, uSunDir), 0.0), 2200.0) * 5.0 * sunUp * (1.0 - uDarkness * 0.85);
 
+        // Fresnel, softened by the spread of wave slopes below the mesh resolution
         float F = 0.03 + 0.97 * pow(1.0 - NdV, 5.0);
+        F = mix(F, 0.03 + 0.97 * pow(1.0 - min(NdV, 0.9), 3.2) * 0.55, 0.35);
 
         vec3 L = uSunDir;
         float lightAmt = sunUp * clamp(L.y * 3.0 + 0.2, 0.0, 1.0) * (1.0 - 0.6 * uDarkness);
         vec3 body = uBody * (0.75 + 0.35 * max(dot(N, normalize(vec3(L.x, max(L.y, 0.05), L.z))), 0.0));
+        // Light scattered back up out of the water column, strongest looking straight down
+        body += (uZen * 0.55 + uHor * 0.25) * vec3(0.18, 0.42, 0.55) * (0.35 + 0.65 * NdV) * (1.0 - 0.5 * uDarkness);
         float facing = 0.0;
         if (length(L.xz) > 1e-4) facing = max(dot(normalize(-V.xz), normalize(L.xz)), 0.0);
         float sss = pow(facing, 3.0) * clamp(vH / max(uHsWind, 0.3) * 1.5 + 0.35, 0.0, 1.0) * lightAmt;
@@ -237,6 +283,17 @@ export function createOcean(renderer, scene, skyUniforms) {
           float foam = crest * smoothstep(1.0 - uWhitecap * 1.6, 1.0 - uWhitecap * 0.6, br) * (1.0 - smoothstep(600.0, 4000.0, dist));
           vec3 foamCol = (uHor * 0.6 + uZen * 0.3 + uSunCol * 0.35 * lightAmt) * 1.15;
           col = mix(col, foamCol, clamp(foam, 0.0, 0.9));
+        }
+
+        // Lantern light on the water: a warm glitter path and a soft pool around the canoe
+        if (uLantern.w > 0.001) {
+          vec3 Lv = uLantern.xyz - vWorld;
+          float ld = length(Lv);
+          vec3 Ln = Lv / ld;
+          float fall = uLantern.w / (1.0 + ld * ld * 0.35);
+          vec3 warm = vec3(1.0, 0.62, 0.28);
+          col += warm * pow(max(dot(R, Ln), 0.0), 140.0) * fall * 2.2;
+          col += warm * max(dot(N, Ln), 0.0) * fall * 0.05;
         }
 
         float fogF = 1.0 - exp(-dist / uVis);
