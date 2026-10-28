@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pacific Drift</title>
+  <meta name="description" content="Alone in an outrigger canoe at Point Nemo with a compass, a radio and the sky. Find land.">
+  <meta name="theme-color" content="#0b0e10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e10'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23efeae0' stroke-width='3'/%3E%3Cpath d='M32 14l5 18h-10z' fill='%23efeae0'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Figtree:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <canvas id="scene" aria-label="The view from the canoe"></canvas>
+  <div id="skyLabels" class="sky-labels" hidden></div>
+
+  <header class="hud-top">
+    <div class="wordmark">Pacific Drift</div>
+    <div class="watch" aria-live="off">
+      <span id="dayOut">Day 1</span>
+      <span id="clockOut">--:-- UTC</span>
+    </div>
+  </header>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="compass-wrap">
+    <canvas id="compass" class="compass" width="168" height="168" aria-label="Hand-bearing compass"></canvas>
+    <div class="compass-readout" id="compassReadout">000°</div>
+  </div>
+
+  <div class="status"><span id="sailOut">Sail down</span></div>
+
+  <aside class="radio" id="radio" aria-hidden="true" aria-label="Radio">
+    <div class="radio-head">
+      <span class="radio-title">Radio</span>
+      <button id="radioPower" class="pill" type="button" aria-pressed="false">Off</button>
+      <button id="radioClose" class="icon-btn" type="button" aria-label="Close the radio">×</button>
+    </div>
+    <div class="bands" role="group" aria-label="Band">
+      <button type="button" data-band="SW" aria-pressed="true">SW</button>
+      <button type="button" data-band="MW" aria-pressed="false">MW</button>
+      <button type="button" data-band="FM" aria-pressed="false">FM</button>
+      <button type="button" data-band="LIST" aria-pressed="false">Tape</button>
+    </div>
+
+    <div id="tunerPane">
+      <div class="readout-row">
+        <output id="radioFreq">9.410 MHz</output>
+        <div class="meter" id="radioMeter" aria-label="Signal strength"></div>
+      </div>
+      <div id="radioStation" class="station">Static</div>
+      <canvas id="dial" class="dial" aria-label="Tuning dial"></canvas>
+      <div class="row">
+        <button type="button" id="tuneDown">◂ Tune</button>
+        <button type="button" id="tuneUp">Tune ▸</button>
+      </div>
+      <div class="antenna">
+        <span class="ant-label">Antenna</span>
+        <span class="ant-dial" aria-hidden="true"><i id="antennaArrow"></i></span>
+        <span id="antennaOut" class="ant-out">Pointing ahead</span>
+        <button type="button" id="antLeft" aria-label="Turn the antenna to port">⟲</button>
+        <button type="button" id="antRight" aria-label="Turn the antenna to starboard">⟳</button>
+      </div>
+      <label class="vol" for="radioVolume">Volume <input type="range" id="radioVolume" min="0" max="100" value="75"></label>
+      <p class="radio-hint">Drag the dial or press , and . to tune, holding Shift for fine steps. Z and X turn the antenna, and a station comes in loudest when the antenna points toward it or directly away from it.</p>
+    </div>
+
+    <div id="tapePane" hidden>
+      <div class="spotify-wrap"><div id="spotifyEmbed"></div></div>
+      <form id="playlistForm" class="playlist-form">
+        <label for="playlistInput">Play your own Spotify playlist</label>
+        <div class="row">
+          <input id="playlistInput" type="url" inputmode="url" autocomplete="off" placeholder="https://open.spotify.com/playlist/…">
+          <button type="submit">Load</button>
+        </div>
+      </form>
+      <p id="tapeNote" class="radio-hint">Listeners signed in to Spotify in this browser hear full tracks, and everyone else hears previews.</p>
+      <button type="button" id="playlistReset" class="link">Use the Pacific Drift playlist</button>
+    </div>
+  </aside>
+
+  <div class="touch" id="touch" hidden>
+    <div class="touch-steer">
+      <button type="button" class="hud-btn" data-hold="left" aria-label="Steer to port">◂</button>
+      <button type="button" class="hud-btn wide" data-hold="paddle">Paddle</button>
+      <button type="button" class="hud-btn" data-hold="right" aria-label="Steer to starboard">▸</button>
+    </div>
+    <div class="touch-tools">
+      <button type="button" class="hud-btn" id="tSail">Sail</button>
+      <button type="button" class="hud-btn" id="tRadio">Radio</button>
+      <button type="button" class="hud-btn" id="tStars">Stars</button>
+    </div>
+  </div>
+
+  <section class="overlay" id="intro">
+    <div class="panel">
+      <p class="eyebrow">48° 52′ S · 123° 23′ W</p>
+      <h1 id="introTitle">Pacific Drift</h1>
+      <p class="lede" id="introLede">You are alone in an outrigger canoe at Point Nemo, the place in the ocean farthest from any land. You have a compass, a radio and the sky, and somewhere out there is a shore.</p>
+      <p class="away" id="awayNote" hidden></p>
+      <ul class="keys">
+        <li><kbd>W</kbd> paddle</li>
+        <li><kbd>A</kbd><kbd>D</kbd> steer</li>
+        <li><kbd>E</kbd> raise or lower the sail</li>
+        <li><kbd>R</kbd> radio</li>
+        <li><kbd>C</kbd> star chart</li>
+        <li><kbd>Mouse</kbd> look around</li>
+        <li><kbd>M</kbd> sound</li>
+        <li><kbd>Esc</kbd> pause</li>
+      </ul>
+      <p class="fine">The voyage runs in real time and continues while you are away. Leave the sail up and the canoe keeps sailing its heading, or lower it and the canoe drifts.</p>
+      <button id="begin" class="begin" type="button" disabled>Begin the voyage</button>
+      <p class="fine" id="loadNote">Loading the ocean…</p>
+    </div>
+  </section>
+
+  <section class="overlay landfall" id="landfall" hidden>
+    <div class="chart-card">
+      <div class="chart-text">
+        <p class="eyebrow">Landfall</p>
+        <h2 id="landfallPlace">—</h2>
+        <p id="landfallText"></p>
+        <dl id="landfallStats" class="stats"></dl>
+        <button id="newVoyage" class="begin dark" type="button">Start a new voyage</button>
+      </div>
+      <canvas id="chart" class="chart" aria-label="Chart of your voyage"></canvas>
+    </div>
+  </section>
+
+  <div class="fail" id="fail" hidden></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
