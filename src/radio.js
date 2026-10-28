@@ -13,15 +13,16 @@ const BANDS = {
   FM: { min: 87.5, max: 108, step: 0.1, bw: 0.09, unit: 'MHz', digits: 1, label: 'FM' },
   LIST: { label: 'Tape' }
 };
+// [name, frequency on this dial (MHz), origin lat, lng, verified https stream or null to look up by exact name]
 const SW_BROADCASTERS = [
-  ['BBC World Service', 9.41, 51.5, -0.12],
-  ['RNZ Pacific', 11.725, -38.9, 176.1],
-  ['ABC Radio Australia', 9.58, -33.9, 151.2],
-  ['NHK World', 11.815, 35.7, 139.7],
-  ['Voice of America', 7.335, 38.9, -77.0],
-  ['RFI Monde', 15.3, 48.85, 2.35],
-  ['Radio Habana Cuba', 6.0, 23.1, -82.4]
+  ['BBC World Service', 9.41, 51.5, -0.12, 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service'],
+  ['RFI Monde', 15.3, 48.85, 2.35, 'https://rfiafrique64k.ice.infomaniak.ch/rfimonde-64.mp3'],
+  ['Deutsche Welle', 6.075, 50.73, 7.1, 'https://dw.audiostream.io/dw/1027/mp3/64/dw08'],
+  ['ABC Radio Australia', 9.58, -33.9, 151.2, null],
+  ['NHK World', 11.815, 35.7, 139.7, null]
 ];
+const HLS_OK = (() => { try { return !!new Audio().canPlayType('application/vnd.apple.mpegurl'); } catch (e) { return false; } })();
+const playable = (url) => url.startsWith('https://') && (HLS_OK || !/\.m3u8|\/hls\//i.test(url));
 const WWVH = { lat: 21.99, lng: -159.76 };
 const TAUPO = { lat: -38.7, lng: 176.1 };
 
@@ -101,10 +102,11 @@ export function createRadio({ audio, getState, onPlaylist, toast }) {
   state.stations = fixedStations();
 
   async function loadShortwave() {
-    const found = await Promise.all(SW_BROADCASTERS.map(async ([name, freq, lat, lng]) => {
-      const res = await rb(`/json/stations/search?name=${encodeURIComponent(name)}&order=clickcount&reverse=true&limit=12&hidebroken=true`);
+    const found = await Promise.all(SW_BROADCASTERS.map(async ([name, freq, lat, lng, fixed]) => {
+      if (fixed) return { id: 'sw-' + name, name, band: 'SW', freq, kind: 'sw', url: fixed, lat, lng };
+      const res = await rb(`/json/stations/search?name=${encodeURIComponent(name)}&order=clickcount&reverse=true&limit=15&hidebroken=true`);
       if (!res) return null;
-      const s = res.find((r) => (r.url_resolved || r.url || '').startsWith('https://'));
+      const s = res.find((r) => (r.name || '').toLowerCase().startsWith(name.toLowerCase()) && playable(r.url_resolved || r.url || ''));
       return s ? { id: 'sw-' + s.stationuuid, name, band: 'SW', freq, kind: 'sw', url: s.url_resolved || s.url, lat, lng } : null;
     }));
     for (const s of found) if (s) state.stations.push(s);
@@ -120,7 +122,7 @@ export function createRadio({ audio, getState, onPlaylist, toast }) {
     const local = [];
     for (const r of res) {
       const url = r.url_resolved || r.url || '';
-      if (!url.startsWith('https://')) continue;
+      if (!playable(url)) continue;
       const sl = parseFloat(r.geo_lat), sg = parseFloat(r.geo_long);
       if (!Number.isFinite(sl) || !Number.isFinite(sg)) continue;
       const d = distance(lat, lng, sl, sg);
@@ -277,7 +279,6 @@ export function createRadio({ audio, getState, onPlaylist, toast }) {
     else if (state.band === 'LIST') startTape();
   }
   powerBtn.addEventListener('click', () => setPower(!state.on));
-  volume.addEventListener('input', () => { stream.volume = 0; });
 
   /* ----- Streams and speech ----- */
   function stopStream() {
