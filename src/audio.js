@@ -125,13 +125,78 @@ export function createAudio() {
     s.start(t, Math.random() * 4, 0.05);
   }
 
+  // Water slapping the hull as it rises and falls
+  function lap(strength = 1) {
+    if (!ctx || muted) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 500 + Math.random() * 500; f.Q.value = 2.5;
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22 * Math.min(1.5, strength), t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35 + Math.random() * 0.25);
+    src.connect(f).connect(g).connect(master);
+    src.start(t, Math.random() * 3, 0.7);
+  }
+  // Wood and lashings working as the hull flexes
+  function creak(strength = 1) {
+    if (!ctx || muted) return;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const base = 90 + Math.random() * 80;
+    const t = ctx.currentTime;
+    o.frequency.setValueAtTime(base, t);
+    o.frequency.linearRampToValueAtTime(base * (1.15 + Math.random() * 0.3), t + 0.25);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.03 * strength, t + 0.05);
+    g.gain.linearRampToValueAtTime(0, t + 0.3);
+    o.connect(f).connect(g).connect(master);
+    o.start(t);
+    o.stop(t + 0.35);
+  }
+  // Rolling thunder after a flash, delayed by the distance to the strike
+  function thunder(delay, strength = 1) {
+    if (!ctx || muted) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 160 + 120 * strength; f.Q.value = 0.7;
+    const g = ctx.createGain();
+    const t = ctx.currentTime + delay;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.5 * strength, t + 0.15);
+    g.gain.linearRampToValueAtTime(0.32 * strength, t + 0.9);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 4.5);
+    src.connect(f).connect(g).connect(master);
+    src.start(t, Math.random(), 4.8);
+  }
+  // The soft roar of a kerosene lantern
+  let hiss = null;
+  function setLantern(level) {
+    if (!ctx) return;
+    if (!hiss) {
+      const src = loop(noiseBuf);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = 3200; f.Q.value = 0.8;
+      hiss = ctx.createGain();
+      hiss.gain.value = 0;
+      src.connect(f).connect(hiss).connect(master);
+    }
+    set(hiss.gain, 0.012 * level, 0.5);
+  }
+
   function setMuted(m) {
     muted = m;
     if (master) master.gain.setTargetAtTime(m ? 0 : 0.9, ctx.currentTime, 0.05);
   }
 
   return {
-    start, update, splash, setStatic, tone, crackle, setMuted,
+    start, update, splash, setStatic, tone, crackle, setMuted, lap, creak, thunder, setLantern,
     onStart(fn) { listeners.push(fn); if (ctx) fn(ctx); },
     get muted() { return muted; },
     get ready() { return !!ctx; }

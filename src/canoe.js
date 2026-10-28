@@ -150,8 +150,8 @@ export function createCanoe(scene) {
   const canoe = new THREE.Group();
   const hullGeo = hullGeometry();
   const outer = new THREE.Mesh(hullGeo, navy);
-  const inner = new THREE.Mesh(hullGeo, cedar);
-  canoe.add(outer, inner);
+  const innerHull = new THREE.Mesh(hullGeo, cedar);
+  canoe.add(outer, innerHull);
 
   // Gunwales: an outwale and inwale of ash following the sheer
   for (const side of [-1, 1]) {
@@ -416,7 +416,7 @@ export function createCanoe(scene) {
     // Lantern: a kerosene flame flickers; light fades in and out when trimmed
     lampLevel += ((o.lantern ? 1 : 0) - lampLevel) * Math.min(1, o.dt * 3);
     const flick = 0.86 + 0.08 * Math.sin(o.t * 17.3) + 0.06 * Math.sin(o.t * 7.1 + Math.sin(o.t * 2.3));
-    lampLight.intensity = 1.5 * lampLevel * flick;
+    lampLight.intensity = 2.6 * lampLevel * flick;
     flame.visible = halo.visible = lampLevel > 0.02;
     flame.material.opacity = lampLevel;
     halo.material.opacity = 0.22 * lampLevel * flick;
@@ -528,7 +528,27 @@ export function createCanoe(scene) {
     holder.traverse((o) => o.layers.set(LAYER_NEAR));
     canoe.add(holder);
     for (const p of hullParts) p.visible = false;
-    return { halfBeam: BEAM, depth: GUN - KEEL };
+    // A solid cedar shell just outside the model's inner surface: wherever the generated mesh has
+    // gaps, you see planking instead of the sea underneath
+    innerHull.visible = true;
+    innerHull.scale.set(1.04, 1, 1.0);
+    innerHull.position.y = -0.025;
+    // Seat the lantern on the bow deck, wherever the model's deck actually is
+    canoe.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const meshes = [];
+    holder.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    const zDeck = BOW_Z + 0.4;
+    const from = new THREE.Vector3(0, 3, zDeck).applyMatrix4(canoe.matrixWorld);
+    const down = new THREE.Vector3(0, -1, 0).transformDirection(canoe.matrixWorld);
+    ray.set(from, down);
+    ray.layers.enableAll();
+    const hit = ray.intersectObjects(meshes, false)[0];
+    if (hit) {
+      const local = canoe.worldToLocal(hit.point.clone());
+      lantern.position.set(0, local.y + 0.004, zDeck);
+    }
+    return { halfBeam: BEAM, depth: GUN - KEEL, deck: hit ? lantern.position.y : null };
   }
 
   return { group: canoe, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; } };

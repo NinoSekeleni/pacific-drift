@@ -132,7 +132,9 @@ export function createOcean(renderer, scene, skyUniforms) {
     uHullAx: { value: new THREE.Vector4(0, -1, 0, 0) },
     uHullSeg: { value: new THREE.Vector4(2.6, 0.46, 0, 0) },
     uAmaSeg: { value: new THREE.Vector4(-2.1, -1.7, 2.1, 0.16) },
-    uLantern: { value: new THREE.Vector4(0, -100, 0, 0) }
+    uLantern: { value: new THREE.Vector4(0, -100, 0, 0) },
+    uBio: { value: 0 },
+    uHullSpeed: { value: 0 }
   });
 
   const mat = new THREE.ShaderMaterial({
@@ -184,6 +186,8 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform float uHsWind;
       uniform float uWaveT;
       uniform vec4 uLantern; // position, brightness
+      uniform float uBio;       // darkness-weighted bioluminescence strength
+      uniform float uHullSpeed; // canoe speed through the water, m/s
       varying vec3 vWorld;
       varying vec2 vBase;
       varying float vH;
@@ -297,6 +301,18 @@ export function createOcean(renderer, scene, skyUniforms) {
           vec3 warm = vec3(1.0, 0.62, 0.28);
           col += warm * pow(max(dot(R, Ln), 0.0), 140.0) * fall * 2.2;
           col += warm * max(dot(N, Ln), 0.0) * fall * 0.05;
+        }
+
+        // Bioluminescence: plankton flash where the water is disturbed
+        if (uBio > 0.01 && dist < 60.0) {
+          float stir = length(rg) * 9.0;
+          float band = smoothstep(0.03, 0.35, vMask) * (1.0 - smoothstep(0.55, 0.95, vMask));
+          stir += band * uHullSpeed * 0.5;
+          stir += smoothstep(0.45, 0.95, vH / max(uHsWind * 0.5, 0.05)) * uWhitecap * 1.5;
+          float grain = noise(vBase * 38.0 + vec2(uTime * 2.1, -uTime * 1.7)) * noise(vBase * 13.0 - uTime * 0.7);
+          float sparks = smoothstep(0.35, 0.8, grain) * 2.2 + 0.08;
+          float glow = uBio * stir * sparks * (1.0 - smoothstep(15.0, 45.0, dist));
+          col += vec3(0.1, 0.9, 0.8) * min(glow, 1.2) * 0.7;
         }
 
         float fogF = 1.0 - exp(-dist / uVis);

@@ -166,16 +166,16 @@ export function weatherAt(lat, lng, t, lows = lowsAt(t)) {
 
   // Convective squalls in space-time cells, drifting with the wind
   const tropicSq = Math.exp(-(((lat - 4) / 14) ** 2));
-  const pSquall = 0.06 + 0.3 * tropicSq;
+  const pSquall = 0.16 + 0.32 * tropicSq;
   const CELLD = 1.2; // degrees
-  const CELLT = 3 * 3600e3;
+  const CELLT = 1.5 * 3600e3;
   const ci = Math.floor(lng / CELLD), cj = Math.floor(lat / CELLD), ck = Math.floor(t / CELLT);
   let gust = 0;
   for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) for (let dk = -1; dk <= 0; dk++) {
     const a = ci + di, b = cj + dj, c = ck + dk;
     if (hash(a, b, c * 3 + 1) > pSquall) continue;
     const born = c * CELLT + hash(a, b, c * 3 + 2) * CELLT;
-    const life = (1.5 + hash(a, c, b) * 2.5) * 3600e3;
+    const life = (0.6 + hash(a, c, b) * 1.4) * 3600e3;
     const age = t - born;
     if (age < 0 || age > life) continue;
     const cLat = (b + hash(b, a, c)) * CELLD + (base.v * age / 1000) / (KM_PER_DEG * 1000);

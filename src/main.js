@@ -12,6 +12,7 @@ import { createRadio } from './radio.js';
 import { createCompass } from './compass.js';
 import { drawVoyageChart } from './landfall.js';
 import { createMinimap } from './minimap.js';
+import { createSpray } from './spray.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 THREE.ColorManagement.enabled = false;
@@ -72,6 +73,7 @@ const canoe = createCanoe(scene);
 ocean.uniforms.uHullSeg.value.set(...HULL_MASK.seg, 0);
 ocean.uniforms.uAmaSeg.value.set(...HULL_MASK.ama);
 const rain = createRain(scene);
+const spray = createSpray(scene);
 const birds = createBirds(scene);
 const audio = createAudio();
 const compass = createCompass($('compass'));
@@ -245,6 +247,20 @@ function begin() {
   requestLock();
 }
 $('begin').addEventListener('click', begin);
+function syncNav() {
+  const on = !!(voyage && voyage.nav);
+  $('navToggle').setAttribute('aria-pressed', String(on));
+  $('navState').textContent = on ? 'On' : 'Off';
+}
+$('navToggle').addEventListener('click', () => {
+  if (!voyage) return;
+  voyage.nav = !voyage.nav;
+  // Start the reckoning honestly from where the canoe really is
+  if (voyage.nav) voyage.est = { lat: voyage.lat, lng: voyage.lng, track: [[voyage.t, +voyage.lat.toFixed(4), +voyage.lng.toFixed(4)]] };
+  saveVoyage(voyage);
+  syncNav();
+  if (minimap) minimap.update(voyage, true);
+});
 
 function showLandfall() {
   landfallShown = true;
@@ -289,6 +305,7 @@ const eyePos = new THREE.Vector3(), eyeQuat = new THREE.Quaternion(), lookQuat =
 const fwd = new THREE.Vector3();
 const lampPos = new THREE.Vector3();
 let lanternOn = false;
+let flash = 0, lastHeaveSign = 0, lapCool = 0, wakeDist = 0;
 let minimap = null;
 const sunV = new THREE.Vector3(), moonV = new THREE.Vector3();
 const clock = new THREE.Clock();
@@ -371,13 +388,28 @@ function frame() {
   su.uStars.value = p.star * (1 - moonLight * 0.6) * (1 - overcast * 0.5);
   su.uMoonLight.value = moonLight;
   su.uDarkness.value = dark;
+
+  /* ----- Lightning in heavy squalls ----- */
+  const stormy = Math.max(0, Math.min(1, (sm.precip - 0.35) * 1.6)) * Math.max(0, Math.min(1, (dark - 0.25) * 2));
+  if (started && stormy > 0 && Math.random() < dt * stormy * 0.12) {
+    flash = 0.7 + Math.random() * 0.8;
+    const distKm = 1 + Math.random() * 9;
+    audio.thunder(distKm / 0.343, Math.min(1, 2.2 / distKm + 0.25));
+  }
+  if (flash > 0.001) {
+    const f = flash * (0.6 + 0.4 * Math.sin(elapsed * 90));
+    su.uZen.value.addScalar(f * 0.5);
+    su.uHor.value.addScalar(f * 0.6);
+    flash *= Math.exp(-dt * 9);
+  }
   su.uTime.value = elapsed;
 
   /* ----- Clouds move with the wind at their height ----- */
-  const cu = sm.u * 1.45, cv = sm.v * 1.45;
+  // Clouds ride the stronger wind aloft; drift is quickened so their motion reads across the sky
+  const cu = sm.u * 4.5, cv = sm.v * 4.5;
   off.x += (cu - cond.ve) * dt;
   off.y += -(cv - cond.vn) * dt;
-  evolve += dt * 0.9;
+  evolve += dt * 3.2;
   const cuni = sky.cloudUniforms;
   cuni.uOff.value.copy(off);
   cuni.uEvolve.value = evolve;
@@ -411,9 +443,43 @@ function frame() {
     apparentFromRel: relWind, windSpeed: sm.speed, lantern: lanternOn,
     t: elapsed, dt, rawDt, waveT: elapsed, ocean,
     light: [0, 1, 2].map((i) => p.sun[i] * smoothstep(-0.04, 0.08, sunV.y) * (1 - 0.6 * dark) * 0.6 + hor[i] * 0.35),
-    onCatch: (x, z) => { ocean.addRipple(x, z, elapsed, 0.06); audio.splash(0.7); }
+    onCatch: (x, z) => {
+      ocean.addRipple(x, z, elapsed, 0.06);
+      audio.splash(0.7);
+      // Drips trailing off the blade as it lifts
+      spray.emit(x, canoe.heave + 0.15, z, 0, 0.6, 0, 8, 0.25);
+    }
   });
   canoe.eye(eyePos, eyeQuat);
+
+  /* ----- Glowing water, wake, spray and hull sounds ----- */
+  const bio = smoothstep(0.02, -0.12, sunV.y) * (1 - 0.5 * moonLight);
+  ou.uBio.value = bio;
+  ou.uHullSpeed.value = voyage.speed;
+  const hq = voyage.heading * DEG;
+  const fX = Math.sin(hq), fZ = -Math.cos(hq), rX = Math.cos(hq), rZ = Math.sin(hq);
+  wakeDist += voyage.speed * dt;
+  if (wakeDist > 0.7) {
+    // Bow wave peeling off both sides, which lights up at night
+    wakeDist = 0;
+    for (const side of [-1, 1]) ocean.addRipple(bx + fX * 2.2 + rX * 0.5 * side, bz + fZ * 2.2 + rZ * 0.5 * side, elapsed, 0.025 + voyage.speed * 0.012);
+  }
+  const heaveRateNow = (canoe.heave - prevHeave) / Math.max(dt, 1e-3);
+  const sign = Math.sign(heaveRateNow);
+  lapCool -= dt;
+  if (sign !== lastHeaveSign && Math.abs(heaveRateNow) > 0.12 && lapCool <= 0) {
+    audio.lap(Math.min(1.4, Math.abs(heaveRateNow) * 1.5));
+    lapCool = 0.5;
+    // Bow slams into a sea: spray
+    if (heaveRateNow < -0.35 || voyage.speed > 1.8) {
+      const n = Math.round(10 + Math.abs(heaveRateNow) * 25 + voyage.speed * 6);
+      spray.emit(bx + fX * 2.5, canoe.heave + 0.25, bz + fZ * 2.5, fX * voyage.speed * 0.6 + rX * 0.8, 1.8 + Math.abs(heaveRateNow), fZ * voyage.speed * 0.6 + rZ * 0.8, n, 1.2);
+    }
+  }
+  lastHeaveSign = sign;
+  if (Math.random() < dt * (0.05 + sm.speed * 0.02)) audio.creak(0.6 + Math.random() * 0.6);
+  audio.setLantern(lanternOn ? 1 : 0);
+  spray.update(dt, hor, bio);
   lookEuler.set(pitch, yawRel, 0, 'YXZ');
   lookQuat.setFromEuler(lookEuler);
   camNear.position.copy(eyePos);
@@ -485,7 +551,8 @@ function frame() {
     $('sailOut').classList.toggle('on', voyage.sail);
     $('lampOut').textContent = lanternOn ? 'Lantern lit' : 'Lantern out';
     $('lampOut').classList.toggle('on', lanternOn);
-    $('posOut').textContent = `${Math.abs(voyage.lat).toFixed(2)}° ${voyage.lat < 0 ? 'S' : 'N'}  ${Math.abs(voyage.lng).toFixed(2)}° ${voyage.lng < 0 ? 'W' : 'E'}`;
+    const shown = voyage.nav && voyage.est ? voyage.est : voyage;
+    $('posOut').textContent = `${voyage.nav ? 'Est. ' : ''}${Math.abs(shown.lat).toFixed(2)}° ${shown.lat < 0 ? 'S' : 'N'}  ${Math.abs(shown.lng).toFixed(2)}° ${shown.lng < 0 ? 'W' : 'E'}`;
   }
   sky.updateLabels(camNear, window.innerWidth, window.innerHeight);
 
@@ -559,6 +626,7 @@ async function boot() {
     $('introLede').textContent = `Day ${Math.floor((now() - voyage.start) / 864e5) + 1} of your voyage from Point Nemo. Your compass, your radio and the sky are where you left them.`;
     $('begin').textContent = 'Return to the canoe';
   }
+  syncNav();
   $('loadNote').hidden = true;
   $('begin').disabled = false;
 

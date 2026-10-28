@@ -21,6 +21,7 @@ export function newVoyage(now = Date.now()) {
     dist: 0,
     track: [[now, POINT_NEMO.lat, POINT_NEMO.lng]],
     playlist: '',
+    nav: false,
     landfall: null
   };
 }
@@ -100,8 +101,17 @@ export function step(s, dt, input, land, cache = {}) {
   s.dist += distance(prevLat, prevLng, s.lat, s.lng);
   s.t = t;
 
+  // Dead reckoning: what a navigator would plot from compass heading and speed through the water.
+  // Currents and leeway are invisible to it, so the estimate slowly parts from the truth.
+  if (!s.est) s.est = { lat: s.lat, lng: s.lng, track: [[t, +s.lat.toFixed(4), +s.lng.toFixed(4)]] };
+  s.est.lat += (hy * s.speed * dt) / (R_EARTH * DEG);
+  s.est.lng += (hx * s.speed * dt) / (R_EARTH * DEG * Math.max(0.05, Math.cos(s.est.lat * DEG)));
+  if (s.est.lng > 180) s.est.lng -= 360;
+  if (s.est.lng < -180) s.est.lng += 360;
+
   if (!s.track.length || t - s.track[s.track.length - 1][0] > 600e3) {
     s.track.push([t, +s.lat.toFixed(4), +s.lng.toFixed(4)]);
+    s.est.track.push([t, +s.est.lat.toFixed(4), +s.est.lng.toFixed(4)]);
   }
 
   if (land) {

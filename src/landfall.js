@@ -80,6 +80,22 @@ export function drawVoyageChart(canvas, land, voyage) {
   ctx.beginPath();
   pts.forEach(([x, y], i) => { const [px, py] = P(x, y); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); });
   ctx.stroke();
+  // In navigator mode, the course you reckoned, dashed beside the one you really sailed
+  if (voyage.nav && voyage.est && voyage.est.track.length > 1) {
+    const ep = voyage.est.track.map(([, la, lo]) => [lo, la]);
+    for (let i = 1; i < ep.length; i++) {
+      while (ep[i][0] - ep[i - 1][0] > 180) ep[i][0] -= 360;
+      while (ep[i][0] - ep[i - 1][0] < -180) ep[i][0] += 360;
+    }
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ep.forEach(([x, y], i) => { const [px, py] = P(x, y); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const [lx, ly] = P(ep[ep.length - 1][0], ep[ep.length - 1][1]);
+    ctx.fillText('Where you reckoned you were', lx + 8, ly + 4);
+  }
   const [sx0, sy0] = P(pts[0][0], pts[0][1]);
   ctx.fillStyle = ink;
   ctx.beginPath(); ctx.arc(sx0, sy0, 4, 0, Math.PI * 2); ctx.fill();

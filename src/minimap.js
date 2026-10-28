@@ -12,7 +12,9 @@ export function createMinimap(canvas, land) {
     if (!W) return;
     if (canvas.width !== Math.round(W * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const lat0 = voyage.lat, lng0 = voyage.lng;
+    // Navigator mode plots only the dead-reckoning estimate; the true position stays hidden
+    const nav = voyage.nav && voyage.est;
+    const lat0 = nav ? voyage.est.lat : voyage.lat, lng0 = nav ? voyage.est.lng : voyage.lng;
     const kmAcross = ZOOMS[zoom];
     const kx = Math.cos((lat0 * Math.PI) / 180);
     const pxPerDeg = W / (kmAcross / 111.32);
@@ -59,7 +61,7 @@ export function createMinimap(canvas, land) {
       ctx.fillRect(dx - 1, dy - 1, 2, 2);
     }
     // Trail
-    const tr = voyage.track;
+    const tr = nav ? voyage.est.track : voyage.track;
     if (tr.length) {
       ctx.strokeStyle = 'rgba(239,234,224,0.9)';
       ctx.setLineDash([3, 3]);

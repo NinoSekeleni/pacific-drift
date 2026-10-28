@@ -383,3 +383,10 @@ kbd { font-family: var(--font-body); font-size: 11px; font-weight: 600; padding:
 @media (prefers-reduced-motion: reduce) {
   .toast, .radio, .begin { transition: none; }
 }
+
+.mode-row { display: grid; gap: 6px; max-width: 52ch; }
+.mode-toggle { justify-self: start; display: inline-flex; gap: 10px; align-items: center; background: var(--glass); border: 1px solid var(--line); padding: 8px 14px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; cursor: pointer; }
+.mode-toggle span { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.mode-toggle[aria-pressed="true"] { background: var(--ink); color: var(--night); }
+.mode-toggle[aria-pressed="true"] span { color: var(--night); }
+.flash { position: fixed; inset: 0; pointer-events: none; background: rgba(220, 230, 255, 0.0); }
