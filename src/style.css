@@ -593,3 +593,44 @@ kbd { font-family: var(--font-body); font-size: 11px; font-weight: 600; padding:
 
 .touch-layout .conditions{top:calc(134px + env(safe-area-inset-top,0px));left:12px;max-width:calc(100vw - 24px)}
 .touch-layout .conditions-panel{max-width:calc(100vw - 24px);max-height:calc(100dvh - 300px)}
+
+/* Equipment uses the same uncluttered model-and-controls pattern as Object Room. */
+.equipment-toggle{position:fixed;left:126px;bottom:22px;z-index:13;background:var(--glass);border:1px solid var(--line);border-radius:4px;padding:11px 13px;color:var(--ink);font-size:12px;cursor:pointer}
+.equipment-toggle span{opacity:.55;margin-left:9px}.at-home .equipment-toggle,.at-home .item-hint{display:none}
+.item-hint{position:fixed;bottom:85px;left:50%;transform:translateX(-50%);z-index:13;padding:10px 15px;background:rgba(7,17,23,.88);border:1px solid var(--line);border-radius:5px;font-size:12px;pointer-events:none;white-space:nowrap}
+.equipment-inspection{position:fixed;inset:0;z-index:55;display:flex;flex-direction:column;color:#e8e6df;touch-action:none;user-select:none}
+.equipment-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:25px 32px 15px;flex-shrink:0}
+.equipment-eyebrow{font-size:10px;letter-spacing:.2em;color:#93b6ba;margin:0 0 9px}
+.equipment-header h2{font-weight:400;font-size:30px;letter-spacing:-.02em;margin:0}
+.equipment-inspection button{cursor:pointer;color:inherit;font:inherit;font-size:12px;border:1px solid #3b5058;background:#13242d;border-radius:5px;padding:10px 13px}
+.equipment-header button{background:transparent}.equipment-header button span{opacity:.5;padding-left:12px}
+.equipment-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;padding:0 30px}
+.equipment-view{display:flex;flex-direction:column;min-height:0;min-width:0}.equipment-stage{flex:1;min-height:0;touch-action:none;cursor:grab;outline-offset:-2px}.equipment-stage:active{cursor:grabbing}
+.equipment-view-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;padding:10px 0;flex-shrink:0}
+.equipment-view-controls span{flex-basis:100%;text-align:center;font-size:11px;color:#82969e;margin:3px 0 0}
+.equipment-details{padding:24px 20px;background:linear-gradient(150deg,#15252a88,#10202733);border:1px solid #35464c66;border-radius:10px;overflow-y:auto;touch-action:pan-y;font-size:13px;line-height:1.65;min-height:0}
+.equipment-details p{margin:0 0 16px}.equipment-details .equipment-eyebrow{font-size:10px}.equipment-details h3{font-size:12px;font-weight:500;margin:20px 0 12px}
+#equipmentActions{display:grid;gap:10px}#equipmentActions>button{padding:13px;text-align:left}.equipment-kit-row{display:grid;grid-template-columns:1fr auto;gap:6px}.equipment-kit-row button:first-child{text-align:left}
+.equipment-tray{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;padding:18px 22px 24px;flex-shrink:0}
+.equipment-tray button[aria-pressed=true]{background:#c1d7ce;color:#142b2d;border-color:#c1d7ce}
+.inspection-unavailable{color:#d9b484}
+.inspecting-equipment .hud-top,.inspecting-equipment .compass-wrap,.inspecting-equipment .touch,.inspecting-equipment .help-toggle,.inspecting-equipment .equipment-toggle,.inspecting-equipment .conditions,.inspecting-equipment .play-hint,.inspecting-equipment .item-hint,.inspecting-equipment #mapWrap{visibility:hidden!important}
+#equipmentMedia .radio{position:static!important;transform:none!important;opacity:1!important;pointer-events:auto!important;width:auto!important;max-width:none;max-height:none;box-shadow:none;border:0;border-radius:0;padding:0;background:transparent}
+#equipmentMedia .radio .bands,#equipmentMedia .radio .radio-title,#equipmentMedia .radio #radioClose{display:none}#equipmentMedia .radio-head{justify-content:flex-end;padding:0 0 8px}#equipmentMedia .radio .finder{display:grid}
+#equipmentMedia .radio iframe{width:100%}#equipmentMedia .radio .station-list{max-height:170px}#equipmentMedia .radio-hint{font-size:11px}#equipmentMedia .radio input,#equipmentMedia .radio select{max-width:100%}
+.binocular-view{position:fixed;inset:0;z-index:54;touch-action:none}.binocular-aim,.binocular-mask{position:absolute;inset:0;width:100%;height:100%}.binocular-mask{pointer-events:none}
+.binocular-view header{position:absolute;top:22px;left:24px;right:24px;display:flex;gap:15px;align-items:center;justify-content:space-between;font-size:11px;letter-spacing:.12em;pointer-events:none}.binocular-view button{pointer-events:auto;padding:11px 15px;border:1px solid #53616b;background:#0d1519;color:var(--ink);border-radius:5px;cursor:pointer}.binocular-view button span{opacity:.5;margin-left:8px}
+.binocular-view footer{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:220px;text-align:center;font-size:11px;letter-spacing:.04em}.binocular-view label{display:flex;justify-content:space-between}.binocular-view input{width:100%;accent-color:#d4e0d7;margin-top:12px}.binocular-view p{font-size:10px;color:#91a5ac}.binocular-reticle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:200 27px monospace;color:#dce5db66;pointer-events:none}
+.using-binoculars .hud-top,.using-binoculars .compass-wrap,.using-binoculars .touch,.using-binoculars .help-toggle,.using-binoculars .equipment-toggle,.using-binoculars .conditions,.using-binoculars .item-hint,.using-binoculars #mapWrap{visibility:hidden!important}
+@media(max-width:700px){
+ .equipment-toggle{left:110px;bottom:calc(130px + env(safe-area-inset-bottom));min-height:40px;padding:10px}
+ .equipment-header{padding:18px 18px 10px;gap:12px}.equipment-header h2{font-size:22px}.equipment-eyebrow{font-size:9px;letter-spacing:.14em}.equipment-header button{padding:9px 11px;font-size:11px}
+ .equipment-layout{display:flex;flex-direction:column;padding:0 14px;gap:8px}.equipment-view{flex:1;min-height:180px}.equipment-view-controls{padding:4px 0;gap:6px}.equipment-view-controls button{padding:7px 10px;font-size:11px}.equipment-view-controls span{font-size:10px;margin:0}
+ .equipment-details{flex:0 1 auto;max-height:36dvh;padding:12px 14px;font-size:12px}.equipment-details p{margin-bottom:9px}.equipment-details .equipment-eyebrow{display:none}.equipment-details #equipmentDescription{font-size:11px}#equipmentActions>button{padding:10px}
+ .equipment-tray{padding:10px 12px max(14px,env(safe-area-inset-bottom));gap:5px}.equipment-tray button{font-size:10px;padding:8px 9px}
+ .equipment-has-media .equipment-view{min-height:150px}.equipment-has-media .equipment-details{max-height:40dvh}
+ .binocular-view header{left:14px;right:14px;top:16px;font-size:9px;letter-spacing:.08em}.binocular-view header button{font-size:11px;padding:9px}.binocular-view footer{bottom:max(18px,env(safe-area-inset-bottom));width:200px}
+}
+
+.inspecting-equipment .environment-panel,.using-binoculars .environment-panel,.inspecting-equipment .environment-entry,.using-binoculars .environment-entry{visibility:hidden!important}
+.environment-preview .equipment-toggle{z-index:40;left:auto;right:20px;top:15px;bottom:auto}

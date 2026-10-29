@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-29",
-  "provenance": "Owner supplied backpack.zip, handheld-portable-radio-walkie-talkie.zip and earth-terra-downloadable-model.zip and requested their integration. Original creator/licence metadata was not included in the supplied archives; original rights are retained. No CC0 or other new licence is claimed for these models/images.",
+  "provenance": "Owner supplied backpack.zip, handheld-portable-radio-walkie-talkie.zip, earth-terra-downloadable-model.zip, used-binoculars.zip and sony-walkman-wmd-dt1-evangelion-ver.zip and requested their integration. Original creator/licence metadata was not included in the model archives; original rights are retained. No new licence or CC0 status is claimed.",
   "files": [
     {
       "file": "models/backpack.glb",
@@ -21,6 +21,16 @@
       "file": "textures/earth/terra-clouds-2k.webp",
       "bytes": 446008,
       "sha256": "4e4b78d3be8db4c39f888cbcd446b2bb5c6c94a1585a8b8a50d9b5ced6a1dd63"
+    },
+    {
+      "file": "models/walkman.glb",
+      "bytes": 1047520,
+      "sha256": "cbad84dcc2146eff8be0a0a4db596d408e6edbff15643b9a2452dafad8efd1bc"
+    },
+    {
+      "file": "models/binoculars.glb",
+      "bytes": 1341740,
+      "sha256": "ae2b920b388e42229fb1208c66ad807ce78026e6ac79172f39e6c0328f5522e5"
     }
   ],
   "backpack": {
@@ -30,8 +40,9 @@
     "depthMetres": 0.45420846,
     "triangles": 47387,
     "materials": 4,
-    "placement": "Port bench, forward of the rowing seat; surface contact sampled from supplied boat geometry.",
-    "conversion": "Reduced from approximately 237,000 triangles; rebuilt vertex normals, preserved authored colour/normal/PBR maps, 1K WebP textures."
+    "placement": "Port bench, rotated 180 degrees from the previous release so the front faces the player. Same size and measured support contact.",
+    "conversion": "Reduced from approximately 237,000 triangles; rebuilt vertex normals, preserved authored colour/normal/PBR maps, 1K WebP textures.",
+    "interaction": "3D inspection, rotation/zoom and packing/unpacking radio, Walkman and binoculars. Packing is stored with this voyage; no unsupported zipper/open-bag mesh animation is claimed."
   },
   "radio": {
     "source": "handheld-portable-radio-walkie-talkie.zip / source/krotkofalowka.7z / krotkofal.fbx",
@@ -40,7 +51,7 @@
     "bodyDepthMetres": 0.04471045,
     "triangles": 16762,
     "materials": 1,
-    "placement": "Face-up on starboard bench, forward of the oar handles. Click opens existing radio controls; R remains available.",
+    "placement": "Face-up on starboard bench, clear of oar handles. Click opens the shared 3D inspector and existing live station controls; R also opens this view.",
     "conversion": "FBX world transforms baked, glTF UV V convention corrected, one combined mesh and 1K base/normal/packed roughness-metal maps."
   },
   "earth": {
@@ -50,5 +61,41 @@
       2048,
       1024
     ]
+  },
+  "walkman": {
+    "source": "sony-walkman-wmd-dt1-evangelion-ver.zip / source/walkman_with_earphone.fbx",
+    "heightMetres": 0.13,
+    "widthMetres": 0.07646,
+    "depthMetres": 0.02667,
+    "triangles": 3168,
+    "conversion": "Original body/cassette geometry and colour, OpenGL normal, AO, roughness, metalness and opacity retained. 2K body colour, other textures 1K/512. Omitted the detached extended earphone lead from the stowed model for bench/oar clearance. Original source archive untouched.",
+    "interaction": "Spotify embed/API, custom playlist or album, power and true playback/time display on an atlas-fitted overlay on the original LCD. Preview/full playback depends on Spotify and the listener session.",
+    "placement": "Face-up beside the radio on the broad transverse bench, inward of the starboard rowlock; no longer beneath the forward edge of the bench."
+  },
+  "binoculars": {
+    "source": "used-binoculars.zip / source/Zuiho_binoculars_SF.zip / Zuiho_binoculars_SF.obj",
+    "heightMetres": 0.06,
+    "widthMetres": 0.18427,
+    "depthMetres": 0.17231,
+    "triangles": 38859,
+    "conversion": "Reduced from 204,544 triangles; original authored colour/normal/AO, separate lens material. Ignored the MTL diffuse slot pointing at its specular map; used the supplied colour image.",
+    "interaction": "Inspectable model; 3\u20138\u00d7 optical camera projection of the live world, pointer/touch panning, magnification slider and wheel, Escape/Lower to restore the normal camera."
+  },
+  "inspection": {
+    "items": [
+      "backpack",
+      "radio",
+      "walkman",
+      "lantern",
+      "binoculars"
+    ],
+    "controls": "Click an onboard item or Equipment/I; drag to rotate; wheel/pinch to zoom; Front/Back/Reset; item controls; Put down/Escape.",
+    "reference": "Interaction pattern informed by the user\u2019s Object Room. Pacific Drift uses its own viewer and asset models.",
+    "isolation": "Inspection uses cloned materials/transforms and a neutral studio light. The boat remains in real time; input to rowing/steering is suspended during inspection and binocular use."
+  },
+  "validation": {
+    "tests": "21 scripts, including metre dimensions, pairwise prop clearance, hull support, atlas-fitted LCD, true playback states, optical magnification and sprite-free picking.",
+    "browser": "Backpack direct click, model drag rotation, kit pack/unpack, live Ukhozi FM On Air, Spotify preview playback and LCD clock, working lantern switch, 4\u20138\u00d7 live binocular zoom/pan/lower, 390px inspection layout.",
+    "limitations": "Physical-phone GPU performance not measured; Spotify listening availability is controlled by Spotify. Source backpack is static; no working zipper mesh animation."
   }
 }

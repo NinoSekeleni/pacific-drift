@@ -32,6 +32,8 @@ import {createWorldArrival} from './world-arrival.js';
 import {createBoatProps} from './boat-props.js';
 import {createLiveWeather} from './live-weather.js';
 import {skyTime,skyDescription} from './world-clock.js';
+import {createEquipmentInspection,EQUIPMENT} from './equipment-inspection.js';
+import {createBinoculars} from './binoculars.js';
 
 THREE.ColorManagement.enabled = false;
 const DEG = Math.PI / 180;
@@ -101,7 +103,8 @@ const sky = createSky(renderer, scene, isTouch);
 const marineLighting=createMarineLighting(renderer,sky,isTouch);
 const ocean = createOcean(renderer, scene, sky.uniforms);
 let marineAssets=null,marineBoat=null;
-let boatProps=null;
+let boatProps=null,inspection=null,binoculars=null;
+let pointerPosition=null,itemUnderPointer=null;
 const marineReview={loaded:false,failed:[],materials:0};
 const foamBake=bakeMarineFoam(renderer);
 ocean.uniforms.tFoamDetail.value=foamBake.texture;
@@ -197,6 +200,22 @@ const radio = createRadio({
   onStation: (name, country) => log.radio(name, country)
 });
 
+/* ---------- Equipment: one model, a close-up view, and real controls ---------- */
+inspection=createEquipmentInspection({renderer,radio,
+  onOpen(){keys.clear();dragging=false;dragMode=true;if(document.pointerLockElement)document.exitPointerLock();radio.setOpen(false);},
+  onClose(){dragMode=true;},onLantern:toggleLantern,lanternOn:()=>lanternOn,
+  onBinoculars(){binoculars.open();},
+  isStowed:name=>boatProps?.isStowed(name)??false,
+  stow(name,value){boatProps?.setStowed(name,value);voyage.stowedEquipment=['walkman','binoculars','radio'].filter(id=>boatProps?.isStowed(id));saveVoyage(voyage);}
+});
+binoculars=createBinoculars({
+  onRaise(){keys.clear();dragging=false;dragMode=true;window.__cam=null;window.__moonCam=false;window.__birdCam=false;pitch=.015;if(document.pointerLockElement)document.exitPointerLock();const root=boatProps?.getRoot('binoculars');if(root)root.visible=false;},
+  onLower(){const root=boatProps?.getRoot('binoculars');if(root)root.visible=!boatProps.isStowed('binoculars');camNear.fov=camFar.fov=68;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();},
+  onAim(dx,dy,zoom){look(dx,dy,.004/zoom);}
+});
+function inspectEquipment(name='backpack'){if(!started||paused||worldArrival?.active)return;binoculars.close();inspection.open(name);}
+$('equipmentToggle').addEventListener('click',()=>inspectEquipment());
+
 /* ---------- Input ---------- */
 const keys = new Set();
 let yawRel = 0, pitch = -4 * DEG;
@@ -226,15 +245,21 @@ function requestLock() {
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
   if (locked) { dragMode = false; return; }
-  if (started && !radio.open && $('logbook').hidden && !dragMode) pause();
+  if (started && !radio.open && !inspection.active && !binoculars.active && $('logbook').hidden && !dragMode) pause();
 });
 document.addEventListener('pointerlockerror', () => { dragMode = true; });
 document.addEventListener('mousemove', (e) => {
+  if(inspection.active||binoculars.active)return;
   if (locked) look(e.movementX, e.movementY, 0.0021);
   else if (dragging) { look(e.clientX - lastX, e.clientY - lastY, 0.0042); lastX = e.clientX; lastY = e.clientY; }
 });
+canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();pointerPosition={x:e.clientX-r.left,y:e.clientY-r.top};});
+canvas.addEventListener('pointerleave',()=>{pointerPosition=null;itemUnderPointer=null;});
+let itemTap=null;
+canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')itemTap={x:e.clientX,y:e.clientY};});
+canvas.addEventListener('pointerup',e=>{if(e.pointerType==='touch'&&itemTap&&Math.hypot(e.clientX-itemTap.x,e.clientY-itemTap.y)<9&&started&&!paused&&!inspection.active&&!binoculars.active){const r=canvas.getBoundingClientRect();boatProps?.interact(camNear,e.clientX-r.left,e.clientY-r.top,r.width,r.height);}itemTap=null;});
 canvas.addEventListener('mousedown', (e) => {
-  if (!started || paused) return;
+  if (!started || paused || inspection.active || binoculars.active) return;
   if (radio.open) { radio.setOpen(false); }
   const rect=canvas.getBoundingClientRect();
   if(boatProps?.interact(camNear,locked?rect.width/2:e.clientX-rect.left,locked?rect.height/2:e.clientY-rect.top,rect.width,rect.height))return;
@@ -255,16 +280,19 @@ function toggleStars() {
 }
 function toggleLantern() {
   voyage.lantern = !lanternOn;
+  lanternOn=voyage.lantern;
   log.add(voyage.lantern ? 'Lit the lantern.' : 'Put the lantern out to see the stars.', 'canoe');
   toast(voyage.lantern ? 'Lantern lit.' : 'Lantern out. Your eyes will adjust to the starlight.');
   saveVoyage(voyage);
 }
 function toggleRadio() {
+  if(started&&!paused){inspectEquipment('radio');return;}
   radio.toggle();
   if (radio.open && locked) document.exitPointerLock();
 }
 
 window.addEventListener('keydown', (e) => {
+  if(inspection.active||binoculars.active)return;
   if (e.target?.closest('input,textarea,select,button,.environment-panel')) return;
   if (!$('logbook').hidden && (e.code === 'Escape' || e.code === 'KeyJ')) { openLog(false); return; }
   if (!started || paused) {
@@ -280,6 +308,8 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyJ') openLog($('logbook').hidden);
   if (e.code === 'KeyN') { $('mapWrap').hidden = !$('mapWrap').hidden; }
   if (e.code === 'KeyH') toggleHelp();
+  if (e.code === 'KeyI') inspectEquipment();
+  if (e.code === 'KeyF'&&itemUnderPointer) inspectEquipment(itemUnderPointer);
   if (e.code === 'Equal' || e.code === 'NumpadAdd') minimap && minimap.zoom(-1);
   if (e.code === 'Minus' || e.code === 'NumpadSubtract') minimap && minimap.zoom(1);
   if (e.code === 'KeyM') toggleSound();
@@ -542,10 +572,10 @@ function frame() {
       origin = null;
     }
     const input = {
-      paddleRequested: started && !paused && (keys.has('KeyW') || keys.has('ArrowUp') || touchInput.paddle),
+      paddleRequested: started && !paused && !inspection.active && !binoculars.active && (keys.has('KeyW') || keys.has('ArrowUp') || touchInput.paddle),
       paddle: 0,
-      paddleForce: paddleDrive(canoe.getPaddlePose(),started&&!paused&&!document.hidden&&rawDt<=.3),
-      steer: started && !paused ? ((keys.has('KeyD') || keys.has('ArrowRight') || touchInput.right ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') || touchInput.left ? 1 : 0)) : 0
+      paddleForce: paddleDrive(canoe.getPaddlePose(),started&&!paused&&!inspection.active&&!binoculars.active&&!document.hidden&&rawDt<=.3),
+      steer: started && !paused && !inspection.active && !binoculars.active ? ((keys.has('KeyD') || keys.has('ArrowRight') || touchInput.right ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') || touchInput.left ? 1 : 0)) : 0
     };
     const g = Math.max(0, (tNow - voyage.t) / 1000);
     cond = step(voyage, g, input, land, simCache);
@@ -683,7 +713,7 @@ function frame() {
   canoe.eye(eyePos, eyeQuat);
   paddlerHands.update(dt,canoe.getPaddlePose(),{seat:canoe.seat,eye:canoe.group.worldToLocal(paddlerLocalEye.copy(eyePos)),visible:started&&!paused&&!window.__cam&&!window.__moonCam&&!window.__birdCam&&(!environment||environment.hands)});
   hullRain.update(dt,Math.min(1,sm.precip),hor,{enabled:environment?.boatImpacts!==false,strength:environment?.rainImpactStrength??1});
-  boatProps?.update(dt,Math.min(1,sm.precip));
+  boatProps?.update(dt,Math.min(1,sm.precip),radio.mediaState());
 
   /* ----- Glowing water, wake, spray and hull sounds ----- */
   const bio = (environment && !environment.bio ? 0 : 1) * smoothstep(0.02, -0.12, sunV.y) * (1 - 0.35 * moonLight) * (environment?.bioStrength ?? 1.8);
@@ -732,6 +762,7 @@ function frame() {
     camNear.lookAt(wildlife.position);
   }
   if(PREVIEW && window.__moonCam){camNear.lookAt(camNear.position.clone().addScaledVector(moonV,1000));}
+  if(binoculars.active){camNear.fov=camFar.fov=binoculars.fov;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();}
   worldArrival?.applyCamera(camNear,canoe.group.position,voyage.heading);
   camFar.position.copy(camNear.position);
   camFar.quaternion.copy(camNear.quaternion);
@@ -827,6 +858,16 @@ function frame() {
   if (minimap && !$('mapWrap').hidden) minimap.update(voyage);
   if (elapsed - lastSave > 15) { lastSave = elapsed; saveVoyage(voyage); }
 
+  // Item selection shares the moving boat transform; locked view uses its centre.
+  itemUnderPointer=null;
+  if(started&&!paused&&!inspection.active&&!binoculars.active&&(pointerPosition||locked)){
+    const r=canvas.getBoundingClientRect(),p=locked?{x:r.width/2,y:r.height/2}:pointerPosition;
+    itemUnderPointer=boatProps?.pick(camNear,p.x,p.y,r.width,r.height)??null;
+  }
+  $('itemHint').hidden=!itemUnderPointer||inspection.active||binoculars.active;
+  if(itemUnderPointer)$('itemHint').textContent=`Inspect ${EQUIPMENT[itemUnderPointer].title} · F`;
+  if(inspection.active){inspection.render(dt);firstFrame=false;return;}
+
   /* ----- Render ----- */
   sky.renderClouds(firstFrame);
   marineLighting.update(elapsed,environment?.skyReflections!==false);
@@ -877,7 +918,8 @@ async function boot() {
     try {
       const r = canoe.applyRowingBoat(g.scene);
       marineBoat=g.scene;
-      boatProps=createBoatProps(canoe,{base:BASE,onRadio:toggleRadio,register:root=>marineLighting.register(root)});
+      boatProps=createBoatProps(canoe,{base:BASE,onInspect:inspectEquipment,onAsset:(id,root)=>inspection.register(id,root),register:root=>marineLighting.register(root)});
+      for(const id of voyage.stowedEquipment||[])boatProps.setStowed(id,true);
       marineLighting.register(marineBoat);
       if(marineAssets)marineReview.materials=applyMarineDetails(marineBoat,marineAssets);
       ocean.uniforms.uHullSeg.value.set(r.halfLength,r.halfBeam,1,0);
@@ -886,7 +928,7 @@ async function boot() {
     } catch (e) { console.warn('Rowing boat could not be fitted', e); }
   }, undefined, () => {});
   loader.load(BASE + 'models/lantern.glb', (g) => {
-    try { canoe.applyLantern(g.scene); } catch (e) { console.warn('Lantern model could not be fitted', e); }
+    try { inspection.register('lantern',g.scene.clone(true));canoe.applyLantern(g.scene); } catch (e) { console.warn('Lantern model could not be fitted', e); }
   }, undefined, () => {});
 
   if(PREVIEW)voyage=null;
@@ -991,6 +1033,7 @@ async function boot() {
       get marine(){return marineReview;},
       get conditions(){return {mode:conditionsMode,status:liveWeather.status(voyage.lat,voyage.lng,now()),sample:liveWeather.sample(voyage.lat,voyage.lng,now()),skyTime:skyTime(now(),voyage.lng,{mode:conditionsMode,hour:environment?.hour})};},
       get gear(){return boatProps?.state;},
+      get equipment(){return {open:inspection.active,item:inspection.current,binoculars:binoculars.active,media:radio.mediaState()};},
       sea(speed, swellH = speed / 5) { window.__sea = { speed, swellH, precip: speed > 18 ? 0.7 : 0, cover: speed > 18 ? 0.85 : 0.25 }; },
       look(p, y) { pitch = p; if (y !== undefined) yawRel = y; },
       begin() { started = true; paused = false; $('intro').hidden = true; },

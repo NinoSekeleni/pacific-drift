@@ -21,7 +21,19 @@ The production site is written to `dist/`. The included GitHub Actions workflow 
 
 ## Controls
 
-W row; A/D steer; E sail; L lantern; R radio; C constellation lines and names; N map; +/- zoom; J log; M sound; H controls; Escape pause. Drag to look, or click for pointer lock. Phones and narrow screens show tool buttons, steering, and paddle controls; tilt requires device permission.
+W row; A/D steer; E sail; L lantern; R radio; C constellation lines and names; N map; +/- zoom; J log; M sound; H controls; I equipment; F inspect the item under the pointer; Escape pause. Drag to look, or click for pointer lock. Phones and narrow screens show tool buttons, steering, and paddle controls; tilt requires device permission.
+
+## Equipment and close-up inspection
+
+The backpack now faces the opposite way. Owner-supplied binoculars and Sony Walkman sit at physical scale beside the radio and lantern. Click any item aboard, use **Equipment / I**, or press **F** on an item hint. Drag the model to turn it, scroll/pinch to zoom, and use Front / Back / Reset. **Put down / Escape** returns to the same voyage. The studio inspection light is independent of current weather; clones leave the boat's materials and placement intact.
+
+- Radio: the existing live directory, tuning dial, search, country selection, volume and power. World radio and Spotify share one active audio source.
+- Walkman: the existing Spotify track/playlist/album embed, now shown with the supplied model. The original LCD surface displays connection, confirmed playback and elapsed time using Spotify IFrame API events. It never claims playback based only on a play request. Spotify manages sign-in and preview/full playback; no OAuth token or new Spotify developer app is required.
+- Lantern: the inspection switch changes the actual saved onboard lantern state.
+- Backpack: pack or take out the small radio, binoculars and Walkman. Packed items leave the bench and remain available through the bag/equipment tray. This is saved with the voyage; the static source model does not have a working zipper animation.
+- Binoculars: **Look through** magnifies the actual world 3–8× using the camera projection, with round lens apertures. Drag/arrow keys scan the view; wheel or slider adjusts magnification. **Lower / Escape** restores the 68-degree camera and releases movement controls. No photographic placeholder view is used.
+
+Asset conversion: `tools/prep-inspection-assets.mjs`, with a path to extracted `binoculars/` and `walkman/` directories. No supplied scripts, Blender files or archive instructions are executed. Provenance and measured dimensions are in `public/data/boat-gear.json`.
 
 ## Voyage and navigation
 

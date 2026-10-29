@@ -68,6 +68,8 @@
   </div>
 
   <button type="button" id="helpToggle" class="help-toggle" aria-controls="controlsHud" aria-expanded="false">Controls <span aria-hidden="true">?</span></button>
+  <button type="button" id="equipmentToggle" class="equipment-toggle" aria-label="Inspect onboard equipment">Equipment <span>I</span></button>
+  <p id="itemHint" class="item-hint" hidden></p>
   <p id="playHint" class="play-hint" hidden>Drag to look · W to row · H for controls</p>
 
   <aside class="radio" id="radio" aria-hidden="true" aria-label="Radio">
@@ -76,7 +78,7 @@
       <button id="radioPower" class="pill" type="button" aria-pressed="false">Off</button>
       <button id="radioClose" class="icon-btn" type="button" aria-label="Close the radio">×</button>
     </div>
-    <div class="bands two" role="group" aria-label="Radio source">
+    <div class="bands two" role="group" aria-label="Audio source">
       <button type="button" data-mode="WORLD" aria-pressed="true">World Radio</button>
       <button type="button" data-mode="TAPE" aria-pressed="false">Tape</button>
     </div>
@@ -110,15 +112,16 @@
     </div>
 
     <div id="tapePane" hidden>
+      <p id="spotifyPlaybackState" class="radio-hint" role="status">Spotify is ready when you are.</p>
       <div class="spotify-wrap"><div id="spotifyEmbed"></div></div>
       <form id="playlistForm" class="playlist-form">
-        <label for="playlistInput">Play your own Spotify playlist</label>
+        <label for="playlistInput">Choose your Spotify music</label>
         <div class="row">
           <input id="playlistInput" type="url" inputmode="url" autocomplete="off" placeholder="https://open.spotify.com/playlist/…">
           <button type="submit">Load</button>
         </div>
       </form>
-      <p id="tapeNote" class="radio-hint">Listeners signed in to Spotify in this browser hear full tracks, and everyone else hears previews.</p>
+      <p id="tapeNote" class="radio-hint">Spotify controls playback availability and sign-in. Use its play button if playback does not start.</p>
       <button type="button" id="playlistReset" class="link">Use the Pacific Drift playlist</button>
     </div>
   </aside>
