@@ -10,16 +10,26 @@ export const PROP_LAYOUT={
  radio:{file:'handheld-radio.glb',height:.28,x:.44,z:.76,rotation:[-Math.PI/2,-.24,0]},
  walkman:{file:'walkman.glb',height:.13,x:.21,z:.76,rotation:[-Math.PI/2,.25,0]},
  anbernic:{file:'anbernic.glb',height:.117,x:-.19,z:-.66,rotation:[-Math.PI/2,0,0]},
- gps:{file:'gps-tablet.glb',height:.29,x:.21,z:-.66,rotation:[-Math.PI/2,0,0]},
+ gps:{file:'gps-tablet.glb',height:.29,x:-.10,z:.76,rotation:[-Math.PI/6,0,0],mountHeight:.018},
  binoculars:{file:'binoculars.glb',height:.06,x:-.40,z:.74,rotation:[0,.24,0]}
 };
 export function placeBoatProp(root,spec,supportY){
  root.rotation.set(...spec.rotation,'YXZ');root.updateMatrixWorld(true);
  const bounds=new THREE.Box3().setFromObject(root),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
  const offsets=[[-size.x*.35,-size.z*.35],[size.x*.35,-size.z*.35],[-size.x*.35,size.z*.35],[size.x*.35,size.z*.35],[0,0]];
- const support=Math.max(...offsets.map(([x,z])=>supportY(spec.x+x,spec.z+z)));
+ const deck=Math.max(...offsets.map(([x,z])=>supportY(spec.x+x,spec.z+z))),support=deck+(spec.mountHeight||0);
  root.position.set(spec.x-center.x,support-bounds.min.y+.003,spec.z-center.z);
- return {size:size.toArray(),contact:{supportY:support,bottomY:support+.003,x:spec.x,z:spec.z}};
+ return {size:size.toArray(),contact:{deckY:deck,supportY:support,bottomY:support+.003,x:spec.x,z:spec.z}};
+}
+// Fixed to the bench; the tablet itself remains a separate inspectable item.
+export function createGPSCradle(spec,contact){
+ const group=new THREE.Group();group.name='GPS bench holder';group.position.set(spec.x,contact.deckY,spec.z);
+ const material=new THREE.MeshStandardMaterial({color:0x263139,roughness:.85,metalness:.12});
+ const part=(w,h,d,x,y,z,angle=0)=>{const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);mesh.position.set(x,y,z);mesh.rotation.x=angle;mesh.layers.set(LAYER_NEAR);group.add(mesh);};
+ part(.205,.018,.15,0,.009,0);
+ part(.15,.14,.012,0,.083,-.041,-Math.PI/6);
+ part(.18,.021,.012,0,.028,.065);
+ return group;
 }
 // Invisible fallback meshes and light sprites must never enlarge an item's pick target.
 export function visibleItemBounds(root,out=new THREE.Box3()){
@@ -53,6 +63,7 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
     }return materials.get(source.uuid);
    };o.material=Array.isArray(o.material)?o.material.map(prepare):prepare(o.material);
   });
+  if(name==='gps'){const cradle=createGPSCradle(spec,placement.contact);group.add(cradle);register(cradle);}
   root.visible=!stowed.has(name);group.add(root);roots[name]=root;register(root);state.ready++;
   state.dimensions[name]=placement.size;state.contacts[name]=placement.contact;
  }

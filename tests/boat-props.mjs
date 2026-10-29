@@ -5,7 +5,8 @@ import {NodeIO} from '@gltf-transform/core';
 import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
 import {getBounds} from '@gltf-transform/functions';
 import sharp from 'sharp';
-import {PROP_LAYOUT,placeBoatProp} from '../src/boat-props.js';
+import {ROWING_SEAT} from '../src/rowing-rig.js';
+import {PROP_LAYOUT,placeBoatProp,createGPSCradle} from '../src/boat-props.js';
 const io=new NodeIO().registerExtensions(ALL_EXTENSIONS);
 function nodeObject(n){
  const root=new THREE.Group();root.name=n.getName();new THREE.Matrix4().fromArray(n.getMatrix()).decompose(root.position,root.quaternion,root.scale);
@@ -31,6 +32,14 @@ for(const [name,spec] of Object.entries(PROP_LAYOUT)){
  assert.ok(box.min.x>-.65&&box.max.x<.65,'stays inside hull and clear of rowlocks');
  assert.ok(box.max.z<1.15,'clear of the oar handles and rowing seat');
  fitted.push({name,box});
+ if(name==='gps'){
+  assert.ok(fit.contact.deckY<.6,'GPS must be on a bench, never on overhead rigging');
+  const center=new THREE.Vector3(.0014,.15314,.01522).applyMatrix4(root.matrixWorld),camera=new THREE.PerspectiveCamera(68,16/9,.08,100);camera.position.copy(ROWING_SEAT);camera.rotation.x=-.20;camera.updateMatrixWorld(true);
+  const projected=center.clone().project(camera);assert.ok(Math.abs(projected.x)<.65&&Math.abs(projected.y)<.8,'screen is inside the normal seated view');
+  const toEye=ROWING_SEAT.clone().sub(center).normalize(),normal=new THREE.Vector3(0,0,1).transformDirection(root.matrixWorld);assert.ok(normal.dot(toEye)>.95,'screen faces the player instead of presenting its edge');
+  ray.set(ROWING_SEAT,center.clone().sub(ROWING_SEAT).normalize());const block=ray.intersectObject(hull,true).find(h=>h.distance<ROWING_SEAT.distanceTo(center)-.01);assert.ok(!block,'boat boards cannot conceal the GPS screen');
+  const holder=createGPSCradle(spec,fit.contact);assert.equal(holder.position.y,fit.contact.deckY);assert.ok(new THREE.Box3().setFromObject(holder).max.y<box.max.y,'holder supports without covering the display');
+ }
  if(name==='radio')assert.ok(box.max.y-box.min.y<.06,'radio lies face-up rather than balancing upright');
 }
 for(let i=0;i<fitted.length;i++)for(let j=i+1;j<fitted.length;j++)assert.ok(!fitted[i].box.intersectsBox(fitted[j].box),fitted[i].name+' and '+fitted[j].name+' must not overlap');
