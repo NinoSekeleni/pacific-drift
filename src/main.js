@@ -30,6 +30,8 @@ import {bakeMarineFoam} from './marine-foam.js';
 import {createMarineLighting} from './marine-lighting.js';
 import {createWorldArrival} from './world-arrival.js';
 import {createBoatProps} from './boat-props.js';
+import {createLiveWeather} from './live-weather.js';
+import {skyTime,skyDescription} from './world-clock.js';
 
 THREE.ColorManagement.enabled = false;
 const DEG = Math.PI / 180;
@@ -163,6 +165,27 @@ let worldArrival=null,arrivalPlayed=false;
 let returningVoyage=false,playHintShown=false;
 let landfallShown = false;
 const simCache = {};
+const liveWeather=createLiveWeather();
+let conditionsMode='live';
+try{if(localStorage.getItem('pacific-drift-conditions-mode')==='experience')conditionsMode='experience';}catch{}
+const liveEnabled=()=>!PREVIEW&&conditionsMode==='live'&&!(DEBUG&&params.has('time'));
+simCache.resolveWeather=(fallback,lat,lng,t)=>{
+  if(!liveEnabled())return fallback;
+  const data=liveWeather.sample(lat,lng,t);
+  return {...fallback,...data.atmosphere,...data.marine};
+};
+for(const id of ['conditionsMode','homeConditionsMode']){
+  $(id).value=conditionsMode;
+  $(id).addEventListener('change',event=>{
+    conditionsMode=event.target.value==='experience'?'experience':'live';
+    for(const other of ['conditionsMode','homeConditionsMode'])$(other).value=conditionsMode;
+    try{localStorage.setItem('pacific-drift-conditions-mode',conditionsMode);}catch{}
+    if(voyage&&liveEnabled())liveWeather.refresh(voyage.lat,voyage.lng);
+    toast(conditionsMode==='live'?'Real-world time and regional forecasts.':'Experience mode: your local time and simulated weather.');
+  });
+}
+if(PREVIEW){$('conditions').hidden=true;}
+let nextWeatherCheck=0;
 let cond = null;
 let nightNow = false;
 
@@ -507,12 +530,13 @@ function frame() {
   const seaReview=PREVIEW&&params.has('waveAt')&&Number.isFinite(Number(params.get('waveAt')));
   const waveTime=seaReview?Number(params.get('waveAt')):elapsed;
   const tNow = now();
+  if(liveEnabled()&&!document.hidden&&elapsed>=nextWeatherCheck){nextWeatherCheck=elapsed+30;liveWeather.refresh(voyage.lat,voyage.lng);}
 
   /* ----- Simulation ----- */
   if (!voyage.landfall) {
     const gap = (tNow - voyage.t) / 1000;
     if (gap > 5) {
-      const r = catchUp(voyage, tNow, land, (conditions) => log.tick(conditions.w));
+      const r = catchUp(voyage, tNow, land, (conditions) => log.tick(conditions.w),simCache);
       if (r.away > 30 * 60e3) log.add(`Away from the boat for ${humanDuration(r.away)} and travelled ${(r.distance / 1000).toFixed(1)} km. ${voyage.sail ? 'She sailed on by herself.' : 'She drifted on the wind and current.'}`, 'away');
       if (started && r.away > 60000) toast(`You were away for ${humanDuration(r.away)} and travelled ${(r.distance / 1000).toFixed(1)} km. ${voyage.sail ? 'The boat kept sailing on its heading.' : 'The boat drifted with the wind and current.'}`, 5000);
       origin = null;
@@ -541,7 +565,15 @@ function frame() {
   }
   const kS = firstFrame ? 1 : 1 - Math.exp(-dt / 3);
   for (const k of SMOOTH_KEYS) sm[k] = sm[k] === undefined ? w[k] : sm[k] + (w[k] - sm[k]) * kS;
-  sm.swellFrom = w.swellFrom;
+  // Interpolate bearings across north; marine height/period stay optional when offline.
+  for(const key of ['from','swellFrom','windWaveFrom']){
+    if(Number.isFinite(w[key]))sm[key]=sm[key]===undefined?w[key]:(sm[key]+(((w[key]-sm[key]+540)%360)-180)*kS+360)%360;
+    else delete sm[key];
+  }
+  for(const key of ['swellPeriod','windWaveH','windWavePeriod']){
+    if(Number.isFinite(w[key]))sm[key]=sm[key]===undefined?w[key]:sm[key]+(w[key]-sm[key])*kS;
+    else delete sm[key];
+  }
 
   /* ----- Placement ----- */
   if (!origin || distance(voyage.lat, voyage.lng, origin.lat, origin.lng) > 20000) origin = { lat: voyage.lat, lng: voyage.lng };
@@ -549,10 +581,7 @@ function frame() {
   const bx = seaReview?0:tmpLocal.x, bz = seaReview?0:tmpLocal.z;
 
   /* ----- Sky ----- */
-  // The sky keeps the viewer's own clock: local solar time on the water matches the time where they are
-  const viewerOffsetH = -new Date(tNow).getTimezoneOffset() / 60;
-  let skyT = tNow + (viewerOffsetH - voyage.lng / 15) * 3600e3;
-  if(environment){const date=new Date(tNow);date.setHours(0,0,0,0);skyT=date.getTime()+environment.hour*3600e3+(viewerOffsetH-voyage.lng/15)*3600e3;}
+  const skyT=skyTime(tNow,voyage.lng,{mode:conditionsMode,hour:environment?.hour});
   const bodies = skyBodies(skyT, voyage.lat, voyage.lng);
   bodyDir(bodies.sun, sunV);
   bodyDir(bodies.moon, moonV);
@@ -579,7 +608,7 @@ function frame() {
   su.uHor.value.set(...hor);
   su.uGlow.value.set(...p.glow.map((v) => v * (1 - greyMix)));
   su.uSunCol.value.set(...p.sun.map((v) => v * (1 - 0.55 * dark)));
-  su.uStars.value = p.star * (1 - moonLight * 0.45) * (1 - overcast * 0.5) * (environment?.starStrength ?? 1);
+  su.uStars.value = p.star * (1 - moonLight * 0.35) * (environment?.starStrength ?? 1);
   su.uMoonLight.value = moonLight;
   su.uMoonRadius.value=.0085*(environment?.moonScale ?? 1.5);
   su.uUseLunarMap.value=environment?.lunarSurvey===false?0:1;
@@ -620,7 +649,7 @@ function frame() {
   const windTo = Math.atan2(sm.u, sm.v);
   const whitecap = Math.min(0.7, 3.84e-6 * Math.pow(sm.speed, 3.41) * 6);
   const ou = ocean.uniforms;
-  ocean.setSea(sm.speed, windTo, sm.swellH, (sm.swellFrom + 180) * DEG, whitecap, (environment?.seaImpacts===false?0:Math.min(1, sm.precip)*(environment?.rainImpactStrength??1)));
+  ocean.setSea(sm.speed, windTo, sm.swellH, (sm.swellFrom + 180) * DEG, whitecap, (environment?.seaImpacts===false?0:Math.min(1, sm.precip)*(environment?.rainImpactStrength??1)),Number.isFinite(sm.windWaveH)?{windWaveH:sm.windWaveH,windWavePeriod:sm.windWavePeriod,windWaveFrom:sm.windWaveFrom,swellPeriod:sm.swellPeriod}:null);
   ou.uTextureDetail.value=marineAssets?.water?(environment?.waterDetail??1):0;
   ou.uFoamDetail.value=environment?.foamDetail??1;
   ou.uOpticsDetail.value=environment?.waterOptics===false?0:1;
@@ -755,7 +784,7 @@ function frame() {
   seaRain.update(dt,camNear.position,Math.min(1,sm.precip),hor,waveTime,{enabled:environment?.seaImpacts!==false,strength:environment?.rainImpactStrength??1});
   const heaveRate = (canoe.heave - prevHeave) / Math.max(dt, 1e-3);
   prevHeave = canoe.heave;
-  audio.update(sm.speed, sm.swellH + ocean.hsWind, Math.min(1, sm.precip), heaveRate, nightNow);
+  audio.update(sm.speed, Math.hypot(sm.swellH,ocean.hsWind), Math.min(1, sm.precip), heaveRate, nightNow);
   radio.update(dt);
 
   fwd.set(0, 0, -1).applyQuaternion(camNear.quaternion);
@@ -774,8 +803,17 @@ function frame() {
       $('frontStatus').textContent=fronts.previewing?`Front ${(fronts.distance/1000).toFixed(1)} km away · preview ${Math.round(fronts.influence.progress*100)}% · rain ${Math.round(sm.precip*100)}%`:'';
     }
     updateLandDistance(elapsed);
-    const d = new Date(tNow);
-    $('clockOut').textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const d = new Date(environment||conditionsMode==='experience'?skyT+voyage.lng/15*3600e3:tNow);
+    $('clockOut').textContent = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}${!environment&&conditionsMode==='live'?' UTC':''}`;
+    if(!environment){
+      const status=liveWeather.status(voyage.lat,voyage.lng,tNow);
+      const simulated=!liveEnabled();
+      $('conditionsSummary').textContent=simulated?'Experience · simulated':status.weather==='live'&&status.marine==='live'?'Live conditions':status.weather==='cached'||status.marine==='cached'?'Cached forecast':status.pending?'Connecting to weather…':status.weather==='live'?'Live weather · simulated sea':'Simulated conditions';
+      $('conditionsValues').textContent=`Cloud ${Math.round(sm.cover*100)}% · wind ${(sm.speed*1.944).toFixed(0)} kn · ${Number.isFinite(w.waveH)?'combined sea '+w.waveH.toFixed(1):'swell '+sm.swellH.toFixed(1)} m`;
+      $('conditionsSky').textContent=skyDescription(e,bodies.moon.alt/DEG,bodies.illum);
+      const stamp=time=>time?new Date(time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC':'unavailable';
+      $('conditionsSource').textContent=simulated?'Simulated weather. The sky follows your local clock.':`Atmosphere: ${status.weather==='live'?'regional forecast':status.weather==='cached'?'cached forecast':'simulated'} (checked ${stamp(status.weatherTime)}). Sea: ${status.marine==='live'?'marine forecast':status.marine==='cached'?'cached forecast':'simulated'} (checked ${stamp(status.marineTime)}). Ocean currents are simulated.`;
+    }
     $('dayOut').textContent = `Day ${Math.max(1,Math.floor((tNow - voyage.start) / 864e5) + 1)}`;
     $('sailOut').textContent = voyage.sail ? 'Sail up' : 'Sail down';
     $('sailOut').classList.toggle('on', voyage.sail);
@@ -865,7 +903,7 @@ async function boot() {
 
   log.attach(voyage);
   if (!voyage.landfall) {
-    const r = catchUp(voyage, now(), land, (conditions) => log.tick(conditions.w));
+    const r = catchUp(voyage, now(), land, (conditions) => log.tick(conditions.w),simCache);
     bootAway = r.away;
     bootAwayDistance = r.distance;
     if (!fresh && r.away > 120000) {
@@ -874,6 +912,7 @@ async function boot() {
       note.textContent = `You were away for ${humanDuration(r.away)} and travelled ${(r.distance / 1000).toFixed(1)} km. ${voyage.sail ? 'The sail was up and the steering oar lashed, so the boat kept sailing on its heading.' : 'The sail was down, so the boat drifted with the wind and the current.'}${r.landed ? ' While you were gone, it came ashore.' : ''}`;
     }
   }
+  if(liveEnabled())liveWeather.refresh(voyage.lat,voyage.lng);
   saveVoyage(voyage);
   if (!fresh) {
     $('introLede').textContent = 'The ocean kept moving. Your boat is waiting.';
@@ -901,9 +940,8 @@ async function boot() {
       onBio(){resetStudioCamera(-.55);voyage.lantern=false;keys.add('KeyW');setTimeout(()=>keys.delete('KeyW'),9000);},
       onMoon(){
         fronts.cancelPreview();sm.cover=0;sm.precip=0;sm.dark=0;firstFrame=true;
-        const date=new Date(now());date.setHours(0,0,0,0);const offset=-new Date(now()).getTimezoneOffset()/60;
         let bestHour=0,bestScore=-Infinity;
-        for(let hour=0;hour<24;hour+=.5){const bodies=skyBodies(date.getTime()+hour*3600e3+(offset-voyage.lng/15)*3600e3,voyage.lat,voyage.lng);const score=bodies.moon.alt-(bodies.sun.alt>-.08?4:0);if(score>bestScore){bestScore=score;bestHour=hour;}}
+        for(let hour=0;hour<24;hour+=.5){const bodies=skyBodies(skyTime(now(),voyage.lng,{hour}),voyage.lat,voyage.lng);const score=bodies.moon.alt-(bodies.sun.alt>-.08?4:0);if(score>bestScore){bestScore=score;bestHour=hour;}}
         window.__moonCam=true;window.__cam=null;window.__birdCam=false;camNear.fov=camFar.fov=30;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();return bestHour;
       },
       onBird(){if(!wildlife.preview(camNear,Math.atan2(-sm.u,-sm.v)))toast('Albatross is loading. Try again in a moment.');},
@@ -951,6 +989,7 @@ async function boot() {
       get canoe() { return canoe; },
       get ocean() { return ocean; },
       get marine(){return marineReview;},
+      get conditions(){return {mode:conditionsMode,status:liveWeather.status(voyage.lat,voyage.lng,now()),sample:liveWeather.sample(voyage.lat,voyage.lng,now()),skyTime:skyTime(now(),voyage.lng,{mode:conditionsMode,hour:environment?.hour})};},
       get gear(){return boatProps?.state;},
       sea(speed, swellH = speed / 5) { window.__sea = { speed, swellH, precip: speed > 18 ? 0.7 : 0, cover: speed > 18 ? 0.85 : 0.25 }; },
       look(p, y) { pitch = p; if (y !== undefined) yawRel = y; },

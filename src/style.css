@@ -581,3 +581,15 @@ kbd { font-family: var(--font-body); font-size: 11px; font-weight: 600; padding:
 .arrival-copy{width:min(540px,calc(100% - 52px));}.arrival-copy h1{font-size:clamp(27px,3.5vw,40px);}.arrival-story{font-size:clamp(19px,2vw,25px);line-height:1.5;max-width:490px;color:#e8efeb;margin:22px 0;min-height:3em;}.arrival-height{display:none;}.arrival-near .arrival-coordinates,.arrival-near .arrival-region{display:none;}.arrival-near .arrival-copy h1{font-size:17px;letter-spacing:.05em;color:#a4bdc3;}.arrival-progress{max-width:180px;margin-top:18px;}
 @media(max-width:700px){.arrival-copy{bottom:max(32px,env(safe-area-inset-bottom));}.arrival-story{font-size:18px;max-width:310px;min-height:4.5em;margin:16px 0;}.arrival-copy h1{font-size:28px;}.arrival-near .arrival-copy h1{font-size:14px;}}
 .home-help[open]{background:rgba(4,12,18,.75);padding:12px 14px;border:1px solid rgba(190,215,212,.16);border-radius:5px;}.home-help .fine{color:#b3c6c5;}
+
+/* Conditions stay one small disclosure until the player asks for details. */
+.conditions{position:fixed;top:calc(44px + env(safe-area-inset-top,0px));left:max(20px,env(safe-area-inset-left,0px));z-index:12;font-size:12px;color:var(--ink-soft);max-width:calc(100vw - 40px)}
+.conditions summary{cursor:pointer;text-shadow:0 1px 6px #000;padding:6px 0;list-style-position:inside}
+.conditions-panel{width:325px;max-width:calc(100vw - 40px);padding:15px;background:rgba(9,15,20,.94);border:1px solid var(--line);border-radius:9px;line-height:1.5;max-height:65vh;overflow:auto;touch-action:pan-y}
+.conditions-panel p{margin:10px 0 0}.conditions label,.home-weather-mode{display:block;font-size:12px}
+.conditions select,.home-weather-mode select{display:block;width:100%;font:inherit;color:var(--ink);background:#17232a;border:1px solid var(--line);border-radius:4px;padding:8px;margin-top:6px}
+.conditions a{color:inherit;text-underline-offset:3px}.conditions-credit{font-size:10px;opacity:.7}
+.at-home .conditions{display:none}.home-weather-mode{margin:16px 0 0}
+
+.touch-layout .conditions{top:calc(134px + env(safe-area-inset-top,0px));left:12px;max-width:calc(100vw - 24px)}
+.touch-layout .conditions-panel{max-width:calc(100vw - 24px);max-height:calc(100dvh - 300px)}

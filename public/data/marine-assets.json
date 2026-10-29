@@ -128,9 +128,10 @@
       "id": "U01",
       "name": "Ultra-Water",
       "status": "selected shader techniques ported",
-      "source": "Owner-supplied Ultra-Water-master.zip",
+      "source": "Owner-supplied Ultra-Water-master (1).zip, archive commit ce9248fa20afbdf63fd4c11709f68d7368aca0a0",
       "license": "MIT Copyright (c) 2026 Humpalumps; original licence and third-party notices included under textures/licenses.",
-      "usage": "Standalone 512 foam bake and two-phase advection adapted; derivative variance idea adapted to existing highlight lobes. No FFT, island, terrain, caustics, underwater renderer or newer Three dependency imported."
+      "usage": "512 foam lace/billow/gradient bake, two-phase advection, erosion into lace, billow-normal lighting, crease occlusion and thin-foam tint adapted to existing Gerstner ocean. Existing derivative filtering retained. Forecast wave heights, directions and periods drive the same wave bank used for hull buoyancy. Full FFT/island/underwater/terrain pipeline not imported; archive contains no separate image or ocean-data packs.",
+      "archiveSha256": "cbe9e9d05ba7ba9c0bd134db3293f01e5822ee6e9de10d8cb35f8400f6ce310f"
     }
   ],
   "notIntegrated": [
@@ -160,8 +161,8 @@
     }
   ],
   "validation": {
-    "tests": "All 16 test scripts passed after final code changes.",
-    "visual": "Daylight raised white sail, storm, clear night, calm rain, alternate weave and original/new studio controls reviewed. Moon inspector shows unobstructed survey surface. No browser shader warnings/errors observed.",
-    "limits": "Local desktop browser preview; real mobile GPU performance unmeasured. No claim of photorealism or full Ultra-Water renderer replacement."
+    "tests": "20 test scripts cover materials, boats, live forecasts, cache failures, astronomy and waves.",
+    "visual": "Live forecast fetched successfully in local browser. Clear night, textured moon, storm whitecaps and phone weather disclosure checked.",
+    "limits": "Desktop browser and 390px layout review; physical phone GPU unmeasured. Weather/marine are model estimates; currents and unavailable/historical weather remain simulated."
   }
 }

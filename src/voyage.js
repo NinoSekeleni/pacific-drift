@@ -68,7 +68,8 @@ const MAX_SAIL = 2.7;             // m/s, about 5 knots
 export function step(s, dt, input, land, cache = {}) {
   const t = s.t + dt * 1000;
   if (!cache.lows || Math.abs(cache.lowsT - t) > 30 * 60e3) { cache.lows = lowsAt(t); cache.lowsT = t; }
-  const w = weatherAt(s.lat, s.lng, t, cache.lows);
+  const simulated = weatherAt(s.lat, s.lng, t, cache.lows);
+  const w = cache.resolveWeather?.(simulated,s.lat,s.lng,t) || simulated;
   const c = currentAt(s.lat, s.lng, t);
 
   // Steering
@@ -135,9 +136,9 @@ export function step(s, dt, input, land, cache = {}) {
 }
 
 /** Replay the time nobody was aboard. The lashed steering oar holds the heading. */
-export function catchUp(s, now, land, onStep) {
+export function catchUp(s, now, land, onStep, providers = {}) {
   const from = s.t, fromDist = s.dist;
-  const cache = {};
+  const cache = {...providers};
   const STEP = 60;
   let n = 0;
   while (!s.landfall && now - s.t > STEP * 1000) {

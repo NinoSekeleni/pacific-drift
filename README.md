@@ -17,7 +17,7 @@ npm test
 npm run build
 ```
 
-The production site is written to `dist/`. The included GitHub Actions workflow builds and deploys GitHub Pages when pushed to `main` in NinoSekeleni/pacific-drift. This handoff has not been pushed or published.
+The production site is written to `dist/`. The included GitHub Actions workflow builds and deploys GitHub Pages when pushed to `main` in NinoSekeleni/pacific-drift. Live site: https://ninosekeleni.github.io/pacific-drift/.
 
 ## Controls
 
@@ -27,7 +27,17 @@ W row; A/D steer; E sail; L lantern; R radio; C constellation lines and names; N
 
 Voyages use browser localStorage, with one-minute offline replay of the same weather and movement simulation. Sailing holds the heading; lowering the sail allows wind and current drift. Returning players see elapsed time and distance. Daily log entries are also written during replay. Navigator mode plots a dead-reckoned estimate; true and estimated tracks appear together at landfall.
 
-Weather follows Pacific climate belts, travelling lows and squalls. Coastlines come from Natural Earth. The star catalogue and constellation data come from d3-celestial. Daylight follows the viewer's local clock, with celestial orientation based on the canoe's latitude.
+Live conditions is the default. The boat's coordinates request Open-Meteo atmospheric and marine model estimates every 15 minutes (or after 20 km of movement). Wind drives sailing and leeway as well as the scene and sound. Wind waves and swell use forecast significant heights, directions and periods; the same Gerstner bank drives rendering and buoyancy. These are model estimates, not observations from a sensor beside the boat. Currents remain simulated.
+
+Sun, moon, phase and star orientation use actual UTC and the boat's location. The HUD clock is UTC. Clear dark skies show stars; daylight/twilight and clouds affect visibility. The moon appears only above the horizon. Cloud-free settings no longer leave residual volume/cirrus clouds.
+
+Open **Live conditions** below the wordmark for cloud/wind/sea values, moon visibility, source timestamps and the mode switch. The optional **Experience** mode uses the player's local clock and simulated weather. It is labelled separately and can also be selected under How to play. Environment Studio keeps independent time/weather controls and never requests live data.
+
+Each feed fails independently: a recent cached forecast is labelled cached; after six hours, outside its timeline, or more than 40 km from its location, simulation takes over and is labelled simulated. Offline voyage catch-up uses available matching forecast hours; other periods use the deterministic climate/lows/squall simulation. No present-day forecast is projected backwards over an old voyage gap. Cached forecasts and mode preference stay in this browser. There is no server account or player geolocation request.
+
+Weather data: [Open-Meteo](https://open-meteo.com/) and ECMWF, DWD, NOAA and Météo-France model providers, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Atmospheric API documentation](https://open-meteo.com/en/docs) / [marine API documentation](https://open-meteo.com/en/docs/marine-weather-api). The free API is for non-commercial use; a commercial release needs an appropriate provider plan.
+
+Coastlines come from Natural Earth. The star catalogue and constellation data come from d3-celestial. Selected Ultra-Water foam shading is adapted under its supplied MIT licence; the archive's FFT/island/underwater renderer is not a replacement for this game's ocean. See `public/data/marine-assets.json` and shipped licence notices.
 
 World Radio uses Radio Browser mirrors with clear worldwide reception, country/genre/name search, home-country pinning, shuffle, tuning and volume. Only HTTPS streams are offered; HLS support depends on the browser. Spotify defaults to the owner's playlist; the embed controls account access and preview availability.
 
@@ -37,7 +47,7 @@ World Radio uses Radio Browser mirrors with clear worldwide reception, country/g
 
 - `?debug&qa&time=2026-10-28T10:00:00Z` shows sea presets and seat/port/starboard/bow/stern views.
 - `?debug&sea=26&time=2026-10-28T10:00:00Z` starts a severe sea for inspection.
-- `?debug&sea=3&time=2026-10-28T21:00:00Z` checks night lighting (time is an absolute ISO timestamp; account for the viewer's time zone).
+- `?debug&sea=3&time=2026-10-29T08:00:00Z` checks night lighting at Point Nemo. Debug timestamps are absolute UTC and use simulated weather; browser timezone does not change them.
 - `at=<latitude>,<longitude>`, `heading=<degrees>` and `view=<x>,<y>,<z>` are also available in debug mode.
 
 The water exclusion uses a single-frame hull transform, dense crest support, a lower-only crest limit, the depth-only opening lid, and a fragment mask in actual canoe-local coordinates. A cedar backing shell covers small mesh holes. The lantern stands on the central yoke, with model-surface probing beside the hole and a safe yoke fallback.

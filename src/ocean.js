@@ -79,6 +79,7 @@ function detailNormals(renderer) {
 const WAVE_GLSL = /* glsl */`
   #define NW ${N_WAVES}
   uniform vec4 uWaves[NW];
+  uniform float uWavePhase[NW];
   uniform mat4 uHullInverse; // exact world-to-canoe transform, shared by both shaders
   uniform vec4 uHull;   // canoe x, z, heave, on
   uniform vec4 uHullAx; // forward x, z, longitudinal slope, transverse slope
@@ -117,12 +118,15 @@ const WAVE_GLSL = /* glsl */`
 
 export function createOcean(renderer, scene, skyUniforms) {
   const waves = Array.from({ length: N_WAVES }, () => new THREE.Vector4(1, 0, 10, 0));
+  const phaseOffsets=new Float32Array(N_WAVES);
+  let seaInitialized=false;
   const ripples = Array.from({ length: RIPPLE_COUNT }, () => new THREE.Vector4(0, 0, -1000, 0));
   const rippleAxes=Array.from({length:RIPPLE_COUNT},()=>new THREE.Vector2(0,-1));
   let rippleNext = 0;
 
   const uniforms = Object.assign({}, skyUniforms, {
     uWaves: { value: waves },
+    uWavePhase:{value:phaseOffsets},
     uRipples: { value: ripples },
     uWaterRippleAxes: {value:rippleAxes},
     uWaterWindDir: {value:new THREE.Vector2(0,-1)},
@@ -169,7 +173,7 @@ export function createOcean(renderer, scene, skyUniforms) {
           if (w.w < 1e-4) continue;
           float k = 6.2831853 / w.z;
           float c = sqrt(9.81 / k);
-          float ph = k * (dot(w.xy, base) - c * uWaveT);
+          float ph = k * (dot(w.xy, base) - c * uWaveT) + uWavePhase[i];
           float A = w.w * waveFade(w.z, dist);
           float Q = min(0.85 / (k * max(w.w, 1e-4) * float(NW)), 1.0);
           disp.xz += Q * A * w.xy * cos(ph);
@@ -244,7 +248,7 @@ export function createOcean(renderer, scene, skyUniforms) {
           if (w.w < 1e-4) continue;
           float k = 6.2831853 / w.z;
           float c = sqrt(9.81 / k);
-          float ph = k * (dot(w.xy, vBase) - c * uWaveT);
+          float ph = k * (dot(w.xy, vBase) - c * uWaveT) + uWavePhase[i];
           float WA = k * w.w * waveFade(w.z, dist);
           float Q = min(0.85 / (k * max(w.w, 1e-4) * float(NW)), 1.0);
           N.x -= w.x * WA * cos(ph);
@@ -402,7 +406,8 @@ export function createOcean(renderer, scene, skyUniforms) {
         col*=1.0+waterGustLanes*.09*waterStreakVisibility;
 
         // Broken caps belong to compressed wind crests, not the broad swell.
-        float foam=0.0,foamBillow=.5;
+        float foam=0.0,foamBillow=.5,foamPattern=.5;
+        vec2 foamGradient=vec2(0.0);
         if(uFoamActivity>.001){
           float foamPatch=fbm(windUV/vec2(1.1,2.8)+vec2(t*.025,-t*.065),3);
           float lace=noise(windUV*1.3+vec2(t*.08,-t*.12));
@@ -417,15 +422,31 @@ export function createOcean(renderer, scene, skyUniforms) {
             vec4 foamField=mix(foam0,foam1,blend);
             fragments*=mix(1.,mix(.60,1.2,smoothstep(.25,.80,foamField.r)),uFoamDetail);
             foamBillow=mix(.5,foamField.g,uFoamDetail);
+            foamPattern=foamField.r;
+            foamGradient=(foamField.ba-.5)*64.*.36*uFoamDetail;
           }
           float breaking=smoothstep(.015,.15,crestCompression);
-          foam=(crestFresh*1.35+crestHistory*.35)*breaking*fragments*uFoamActivity;
+          float density=clamp((crestFresh*1.65+crestHistory*.55)*breaking*uFoamActivity,0.,1.);
+          // Ultra-Water's erosion: young dense caps cover bubbles; old remnants
+          // open into lace instead of becoming a translucent white wash.
+          float eroded=smoothstep(.90-density,1.20-density,foamPattern)*sqrt(density);
+          foam=mix((crestFresh*1.35+crestHistory*.35)*breaking*fragments*uFoamActivity,eroded,uFoamDetail*.72);
           foam*=1.-smoothstep(150.,2200.,dist);
         }
         foam+=waterWakeFoam*rippleFade*1.55;
-        vec3 foamCol=(uHor*.8+uZen*.4+uSunCol*.24*lightAmt)*.98;
-        foamCol*=mix(1.,mix(.86,1.08,smoothstep(.10,.80,foamBillow)),uFoamDetail);
-        col=mix(col,foamCol,clamp(foam,0.,.65));
+        // Billow normals, crease occlusion and thin-film colour adapted from
+        // Ultra-Water OceanSurface.js (Humpalumps 2026, MIT; retained notices).
+        if(foam>.001){
+          vec3 foamN=normalize(N-vec3(foamGradient.x,0.,foamGradient.y)*(.025+.075*foam));
+          float ao=mix(.65,1.,smoothstep(.15,.75,foamBillow));
+          float solid=smoothstep(.12,.65,foam*(.55+.7*foamBillow));
+          vec3 ambient=uHor*.70+uZen*.45+vec3(.10,.13,.18)*uMoonLight;
+          vec3 direct=uSunCol*lightAmt*(.18+.65*max(dot(foamN,L),0.));
+          vec3 tint=mix(vec3(.65,.82,.84),vec3(.96),max(solid,foamPattern*.5));
+          vec3 foamCol=tint*(ambient*ao+direct*mix(ao,1.,.5));
+          foamCol+=uSunCol*lightAmt*pow(max(dot(L,-V),0.),4.)*.12*(1.-solid);
+          col=mix(col,foamCol,clamp(foam,0.,.85));
+        }
 
         // Lantern light on the water: a warm glitter path and a soft pool around the canoe
         if (uLantern.w > 0.001) {
@@ -474,27 +495,44 @@ export function createOcean(renderer, scene, skyUniforms) {
 
   let hsWind = 0.3, swellH = 1, windDir = 0, swellDir = 0;
 
+  // Preserve the wave phase beside the boat when forecast periods/directions
+  // evolve. Recomputing k*x-omega*t alone would jump farther on long sessions.
+  function setWave(i,x,z,length,amplitude){
+    const old=waves[i],anchor=uniforms.uHull.value,time=uniforms.uWaveT.value;
+    if(seaInitialized&&(old.x!==x||old.y!==z||old.z!==length)){
+      const k0=2*Math.PI/old.z,k1=2*Math.PI/length;
+      const before=k0*(old.x*anchor.x+old.y*anchor.y)-Math.sqrt(G*k0)*time+phaseOffsets[i];
+      const after=k1*(x*anchor.x+z*anchor.y)-Math.sqrt(G*k1)*time;
+      phaseOffsets[i]=((before-after+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+    }
+    old.set(x,z,length,amplitude);
+  }
+
   /** Set the sea state from wind (m/s, direction the wind blows toward, radians) and swell. */
-  function setSea(windSpeed, windToRad, swellHs, swellToRad, whitecap, rain) {
+  function setSea(windSpeed, windToRad, swellHs, swellToRad, whitecap, rain, measuredSea = null) {
     const U = Math.max(0.5, windSpeed);
-    const Lp = Math.max(2.2, 0.833 * U * U);
-    hsWind = Math.min(6.5, 0.016 * U * U);
+    const Lp = measuredSea ? 9.81 * measuredSea.windWavePeriod**2 / (2*Math.PI) : Math.max(2.2, 0.833 * U * U);
+    hsWind = measuredSea ? Math.max(0,measuredSea.windWaveH) : Math.min(6.5, 0.016 * U * U);
+    if(measuredSea)windToRad=(measuredSea.windWaveFrom+180)*DEG;
     swellH = swellHs;
     windDir = windToRad;
     swellDir = swellToRad;
-    const a = WIND_L.map((L) => L * Math.exp(-0.625 * (L / Lp) ** 2) * (L <= Lp * 1.6 ? 1 : 0.4));
+    const windLengths=measuredSea?WIND_L.map(L=>L*Math.max(.25,Math.min(4,Lp/85))):WIND_L;
+    const a = windLengths.map((L) => L * Math.exp(-0.625 * (L / Lp) ** 2) * (L <= Lp * 1.6 ? 1 : 0.4));
     const s2 = a.reduce((m, v) => m + v * v, 0);
     const scale = s2 > 0 ? (hsWind / 2.83) / Math.sqrt(s2) : 0;
-    WIND_L.forEach((L, i) => {
+    windLengths.forEach((L, i) => {
       const ang = windToRad + WIND_OFF[i] * DEG;
-      waves[i].set(Math.sin(ang), -Math.cos(ang), L, a[i] * scale);
+      setWave(i,Math.sin(ang), -Math.cos(ang), L, a[i] * scale);
     });
     const sw = [0.82, 0.45, 0.3];
     const sn = Math.hypot(...sw);
     SWELL_L.forEach((L, j) => {
+      if(measuredSea) L = L * (9.81*measuredSea.swellPeriod**2/(2*Math.PI)) / SWELL_L[0];
       const ang = swellToRad + (j === 1 ? 9 : j === 2 ? 65 : 0) * DEG;
-      waves[WIND_L.length + j].set(Math.sin(ang), -Math.cos(ang), L, ((swellHs / 2.83) * sw[j]) / sn);
+      setWave(WIND_L.length + j,Math.sin(ang), -Math.cos(ang), L, ((swellHs / 2.83) * sw[j]) / sn);
     });
+    seaInitialized=true;
     uniforms.uWind.value = U;
     uniforms.uWaterWindDir.value.set(Math.sin(windToRad),-Math.cos(windToRad));
     uniforms.uHsWind.value = hsWind;
@@ -507,11 +545,12 @@ export function createOcean(renderer, scene, skyUniforms) {
   /** Surface height and slope at a world point (for the canoe). */
   function raw(x, z, t, out) {
     let h = 0, sx = 0, sz = 0, dx = 0, dz = 0;
-    for (const w of waves) {
+    for (let i=0;i<waves.length;i++) {
+      const w=waves[i];
       if (w.w < 1e-4) continue;
       const k = (2 * Math.PI) / w.z;
       const c = Math.sqrt(G / k);
-      const ph = k * (w.x * x + w.y * z - c * t);
+      const ph = k * (w.x * x + w.y * z - c * t) + phaseOffsets[i];
       const Q = Math.min(0.85 / (k * Math.max(w.w, 1e-4) * N_WAVES), 1);
       const cs = Math.cos(ph);
       h += w.w * Math.sin(ph);

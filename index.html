@@ -25,6 +25,15 @@
     </div>
   </header>
 
+  <details id="conditions" class="conditions">
+    <summary id="conditionsSummary">Connecting to weather…</summary>
+    <div class="conditions-panel">
+      <label for="conditionsMode">World conditions</label>
+      <select id="conditionsMode"><option value="live">Live conditions · real-world time</option><option value="experience">Experience · my local time</option></select>
+      <p id="conditionsValues"></p><p id="conditionsSky"></p><p id="conditionsSource"></p>
+      <p class="conditions-credit">Model estimates from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · ECMWF, DWD, NOAA &amp; Météo-France · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Forecasts refresh every 15 minutes; transitions are gradual.</p>
+    </div>
+  </details>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <div class="compass-wrap">
@@ -164,6 +173,10 @@
           <li><kbd>M</kbd> sound</li><li><kbd>Esc</kbd> pause</li>
         </ul>
         <p class="fine">Your voyage continues while you are away. Leave the sail up to hold your heading, or lower it to drift. Your progress stays in this browser.</p>
+        <label class="home-weather-mode" for="homeConditionsMode">World conditions
+          <select id="homeConditionsMode"><option value="live">Live conditions · real-world time</option><option value="experience">Experience · my local time</option></select>
+        </label>
+        <p class="fine">Live follows the boat’s real location and time. Experience uses your local clock with simulated weather. Explore any sky in the environment studio.</p>
         <div class="mode-row">
           <button id="navToggle" class="mode-toggle" type="button" aria-pressed="false">Navigator mode <span id="navState">Off</span></button>
           <p class="fine">Use a dead-reckoned position. Your true course is revealed at landfall.</p>

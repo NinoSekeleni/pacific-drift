@@ -419,7 +419,7 @@ export function createSky(renderer, scene, isTouch) {
       float densityAt(vec3 p, float hf, bool detail) {
         vec3 q = vec3(p.x - uOff.x, p.y + uEvolve, p.z - uOff.y);
         float w = texture(tNoise, vec3(q.x, 0.0, q.z) / 46000.0 + vec3(0.0, 0.31, 0.0)).r;
-        float cov = uCoverage + dot(p.xz, uCovGrad) + (w - 0.5) * 0.6;
+        float cov = uCoverage + dot(p.xz, uCovGrad) + (w - 0.5) * 0.6 * sqrt(max(uCoverage,0.0));
         for (int i = 0; i < 4; i++) {
           vec4 is = uIsles[i];
           if (is.w > 0.0) {
@@ -428,6 +428,7 @@ export function createSky(renderer, scene, isTouch) {
           }
         }
         cov = clamp(cov, 0.0, 1.0);
+        if(cov<0.0001)return 0.0;
         float s = clamp(remap(texture(tNoise, q / vec3(7200.0, 4800.0, 7200.0)).r, 1.0 - cov, 1.0, 0.0, 1.0), 0.0, 1.0);
         s *= smoothstep(0.0, 0.1, hf) * (1.0 - smoothstep(0.45, 1.0, hf));
         if (s <= 0.0) return 0.0;
@@ -504,7 +505,7 @@ export function createSky(renderer, scene, isTouch) {
           vec2 cuv = (pc.xz - uOff * 1.6) / 14000.0;
           vec2 warp = vec2(fbm(cuv * 1.7, 4), fbm(cuv * 1.7 + 5.2, 4));
           float ci = fbm(vec2(cuv.x * 0.7, cuv.y * 3.2) + warp * 0.8, 5);
-          ciA = smoothstep(0.75 - uCirrus * 0.45, 0.95 - uCirrus * 0.2, ci) * (0.25 + uCirrus * 0.6) * exp(-hc.y / 60000.0);
+          ciA = smoothstep(0.75 - uCirrus * 0.45, 0.95 - uCirrus * 0.2, ci) * clamp(uCirrus * 1.4,0.0,0.85) * exp(-hc.y / 60000.0);
           ciC = Lc * (0.55 + phase * 1.6) + uZen * 0.6 + uHor * 0.45;
           ciC = mix(ciC, uHor, 1.0 - exp(-hc.y / 40000.0));
         }
