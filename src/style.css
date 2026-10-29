@@ -634,3 +634,5 @@ kbd { font-family: var(--font-body); font-size: 11px; font-weight: 600; padding:
 
 .inspecting-equipment .environment-panel,.using-binoculars .environment-panel,.inspecting-equipment .environment-entry,.using-binoculars .environment-entry{visibility:hidden!important}
 .environment-preview .equipment-toggle{z-index:40;left:auto;right:20px;top:15px;bottom:auto}
+
+.radio:not(.is-on) .spotify-wrap{opacity:.55}

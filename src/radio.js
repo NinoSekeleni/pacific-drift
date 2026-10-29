@@ -402,6 +402,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   }
   function setPower(on) {
     state.on = on;
+    panel.querySelector('.spotify-wrap').inert=!on;
     powerBtn.setAttribute('aria-pressed', String(on));
     powerBtn.textContent = on ? 'On' : 'Off';
     panel.classList.toggle('is-on', on);
@@ -459,13 +460,13 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
     if (!uri) { $('tapeNote').textContent = 'That link is not a Spotify track, playlist or album. Copy the share link from Spotify and paste it here.'; return; }
     onPlaylist(playlistInput.value.trim());
     $('tapeNote').textContent = 'Your playlist is in the tape deck.';
-    ensureController(uri, true);
+    if(!state.on)setPower(true);else ensureController(uri, true);
   });
   $('playlistReset').addEventListener('click', () => {
     onPlaylist('');
     playlistInput.value = '';
     $('tapeNote').textContent = 'Back to the Pacific Drift playlist.';
-    ensureController(DEFAULT_PLAYLIST, true);
+    if(!state.on)setPower(true);else ensureController(DEFAULT_PLAYLIST, true);
   });
 
   /* ----- Panel ----- */
