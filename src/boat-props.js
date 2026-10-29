@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {LAYER_NEAR} from './sky.js';
 import {createBoatMaterial} from './boat-materials.js';
+import {mapLimit,loadPackedModel} from './asset-loading.js';
 import {createWalkmanDisplay} from './walkman-display.js';
 import {prepareTapeTransport,advanceTape,applyTapePose} from './tape-transport.js';
 export const PROP_LAYOUT={
@@ -55,10 +56,11 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   root.visible=!stowed.has(name);group.add(root);roots[name]=root;register(root);state.ready++;
   state.dimensions[name]=placement.size;state.contacts[name]=placement.contact;
  }
- const loading=Promise.all(Object.entries(PROP_LAYOUT).map(async([name,spec])=>{
-  try{const gltf=await loader.loadAsync(base+'models/'+spec.file);fit(name,gltf.scene);}
+ const order=['gps','radio','walkman','binoculars','backpack','anbernic'];
+ const loading=mapLimit(order.map(name=>[name,PROP_LAYOUT[name]]),2,async([name,spec])=>{
+  try{const gltf=await loadPackedModel(loader,base+'models/'+spec.file);fit(name,gltf.scene);}
   catch(error){state.failed.push(name);console.warn('Supplied '+name+' unavailable',error);}
- }));
+ });
  const bounds=new THREE.Box3(),hit=new THREE.Vector3(),pointer=new THREE.Vector2();
  function pick(camera,x,y,width,height){
   group.updateWorldMatrix(true,true);pointer.set(x/width*2-1,1-y/height*2);ray.setFromCamera(pointer,camera);

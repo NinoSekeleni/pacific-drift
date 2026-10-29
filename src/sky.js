@@ -323,10 +323,11 @@ export function createSky(renderer, scene, isTouch) {
   };
 
   uniforms.tMoonSurface.value.needsUpdate=true;
-  new THREE.TextureLoader().load(import.meta.env.BASE_URL+'textures/marine/moon-lroc-2k.png',texture=>{
+  const lunarLoader=new THREE.TextureLoader(),applyLunar=texture=>{
     texture.colorSpace=THREE.NoColorSpace;texture.wrapS=THREE.RepeatWrapping;
     uniforms.tLunarMap.value=texture;uniforms.uLunarMapReady.value=1;
-  },undefined,()=>console.warn('Lunar survey map unavailable; approved photograph retained'));
+  };
+  lunarLoader.load(import.meta.env.BASE_URL+'textures/marine/moon-lroc-2k.webp',applyLunar,undefined,()=>lunarLoader.load(import.meta.env.BASE_URL+'textures/marine/moon-lroc-2k.png',applyLunar,undefined,()=>console.warn('Lunar survey map unavailable; approved photograph retained')));
   // Keep the approved source untouched; use a smaller bitmap only in GPU memory.
   fetch(import.meta.env.BASE_URL+'data/visual-assets.json').then(r=>r.ok?r.json():null).then(async manifest=>{
     const asset=manifest?.assets?.find(a=>a.kind==='moon-surface'&&a.approved&&a.sourceUrl&&a.license&&a.file);

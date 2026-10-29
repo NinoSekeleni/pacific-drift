@@ -6,7 +6,7 @@ export async function loadMarineAssets(renderer,base){
  const anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
  await Promise.all(['water','canvas','linen','rope','wood'].map(async kind=>{
   const maps=await Promise.allSettled(['normal','roughness'].map(async channel=>{
-   const tex=await loader.loadAsync(base+'textures/marine/'+kind+'-'+channel+'.png');
+   const tex=await loader.loadAsync(base+'textures/marine/'+kind+'-'+channel+'.webp').catch(()=>loader.loadAsync(base+'textures/marine/'+kind+'-'+channel+'.png'));
    tex.name=kind+' '+channel;tex.colorSpace=THREE.NoColorSpace;
    tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.anisotropy=anisotropy;
    return tex;

@@ -35,6 +35,7 @@ import {skyTime,skyDescription} from './world-clock.js';
 import {createEquipmentInspection,EQUIPMENT} from './equipment-inspection.js';
 import {createGPS} from './gps.js';
 import {createAnbernic} from './anbernic.js';
+import {onceLoader,loadPackedJSON,loadPackedModel} from './asset-loading.js';
 import {createBinoculars} from './binoculars.js';
 
 THREE.ColorManagement.enabled = false;
@@ -110,11 +111,11 @@ let pointerPosition=null,itemUnderPointer=null;
 const marineReview={loaded:false,failed:[],materials:0};
 const foamBake=bakeMarineFoam(renderer);
 ocean.uniforms.tFoamDetail.value=foamBake.texture;
-loadMarineAssets(renderer,BASE).then(assets=>{
+const loadSurfaceDetails=onceLoader(()=>loadMarineAssets(renderer,BASE).then(assets=>{
  marineAssets=assets;marineReview.loaded=true;marineReview.failed=assets.failures;
  if(assets.water){ocean.uniforms.tImportedNormal.value=assets.water.normal;ocean.uniforms.tImportedRoughness.value=assets.water.roughness;}
  if(marineBoat)marineReview.materials=applyMarineDetails(marineBoat,assets);
-}).catch(error=>{marineReview.failed=['surface details'];console.warn('Surface details unavailable; original materials retained',error);});
+}).catch(error=>{marineReview.failed=['surface details'];console.warn('Surface details unavailable; original materials retained',error);}));
 const meteors=createMeteors(scene);
 meteors.setCloudTexture(sky.uniforms.tClouds.value);
 const fronts=createWeatherFronts(scene);
@@ -205,7 +206,8 @@ const radio = createRadio({
 /* ---------- Equipment: one model, a close-up view, and real controls ---------- */
 const anbernic=createAnbernic({getVoyage:()=>voyage,save:saveVoyage});
 const gps=createGPS({base:BASE,getVoyage:()=>voyage,getConditions:()=>cond,save:saveVoyage,toast});
-inspection=createEquipmentInspection({renderer,radio,gps,anbernic,getTapeState:()=>boatProps?.tapeState??{phase:0},
+const prepareGPS=onceLoader(async()=>{gps.loading();const chart=await loadPackedJSON(BASE+'data/navigation-world.json');gps.setup(land,chart,gpsLandData);});let gpsLandData=null;
+inspection=createEquipmentInspection({renderer,radio,gps,anbernic,onSelect:id=>{if(id==='gps')prepareGPS().catch(()=>toast('Chart could not load. Open the GPS to retry.'));},getTapeState:()=>boatProps?.tapeState??{phase:0},
   onOpen(){keys.clear();dragging=false;dragMode=true;if(document.pointerLockElement)document.exitPointerLock();radio.setOpen(false);},
   onClose(){dragMode=true;},onLantern:toggleLantern,lanternOn:()=>lanternOn,
   onBinoculars(){binoculars.open();},
@@ -429,6 +431,7 @@ function syncControlLayout() {
 }
 function begin() {
   if (!land) return;
+  loadSurfaceDetails();
   if(worldArrival?.active)return;
   if(!PREVIEW&&!arrivalPlayed&&worldArrival&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
     arrivalPlayed=true;$('intro').hidden=true;keys.clear();paused=true;started=false;
@@ -869,7 +872,7 @@ function frame() {
     itemUnderPointer=boatProps?.pick(camNear,p.x,p.y,r.width,r.height)??null;
   }
   $('itemHint').hidden=!itemUnderPointer||inspection.active||binoculars.active;
-  if(itemUnderPointer)$('itemHint').textContent=`Inspect ${EQUIPMENT[itemUnderPointer].title} · F`;
+  if(itemUnderPointer)$('itemHint').textContent='Inspect';
   if(inspection.active){inspection.render(dt);firstFrame=false;return;}
 
   /* ----- Render ----- */
@@ -904,12 +907,13 @@ window.addEventListener('pagehide', () => saveVoyage(voyage));
 
 /* ---------- Boot ---------- */
 async function boot() {
+  const loader=new GLTFLoader(),boatReady=loadPackedModel(loader,BASE+'models/rowing-boat.glb');boatReady.catch(()=>{});
   const [landData, skyData] = await Promise.all([
-    fetch(BASE + 'data/land-world.json').then((r) => r.json()),
-    fetch(BASE + 'data/sky.json').then((r) => r.json())
+    loadPackedJSON(BASE+'data/land-world.json'),
+    loadPackedJSON(BASE+'data/sky.json')
   ]).catch(() => fail('The ocean could not load. Check your connection and reload the page.'));
   land = new Land(landData);
-  fetch(BASE+'data/navigation-world.json').then(r=>{if(!r.ok)throw Error('Chart unavailable');return r.json();}).then(chart=>gps.setup(land,chart,landData)).catch(e=>console.warn('GPS chart could not load',e));
+  gpsLandData=landData;
   worldArrival=createWorldArrival({renderer,land,isTouch,base:BASE});
   islands = createIslands(scene, land, sky.uniforms);
   sky.buildStars(skyData);
@@ -920,8 +924,7 @@ async function boot() {
   const handheldInfo=await fetch(BASE+'data/anbernic.json').then(r=>r.json());anbernic.setScreenInfo(handheldInfo.screen);
 
   // Supplied rowing boat and approved Magnific lantern; fallback stays until these arrive
-  const loader = new GLTFLoader();
-  loader.load(BASE + 'models/rowing-boat.glb', (g) => {
+  boatReady.then((g) => {
     try {
       const r = canoe.applyRowingBoat(g.scene);
       marineBoat=g.scene;
@@ -933,10 +936,10 @@ async function boot() {
       ocean.uniforms.uHullProfile.value=r.profile;
       if(!window.__cam)pitch=-.20;
     } catch (e) { console.warn('Rowing boat could not be fitted', e); }
-  }, undefined, () => {});
-  loader.load(BASE + 'models/lantern.glb', (g) => {
+  }).catch(error=>console.warn('Boat unavailable',error));
+  loadPackedModel(loader,BASE+'models/lantern.glb').then((g) => {
     try { inspection.register('lantern',g.scene.clone(true));canoe.applyLantern(g.scene); } catch (e) { console.warn('Lantern model could not be fitted', e); }
-  }, undefined, () => {});
+  }).catch(()=>{});
 
   if(PREVIEW)voyage=null;
   const fresh = !voyage;

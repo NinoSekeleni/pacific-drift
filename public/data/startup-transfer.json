@@ -1,0 +1,128 @@
+{
+  "textures": [
+    {
+      "file": "textures/marine/moon-lroc-2k.webp",
+      "original": "textures/marine/moon-lroc-2k.png",
+      "originalBytes": 3241980,
+      "transferBytes": 2050994
+    },
+    {
+      "file": "textures/marine/water-normal.webp",
+      "original": "textures/marine/water-normal.png",
+      "originalBytes": 967136,
+      "transferBytes": 513416
+    },
+    {
+      "file": "textures/marine/water-roughness.webp",
+      "original": "textures/marine/water-roughness.png",
+      "originalBytes": 116837,
+      "transferBytes": 64248
+    },
+    {
+      "file": "textures/marine/canvas-normal.webp",
+      "original": "textures/marine/canvas-normal.png",
+      "originalBytes": 703167,
+      "transferBytes": 613506
+    },
+    {
+      "file": "textures/marine/canvas-roughness.webp",
+      "original": "textures/marine/canvas-roughness.png",
+      "originalBytes": 283098,
+      "transferBytes": 196714
+    },
+    {
+      "file": "textures/marine/linen-normal.webp",
+      "original": "textures/marine/linen-normal.png",
+      "originalBytes": 401725,
+      "transferBytes": 313260
+    },
+    {
+      "file": "textures/marine/linen-roughness.webp",
+      "original": "textures/marine/linen-roughness.png",
+      "originalBytes": 283098,
+      "transferBytes": 196714
+    },
+    {
+      "file": "textures/marine/rope-normal.webp",
+      "original": "textures/marine/rope-normal.png",
+      "originalBytes": 577831,
+      "transferBytes": 390214
+    },
+    {
+      "file": "textures/marine/rope-roughness.webp",
+      "original": "textures/marine/rope-roughness.png",
+      "originalBytes": 195766,
+      "transferBytes": 106812
+    },
+    {
+      "file": "textures/marine/wood-normal.webp",
+      "original": "textures/marine/wood-normal.png",
+      "originalBytes": 110299,
+      "transferBytes": 91516
+    },
+    {
+      "file": "textures/marine/wood-roughness.webp",
+      "original": "textures/marine/wood-roughness.png",
+      "originalBytes": 171840,
+      "transferBytes": 120204
+    }
+  ],
+  "encoding": "gzip, native DecompressionStream; original asset fallback",
+  "files": [
+    {
+      "file": "data/land-world.json",
+      "originalBytes": 3582329,
+      "transferBytes": 996183
+    },
+    {
+      "file": "data/navigation-world.json",
+      "originalBytes": 1727435,
+      "transferBytes": 459380
+    },
+    {
+      "file": "data/sky.json",
+      "originalBytes": 135258,
+      "transferBytes": 49802
+    },
+    {
+      "file": "models/rowing-boat.glb",
+      "originalBytes": 2135172,
+      "transferBytes": 1977592
+    },
+    {
+      "file": "models/backpack.glb",
+      "originalBytes": 3115544,
+      "transferBytes": 2309587
+    },
+    {
+      "file": "models/handheld-radio.glb",
+      "originalBytes": 1152168,
+      "transferBytes": 882501
+    },
+    {
+      "file": "models/walkman.glb",
+      "originalBytes": 1047520,
+      "transferBytes": 1006156
+    },
+    {
+      "file": "models/anbernic.glb",
+      "originalBytes": 3180088,
+      "transferBytes": 931230
+    },
+    {
+      "file": "models/gps-tablet.glb",
+      "originalBytes": 291748,
+      "transferBytes": 224510
+    },
+    {
+      "file": "models/binoculars.glb",
+      "originalBytes": 1341740,
+      "transferBytes": 1159549
+    },
+    {
+      "file": "models/lantern.glb",
+      "originalBytes": 539744,
+      "transferBytes": 457709
+    }
+  ]
+}

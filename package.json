@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node tools/pack-startup-assets.mjs && vite build",
     "preview": "vite preview",
     "build:data": "node tools/build-data.mjs",
     "test": "node tools/test-all.mjs"

@@ -40,15 +40,14 @@ export function inspectionObject(source,environment,{lampUniform=null}={}){
  root.position.copy(center).multiplyScalar(-scale);root.scale.setScalar(scale);
  return root;
 }
-export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=()=>{},onLantern=()=>{},lanternOn=()=>false,onBinoculars=()=>{},stow=()=>{},isStowed=()=>false,gps=null,anbernic=null,getTapeState=()=>({phase:0})}={}){
+export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=()=>{},onLantern=()=>{},lanternOn=()=>false,onBinoculars=()=>{},stow=()=>{},isStowed=()=>false,gps=null,anbernic=null,onSelect=()=>{},getTapeState=()=>({phase:0})}={}){
  const wrap=document.createElement('section');wrap.className='equipment-inspection';wrap.hidden=true;wrap.setAttribute('role','dialog');wrap.setAttribute('aria-modal','true');wrap.setAttribute('aria-labelledby','equipmentTitle');
- wrap.innerHTML=`<header class="equipment-header"><div><p class="equipment-eyebrow">ABOARD / OBJECT STUDY</p><h2 id="equipmentTitle">Your equipment</h2></div><button type="button" id="equipmentClose" aria-label="Put the item down">Put down <span>Esc</span></button></header>
- <div class="equipment-layout"><div class="equipment-view"><div id="equipmentStage" class="equipment-stage" tabindex="0" aria-label="3D object: drag or arrow keys to rotate, scroll or plus and minus to zoom"></div><div class="equipment-view-controls"><button id="equipmentFront" type="button">Front</button><button id="equipmentBack" type="button">Back</button><button id="equipmentReset" type="button">Reset view</button><span>Drag to turn · scroll or pinch to zoom</span></div></div>
- <aside class="equipment-details"><p id="equipmentKind" class="equipment-eyebrow"></p><p id="equipmentDescription"></p><p id="equipmentLoading" role="status">Loading the supplied model…</p><div id="equipmentActions"></div><div id="equipmentMedia"></div></aside></div>
- <nav class="equipment-tray" aria-label="Onboard items">${Object.entries(EQUIPMENT).map(([id,item])=>`<button type="button" data-equipment="${id}" aria-pressed="false">${item.title}</button>`).join('')}</nav>`;
+ wrap.innerHTML=`<header class="equipment-header"><div><h2 id="equipmentTitle" hidden>Your equipment</h2><select id="equipmentPicker" aria-label="Item to inspect">${Object.entries(EQUIPMENT).map(([id,item])=>`<option value="${id}">${item.title}</option>`).join('')}</select></div><button type="button" id="equipmentClose" aria-label="Put the item down">×</button></header>
+ <div class="equipment-layout"><div class="equipment-view"><div id="equipmentStage" class="equipment-stage" tabindex="0" aria-label="3D object: drag or arrow keys to rotate, scroll or plus and minus to zoom"></div></div>
+ <aside class="equipment-details"><p id="equipmentLoading" role="status">Loading the supplied model…</p><div id="equipmentActions"></div><div id="equipmentMedia"></div></aside></div>`;
  document.body.append(wrap);
  const $=id=>wrap.querySelector('#'+id),stage=$('equipmentStage'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.01,100);
- const pmrem=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment(),environment=pmrem.fromScene(room,.04, .1,100).texture;room.dispose();pmrem.dispose();
+ let environment=null;function ensureEnvironment(){if(environment)return;const pmrem=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment();environment=pmrem.fromScene(room,.04,.1,100).texture;room.dispose();pmrem.dispose();}
  scene.add(new THREE.HemisphereLight(0xd9ebf4,0x3b3025,1.2));
  const key=new THREE.DirectionalLight(0xffedda,2);key.position.set(3,4,5);scene.add(key);
  const rim=new THREE.DirectionalLight(0xbad9ef,1.1);rim.position.set(-4,2,-3);scene.add(rim);
@@ -56,7 +55,7 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
  const controls=new OrbitControls(camera,stage);controls.enableDamping=true;controls.dampingFactor=.12;controls.enablePan=false;controls.minDistance=1.2;controls.maxDistance=9;
  controls.minPolarAngle=.02;controls.maxPolarAngle=Math.PI-.02;controls.enabled=false;
  const lampUniform={value:0};
- const useButton=document.createElement('button');useButton.id='gpsUse';useButton.textContent='Use GPS';useButton.hidden=true;$('equipmentClose').before(useButton);
+ const useButton=document.createElement('button');useButton.id='gpsUse';useButton.textContent='Use';useButton.hidden=true;$('equipmentClose').before(useButton);
  const assets=new Map();let active=false,current=null,object=null,lastFocus=null,lastStatus='',distance=4;
  const mediaPanel=document.getElementById('radio'),mediaAnchor=document.createComment('radio original location');mediaPanel.before(mediaAnchor);
  function disposeObject(){if(!object)return;object.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const k of ['map','emissiveMap'])if(m[k]&& !o.userData.liveScreen)m[k].dispose();m.dispose();}});scene.remove(object);object=null;}
@@ -68,34 +67,34 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
  function gpsView(){
   if(!gps?.using||!object)return;const mesh=object.getObjectByName('Live GPS screen');if(!mesh)return;object.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(mesh),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),r=stage.getBoundingClientRect();camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();const d=Math.max(size.y,size.x/camera.aspect)*.61/Math.tan(35*Math.PI/360)+.03;camera.position.set(center.x,center.y,d);controls.target.copy(center);camera.lookAt(center);
  }
- function setGPS(value){if(value){gps.show(stage);controls.enabled=false;}else{gps?.hide();controls.enabled=active;}wrap.classList.toggle('equipment-using-gps',value);useButton.textContent=value?'Inspect device':'Use GPS';if(value)gpsView();else frame();}
+ function setGPS(value){if(value){gps.show(stage);controls.enabled=false;}else{gps?.hide();controls.enabled=active;}wrap.classList.toggle('equipment-using-gps',value);useButton.textContent=value?'Inspect':'Use';if(value)gpsView();else frame();}
  useButton.onclick=()=>setGPS(!gps.using);
- function showModel(){disposeObject();const source=assets.get(current);$('equipmentLoading').hidden=!!source;if(!source)return;object=inspectionObject(source,environment,current==='lantern'?{lampUniform}:{});scene.add(object);if(gps?.using)gpsView();else frame();}
- function action(label,fn){const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',fn);$('equipmentActions').append(button);return button;}
+ function showModel(){disposeObject();const source=assets.get(current);$('equipmentLoading').hidden=!!source;if(!source)return;ensureEnvironment();object=inspectionObject(source,environment,current==='lantern'?{lampUniform}:{});scene.add(object);if(gps?.using)gpsView();else frame();}
+ let options=null;function action(label,fn,secondary=false){const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',fn);if(secondary){if(!options){options=document.createElement('details');options.className='equipment-options';const summary=document.createElement('summary');summary.textContent='Options';options.append(summary);$('equipmentActions').append(options);}options.append(button);}else $('equipmentActions').append(button);return button;}
  function actions(){
-  $('equipmentActions').replaceChildren();
+  $('equipmentActions').replaceChildren();options=null;wrap.classList.toggle('equipment-playing',current==='anbernic'&&anbernic.playing);
   if(current==='anbernic'){
-   action(anbernic.playing?'Stop playing':'Play Pocket Garden',()=>{anbernic.playing=!anbernic.playing;actions();if(anbernic.playing){camera.position.set(0,0,3.05);controls.target.set(0,0,0);controls.update();stage.focus();}});
-   action(anbernic.finish==='atomic'?'Finish: Atomic purple → Classic grey':'Finish: Classic grey → Atomic purple',()=>{anbernic.setFinish(anbernic.finish==='atomic'?'classic':'atomic');actions();});
-   action(anbernic.power?'Power off':'Power on',()=>{anbernic.input('Power');actions();});
-   const pad=document.createElement('div');pad.className='handheld-controls';for(const [k,label]of [['Up','↑'],['Left','←'],['Down','↓'],['Right','→'],['A','A'],['B','B'],['Start','Start']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label','Handheld '+k);b.onclick=()=>anbernic.input(k);pad.append(b);}$('equipmentActions').append(pad);
+   action(anbernic.playing?'Inspect':'Play',()=>{anbernic.playing=!anbernic.playing;actions();if(anbernic.playing){camera.position.set(0,0,3.05);controls.target.set(0,0,0);controls.update();stage.focus();}});
+   action(anbernic.finish==='atomic'?'Finish: Atomic purple → Classic grey':'Finish: Classic grey → Atomic purple',()=>{anbernic.setFinish(anbernic.finish==='atomic'?'classic':'atomic');actions();},true);
+   action(anbernic.power?'Power off':'Power on',()=>{anbernic.input('Power');actions();},true);
+   const pad=document.createElement('div');pad.className='handheld-controls';pad.hidden=!anbernic.playing;for(const [k,label]of [['Up','↑'],['Left','←'],['Down','↓'],['Right','→'],['A','A'],['B','B'],['Start','Start']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label','Handheld '+k);b.onclick=()=>anbernic.input(k);pad.append(b);}$('equipmentActions').append(pad);
   }
   if(current==='lantern'){action(lanternOn()?'Extinguish lantern':'Light lantern',()=>{onLantern();actions();});}
   if(current==='binoculars'){action('Look through binoculars',()=>{close();onBinoculars();});}
   if(['walkman','binoculars','radio','anbernic'].includes(current)){
-   action(isStowed(current)?'Take out of backpack':'Stow in backpack',()=>{stow(current,!isStowed(current));actions();});
+   action(isStowed(current)?'Take out of backpack':'Stow in backpack',()=>{stow(current,!isStowed(current));actions();},true);
   }
   if(current==='backpack'){
-   const label=document.createElement('h3');label.textContent='Your small kit';$('equipmentActions').append(label);
+   const contents=document.createElement('details');contents.className='equipment-options';const label=document.createElement('summary');label.textContent='Contents';contents.append(label);$('equipmentActions').append(contents);
    for(const id of ['binoculars','walkman','radio','anbernic']){
     const row=document.createElement('div');row.className='equipment-kit-row';
     const inspect=document.createElement('button');inspect.type='button';inspect.textContent=EQUIPMENT[id].title+(isStowed(id)?' · packed':' · on the bench');inspect.onclick=()=>select(id);
-    const toggle=document.createElement('button');toggle.type='button';toggle.textContent=isStowed(id)?'Take out':'Pack';toggle.onclick=()=>{stow(id,!isStowed(id));actions();};row.append(inspect,toggle);$('equipmentActions').append(row);
+    const toggle=document.createElement('button');toggle.type='button';toggle.textContent=isStowed(id)?'Take out':'Pack';toggle.onclick=()=>{stow(id,!isStowed(id));actions();};row.append(inspect,toggle);contents.append(row);
    }
   }
  }
- function select(id){if(!EQUIPMENT[id])return;gps?.hide();wrap.classList.remove('equipment-using-gps');controls.enabled=active;useButton.hidden=id!=='gps';useButton.textContent='Use GPS';if(anbernic)anbernic.playing=false;current=id;lastStatus='';const item=EQUIPMENT[id];
-  $('equipmentTitle').textContent=item.title;$('equipmentKind').textContent=item.kind;$('equipmentDescription').textContent=item.description;
+ function select(id){if(!EQUIPMENT[id])return;gps?.hide();wrap.classList.remove('equipment-using-gps');controls.enabled=active;useButton.hidden=id!=='gps';useButton.textContent='Use';if(anbernic)anbernic.playing=false;current=id;lastStatus='';const item=EQUIPMENT[id];
+  $('equipmentTitle').textContent=item.title;$('equipmentPicker').value=id;onSelect(id);
   wrap.querySelectorAll('[data-equipment]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.equipment===id)));
   const media=id==='radio'||id==='walkman';wrap.classList.toggle('equipment-has-media',media);
   if(media){$('equipmentMedia').append(mediaPanel);radio.openSource(id==='walkman'?'TAPE':'WORLD');}
@@ -104,7 +103,7 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
  }
  function open(id='backpack'){if(!active){lastFocus=document.activeElement;active=true;wrap.hidden=false;document.body.classList.add('inspecting-equipment');controls.enabled=true;onOpen();}$('equipmentClose').focus();select(id);}
  function close(){if(!active)return;if(anbernic)anbernic.playing=false;gps?.hide();wrap.classList.remove('equipment-using-gps');active=false;controls.enabled=false;wrap.hidden=true;document.body.classList.remove('inspecting-equipment');radio.setOpen(false);mediaAnchor.after(mediaPanel);disposeObject();onClose();lastFocus?.focus?.({preventScroll:true});}
- $('equipmentClose').onclick=close;$('equipmentFront').onclick=()=>frame(true);$('equipmentBack').onclick=()=>frame(false);$('equipmentReset').onclick=()=>frame(true);
+ $('equipmentClose').onclick=close;$('equipmentPicker').onchange=e=>select(e.target.value);
  wrap.querySelectorAll('[data-equipment]').forEach(button=>button.onclick=()=>select(button.dataset.equipment));
  document.getElementById('radioClose').addEventListener('click',()=>{if(active&&['radio','walkman'].includes(current))close();});
  stage.addEventListener('keydown',e=>{
