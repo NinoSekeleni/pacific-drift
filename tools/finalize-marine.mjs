@@ -1,0 +1,15 @@
+import fs from 'node:fs';import {NodeIO} from '@gltf-transform/core';import {ALL_EXTENSIONS} from '@gltf-transform/extensions';import {getBounds,dedup,prune,weld,textureCompress} from '@gltf-transform/functions';import sharp from 'sharp';import * as THREE from 'three';import {runtimeModel} from './read-runtime-model.mjs';
+const io=new NodeIO().registerExtensions(ALL_EXTENSIONS),sizes={orca:6.5,humpback:15,blue:27,dolphin:3.2,shark:2.2,cargo:220},audit=[];
+for(const [kind,length]of Object.entries(sizes)){const doc=await io.read('../../work/marine-supplied/exports/'+kind+'.glb'),scene=doc.getRoot().listScenes()[0];let b=getBounds(scene);console.log(kind,b);const holder=doc.createNode(kind+' — physical metre scale');for(const n of scene.listChildren()){scene.removeChild(n);holder.addChild(n);}scene.addChild(holder);
+// Skin bind matrices can change bounds by 100×. Measure the actual skinned
+// rest pose with Three.js, then normalize the entire hierarchy without baking it.
+ const runtime=await runtimeModel('../../work/marine-supplied/exports/'+kind+'.glb'),measure=new THREE.Group();measure.add(runtime.scene);const initial=new THREE.Box3().setFromObject(measure),dimensions=initial.getSize(new THREE.Vector3());let rotation=[0,0,0,1];
+ if(dimensions.x>dimensions.z&&dimensions.x>dimensions.y){measure.rotation.y=Math.PI/2;rotation=[0,Math.sin(Math.PI/4),0,Math.cos(Math.PI/4)];}
+ else if(dimensions.y>dimensions.z){measure.rotation.x=Math.PI/2;rotation=[Math.sin(Math.PI/4),0,0,Math.cos(Math.PI/4)];}
+ if(kind==='orca')measure.rotateOnWorldAxis(new THREE.Vector3(0,0,1),Math.PI);
+ if(['blue','humpback','dolphin','shark'].includes(kind))measure.rotateOnWorldAxis(new THREE.Vector3(0,1,0),Math.PI);rotation=measure.quaternion.toArray();
+ measure.updateMatrixWorld(true);const actual=new THREE.Box3().setFromObject(measure),center=actual.getCenter(new THREE.Vector3()),s=length/actual.getSize(new THREE.Vector3()).z;holder.setRotation(rotation).setScale([s,s,s]).setTranslation(center.toArray().map(v=>-v*s));
+ measure.scale.setScalar(s);measure.position.copy(center).multiplyScalar(-s);measure.updateMatrixWorld(true);const realBounds=new THREE.Box3().setFromObject(measure);
+ await doc.transform(dedup(),weld(),prune(),textureCompress({encoder:sharp,targetFormat:'webp',resize:[kind==='cargo'?2048:1024,kind==='cargo'?2048:1024],quality:88}));
+ const file='models/marine-'+kind+'.glb';await io.write('public/'+file,doc);b={min:realBounds.min.toArray(),max:realBounds.max.toArray()};const triangles=doc.getRoot().listMeshes().reduce((n,m)=>n+m.listPrimitives().reduce((n,p)=>n+(p.getIndices()?.getCount()||p.getAttribute('POSITION').getCount())/3,0),0);audit.push({kind,file,length,bounds:b,triangles,animations:doc.getRoot().listAnimations().map(a=>({name:a.getName(),channels:a.listChannels().length})),bytes:fs.statSync('public/'+file).size});}
+fs.writeFileSync('public/data/marine-encounters.json',JSON.stringify({source:'Owner supplied six archives on 2026-10-29. Original rights retained; archive metadata did not specify authors or redistribution licences. No new licence is claimed.',boatLength:5.2,models:audit},null,2));console.log(audit);

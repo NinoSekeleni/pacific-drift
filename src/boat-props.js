@@ -3,10 +3,13 @@ import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {LAYER_NEAR} from './sky.js';
 import {createBoatMaterial} from './boat-materials.js';
 import {createWalkmanDisplay} from './walkman-display.js';
+import {prepareTapeTransport,advanceTape,applyTapePose} from './tape-transport.js';
 export const PROP_LAYOUT={
  backpack:{file:'backpack.glb',height:.56,x:-.39,z:-.18,rotation:[0,0,0]},
  radio:{file:'handheld-radio.glb',height:.28,x:.44,z:.76,rotation:[-Math.PI/2,-.24,0]},
  walkman:{file:'walkman.glb',height:.13,x:.21,z:.76,rotation:[-Math.PI/2,.25,0]},
+ anbernic:{file:'anbernic.glb',height:.117,x:-.19,z:-.66,rotation:[-Math.PI/2,0,0]},
+ gps:{file:'gps-tablet.glb',height:.29,x:.21,z:-.66,rotation:[-Math.PI/2,0,0]},
  binoculars:{file:'binoculars.glb',height:.06,x:-.40,z:.74,rotation:[0,.24,0]}
 };
 export function placeBoatProp(root,spec,supportY){
@@ -23,10 +26,10 @@ export function visibleItemBounds(root,out=new THREE.Box3()){
  root.traverseVisible(o=>{if(!o.isMesh||!o.geometry)return;if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();if(o.geometry.boundingBox)out.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));});
  return out;
 }
-export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{},register=()=>{}}={}){
+export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{},register=()=>{},gps=null,anbernic=null}={}){
  const loader=new GLTFLoader(),ray=new THREE.Raycaster();ray.layers.enableAll();
  const group=new THREE.Group();group.name='Onboard equipment';canoe.group.add(group);
- const roots={},surfaces=[],state={ready:0,failed:[],dimensions:{},contacts:{}};const stowed=new Set();let wet=0,display=null;
+ const roots={},surfaces=[],state={ready:0,failed:[],dimensions:{},contacts:{}};const stowed=new Set();let wet=0,display=null;const tapeState={phase:0};
  function supportY(x,z){
   canoe.group.updateMatrixWorld(true);
   const origin=new THREE.Vector3(x,3,z).applyMatrix4(canoe.group.matrixWorld),down=new THREE.Vector3(0,-1,0).transformDirection(canoe.group.matrixWorld);
@@ -35,7 +38,9 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
  }
  function fit(name,root){
   const spec=PROP_LAYOUT[name],materials=new Map();root.name=name;
-  if(name==='walkman')display=createWalkmanDisplay(root);
+  if(name==='walkman'){prepareTapeTransport(root);display=createWalkmanDisplay(root);}
+  if(name==='gps')gps?.attachScreen(root);
+  if(name==='anbernic')anbernic?.attachScreen(root);
   onAsset(name,root.clone(true));const placement=placeBoatProp(root,spec,supportY);
   root.traverse(o=>{
    o.layers.set(LAYER_NEAR);if(!o.isMesh)return;
@@ -67,8 +72,8 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   const obstruction=ray.intersectObjects(canoe.surfaceMeshes,false)[0];return obstruction&&obstruction.distance<first.distance-.035?null:first.name;
  }
  function interact(camera,x,y,width,height){const name=pick(camera,x,y,width,height);if(!name)return false;onInspect(name);return true;}
- return {group,loading,state,interact,pick,getRoot:name=>roots[name],
-  setStowed(name,value){if(!['walkman','binoculars','radio'].includes(name))return;if(value)stowed.add(name);else stowed.delete(name);if(roots[name])roots[name].visible=!value;},isStowed:name=>stowed.has(name),
-  update(dt,rain=0,media={}){display?.update(media);wet+=(Math.min(1,rain)-wet)*(1-Math.exp(-dt/12));for(const s of surfaces)s.material.roughness=s.roughness*(1-wet*s.factor);}
+ return {group,loading,state,interact,pick,tapeState,getRoot:name=>roots[name],
+  setStowed(name,value){if(!['walkman','binoculars','radio','anbernic'].includes(name))return;if(value)stowed.add(name);else stowed.delete(name);if(roots[name])roots[name].visible=!value;},isStowed:name=>stowed.has(name),
+  update(dt,rain=0,media={}){display?.update(media);anbernic?.applyFinish(roots.anbernic);advanceTape(tapeState,dt,media);applyTapePose(roots.walkman,tapeState);wet+=(Math.min(1,rain)-wet)*(1-Math.exp(-dt/12));for(const s of surfaces)s.material.roughness=s.roughness*(1-wet*s.factor);}
  };
 }

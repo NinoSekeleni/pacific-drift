@@ -31,6 +31,16 @@
       "file": "models/binoculars.glb",
       "bytes": 1341740,
       "sha256": "ae2b920b388e42229fb1208c66ad807ce78026e6ac79172f39e6c0328f5522e5"
+    },
+    {
+      "file": "models/gps-tablet.glb",
+      "bytes": 291748,
+      "sha256": "63140d3ddf119f5f3e1774bf3300c4d3266d958cadc40a4b78719af75fd3a2c9"
+    },
+    {
+      "file": "models/anbernic.glb",
+      "bytes": 3180088,
+      "sha256": "a3a5199289e475cb1773ab9d1f8613f033dabc22ee925c8437c7b2ab770576a4"
     }
   ],
   "backpack": {
@@ -97,5 +107,18 @@
     "tests": "21 scripts, including metre dimensions, pairwise prop clearance, hull support, atlas-fitted LCD, true playback states, optical magnification and sprite-free picking.",
     "browser": "Backpack direct click, model drag rotation, kit pack/unpack, live Ukhozi FM On Air, Spotify preview playback and LCD clock, working lantern switch, 4\u20138\u00d7 live binocular zoom/pan/lower, 390px inspection layout.",
     "limitations": "Physical-phone GPU performance not measured; Spotify listening availability is controlled by Spotify. Source backpack is static; no working zipper mesh animation."
+  },
+  "gps": {
+    "sourceFile": "rugged_tablet_0.1.glb",
+    "author": "dengxiart (https://sketchfab.com/dengxiart)",
+    "source": "https://sketchfab.com/3d-models/rugged-tablet-01-7df208afa36a41d0a7592ae83cde8979",
+    "license": "SKETCHFAB Standard (https://sketchfab.com/licenses)",
+    "heightMetres": 0.29,
+    "derivative": "Original emitter screenshot removed. 1K authored PBR maps; live chart mapped to actual glass."
+  },
+  "anbernic": {
+    "source": "Owner Object Room RG35XX (2024) and original Pocket Garden game",
+    "heightMetres": 0.117,
+    "derivative": "Transparent shell and internals, optimized 1K maps, independent live LCD; garden progress saved with voyage."
   }
 }

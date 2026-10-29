@@ -1,0 +1,284 @@
+{
+  "source": "Owner supplied six archives on 2026-10-29. Original rights retained; archive metadata did not specify authors or redistribution licences. No new licence is claimed.",
+  "boatLength": 5.2,
+  "models": [
+    {
+      "kind": "orca",
+      "file": "models/marine-orca.glb",
+      "length": 6.5,
+      "bounds": {
+        "min": [
+          -0.9021921669859193,
+          -1.263149498073502,
+          -3.25
+        ],
+        "max": [
+          0.9021921669859194,
+          1.2631494980735023,
+          3.25
+        ]
+      },
+      "triangles": 11352,
+      "animations": [
+        {
+          "name": "Armature",
+          "channels": 117
+        },
+        {
+          "name": "Head_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Jaw_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Left_Pectoral_01_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Left_Pectoral_02_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Left_Pectoral_03_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Right_Pectoral_01_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Right_Pectoral_02_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Right_Pectoral_03_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Spine_01_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "DorsalFin_02_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "DorsalFin_03_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "Spine_02_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Spine_03_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Spine_04_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Spine_05_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Spine_06_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "Tail_CTRL",
+          "channels": 2
+        },
+        {
+          "name": "LeftFluke_01_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "LeftFluke_02_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "RightFluke_01_CTRL",
+          "channels": 1
+        },
+        {
+          "name": "RightFluke_02_CTRL",
+          "channels": 1
+        }
+      ],
+      "bytes": 705532
+    },
+    {
+      "kind": "humpback",
+      "file": "models/marine-humpback.glb",
+      "length": 15,
+      "bounds": {
+        "min": [
+          -3.8567342776077695,
+          -2.8821922292304816,
+          -7.5
+        ],
+        "max": [
+          3.8567342776077695,
+          2.882192229230482,
+          7.499999999999998
+        ]
+      },
+      "triangles": 40728,
+      "animations": [],
+      "bytes": 1118788
+    },
+    {
+      "kind": "blue",
+      "file": "models/marine-blue.glb",
+      "length": 27,
+      "bounds": {
+        "min": [
+          -3.4164913870776985,
+          -2.7576901132085436,
+          -13.5
+        ],
+        "max": [
+          3.4164913870776985,
+          2.757690113208544,
+          13.500000000000004
+        ]
+      },
+      "triangles": 21868,
+      "animations": [
+        {
+          "name": "nurbsCircle1",
+          "channels": 1
+        },
+        {
+          "name": "nurbsCircle2",
+          "channels": 1
+        },
+        {
+          "name": "nurbsCircle4",
+          "channels": 2
+        },
+        {
+          "name": "nurbsCircle5",
+          "channels": 1
+        },
+        {
+          "name": "nurbsCircle6",
+          "channels": 2
+        },
+        {
+          "name": "nurbsCircle7",
+          "channels": 1
+        },
+        {
+          "name": "nurbsCircle8",
+          "channels": 1
+        },
+        {
+          "name": "Armature",
+          "channels": 141
+        }
+      ],
+      "bytes": 1224200
+    },
+    {
+      "kind": "dolphin",
+      "file": "models/marine-dolphin.glb",
+      "length": 3.2,
+      "bounds": {
+        "min": [
+          -0.48384070865417933,
+          -0.38800891469470755,
+          -1.6
+        ],
+        "max": [
+          0.48384070865417933,
+          0.38800891469470755,
+          1.5999999999999999
+        ]
+      },
+      "triangles": 40208,
+      "animations": [
+        {
+          "name": "Armature",
+          "channels": 57
+        }
+      ],
+      "bytes": 1415892
+    },
+    {
+      "kind": "shark",
+      "file": "models/marine-shark.glb",
+      "length": 2.2,
+      "bounds": {
+        "min": [
+          -0.3862569753474713,
+          -0.3385573414597488,
+          -1.0999999999999996
+        ],
+        "max": [
+          0.3862569753474714,
+          0.338557341459749,
+          1.0999999999999999
+        ]
+      },
+      "triangles": 5528,
+      "animations": [
+        {
+          "name": "Shark Armature",
+          "channels": 123
+        }
+      ],
+      "bytes": 412752
+    },
+    {
+      "kind": "cargo",
+      "file": "models/marine-cargo.glb",
+      "length": 220,
+      "bounds": {
+        "min": [
+          -16.66958109726053,
+          -34.407199842682964,
+          -110
+        ],
+        "max": [
+          16.66958109726053,
+          34.407199842682985,
+          110.00000000000001
+        ]
+      },
+      "triangles": 73448,
+      "animations": [],
+      "bytes": 4727124
+    }
+  ],
+  "archives": [
+    {
+      "file": "female-orca.zip",
+      "sha256": "7b657b4bd64dd313a0216fd10f8a92e3b8d1a6f417f6fe825ac8ac98482c588b"
+    },
+    {
+      "file": "humpback-whale.zip",
+      "sha256": "1d3f2e53b39d1b7e007b768a51cb8f573eca11eeaeef075a0fc09a7a990c360e"
+    },
+    {
+      "file": "cargo-ship.zip",
+      "sha256": "726292d5607f0e9f485cb841648f87c1030e183b0e53390f1e218931a5a658cc"
+    },
+    {
+      "file": "model-9a-blacktip-shark.zip",
+      "sha256": "1e72a8828b2a0a58a9aed1f015f4dee0aead64f59baeff1ef29ccdcf5c680567"
+    },
+    {
+      "file": "model-61a-bottlenose-dolphin.zip",
+      "sha256": "50a191bd049099dba39b4cd92b035fa91141145669648a24ac74c162730b2854"
+    },
+    {
+      "file": "blue-whale.zip",
+      "sha256": "8a61c9fc62416284236dcd57a9a7d21341387ff42a4d84e75c5cb6b4e13318eb"
+    }
+  ]
+}

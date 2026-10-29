@@ -13,7 +13,7 @@ import {createSeaRain} from './sea-rain.js';
 import { createLensRain } from './lens-rain.js';
 import { createHullRain } from './hull-rain.js';
 import { createWildlife } from './wildlife.js';
-import { createWhales } from './whales.js';
+import {createMarineEncounters} from './marine-encounters.js';
 import {createMeteors} from './meteors.js';
 import {createWeatherFronts} from './weather-fronts.js';
 import { createAudio } from './audio.js';
@@ -33,6 +33,8 @@ import {createBoatProps} from './boat-props.js';
 import {createLiveWeather} from './live-weather.js';
 import {skyTime,skyDescription} from './world-clock.js';
 import {createEquipmentInspection,EQUIPMENT} from './equipment-inspection.js';
+import {createGPS} from './gps.js';
+import {createAnbernic} from './anbernic.js';
 import {createBinoculars} from './binoculars.js';
 
 THREE.ColorManagement.enabled = false;
@@ -117,7 +119,7 @@ const meteors=createMeteors(scene);
 meteors.setCloudTexture(sky.uniforms.tClouds.value);
 const fronts=createWeatherFronts(scene);
 const wildlife = createWildlife(scene,ocean,{base:BASE});
-const whales = createWhales(scene,ocean,{base:BASE});
+const whales = createMarineEncounters(scene,ocean,{base:BASE,register:root=>marineLighting.register(root),isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
 const canoe = createCanoe(scene);
 const paddlerHands=createPaddlerHands(canoe.group);
 const hullRain = createHullRain(canoe);
@@ -201,12 +203,14 @@ const radio = createRadio({
 });
 
 /* ---------- Equipment: one model, a close-up view, and real controls ---------- */
-inspection=createEquipmentInspection({renderer,radio,
+const anbernic=createAnbernic({getVoyage:()=>voyage,save:saveVoyage});
+const gps=createGPS({base:BASE,getVoyage:()=>voyage,getConditions:()=>cond,save:saveVoyage,toast});
+inspection=createEquipmentInspection({renderer,radio,gps,anbernic,getTapeState:()=>boatProps?.tapeState??{phase:0},
   onOpen(){keys.clear();dragging=false;dragMode=true;if(document.pointerLockElement)document.exitPointerLock();radio.setOpen(false);},
   onClose(){dragMode=true;},onLantern:toggleLantern,lanternOn:()=>lanternOn,
   onBinoculars(){binoculars.open();},
   isStowed:name=>boatProps?.isStowed(name)??false,
-  stow(name,value){boatProps?.setStowed(name,value);voyage.stowedEquipment=['walkman','binoculars','radio'].filter(id=>boatProps?.isStowed(id));saveVoyage(voyage);}
+  stow(name,value){boatProps?.setStowed(name,value);voyage.stowedEquipment=['walkman','binoculars','radio','anbernic'].filter(id=>boatProps?.isStowed(id));saveVoyage(voyage);}
 });
 binoculars=createBinoculars({
   onRaise(){keys.clear();dragging=false;dragMode=true;window.__cam=null;window.__moonCam=false;window.__birdCam=false;pitch=.015;if(document.pointerLockElement)document.exitPointerLock();const root=boatProps?.getRoot('binoculars');if(root)root.visible=false;},
@@ -713,7 +717,7 @@ function frame() {
   canoe.eye(eyePos, eyeQuat);
   paddlerHands.update(dt,canoe.getPaddlePose(),{seat:canoe.seat,eye:canoe.group.worldToLocal(paddlerLocalEye.copy(eyePos)),visible:started&&!paused&&!window.__cam&&!window.__moonCam&&!window.__birdCam&&(!environment||environment.hands)});
   hullRain.update(dt,Math.min(1,sm.precip),hor,{enabled:environment?.boatImpacts!==false,strength:environment?.rainImpactStrength??1});
-  boatProps?.update(dt,Math.min(1,sm.precip),radio.mediaState());
+  boatProps?.update(dt,Math.min(1,sm.precip),radio.mediaState());gps.update(dt,elapsed);anbernic.update(dt,elapsed);
 
   /* ----- Glowing water, wake, spray and hull sounds ----- */
   const bio = (environment && !environment.bio ? 0 : 1) * smoothstep(0.02, -0.12, sunV.y) * (1 - 0.35 * moonLight) * (environment?.bioStrength ?? 1.8);
@@ -792,7 +796,7 @@ function frame() {
 
   wildlife.update(dt,camNear,{lat:voyage.lat,windFrom:w.from*DEG,windSpeed:sm.speed,time:elapsed,sunAltitude:e,enabled:!environment || environment.birds,playing:started && !paused && (!environment || environment.birds)});
 
-  whales.update(dt,camNear,{time:elapsed,windSpeed:sm.speed,sunAltitude:e,playing:started && !paused,enabled:!environment || environment.whales,tint:hor});
+  whales.update(dt,camNear,{time:elapsed,windSpeed:sm.speed,sunAltitude:e,playing:started && !paused,enabled:!environment || environment.whales,ships:!environment||environment.ships,lat:voyage.lat,nearestLand:islands?.nearest?.d??Infinity,tint:hor});
 
   /* ----- Light for the boat ----- */
   const sunUp = smoothstep(-0.04, 0.06, sunV.y);
@@ -901,10 +905,11 @@ window.addEventListener('pagehide', () => saveVoyage(voyage));
 /* ---------- Boot ---------- */
 async function boot() {
   const [landData, skyData] = await Promise.all([
-    fetch(BASE + 'data/land.json').then((r) => r.json()),
+    fetch(BASE + 'data/land-world.json').then((r) => r.json()),
     fetch(BASE + 'data/sky.json').then((r) => r.json())
   ]).catch(() => fail('The ocean could not load. Check your connection and reload the page.'));
   land = new Land(landData);
+  fetch(BASE+'data/navigation-world.json').then(r=>{if(!r.ok)throw Error('Chart unavailable');return r.json();}).then(chart=>gps.setup(land,chart,landData)).catch(e=>console.warn('GPS chart could not load',e));
   worldArrival=createWorldArrival({renderer,land,isTouch,base:BASE});
   islands = createIslands(scene, land, sky.uniforms);
   sky.buildStars(skyData);
@@ -912,13 +917,15 @@ async function boot() {
   $('mapIn').addEventListener('click', () => minimap.zoom(-1));
   $('mapOut').addEventListener('click', () => minimap.zoom(1));
 
+  const handheldInfo=await fetch(BASE+'data/anbernic.json').then(r=>r.json());anbernic.setScreenInfo(handheldInfo.screen);
+
   // Supplied rowing boat and approved Magnific lantern; fallback stays until these arrive
   const loader = new GLTFLoader();
   loader.load(BASE + 'models/rowing-boat.glb', (g) => {
     try {
       const r = canoe.applyRowingBoat(g.scene);
       marineBoat=g.scene;
-      boatProps=createBoatProps(canoe,{base:BASE,onInspect:inspectEquipment,onAsset:(id,root)=>inspection.register(id,root),register:root=>marineLighting.register(root)});
+      boatProps=createBoatProps(canoe,{base:BASE,gps,anbernic,onInspect:inspectEquipment,onAsset:(id,root)=>inspection.register(id,root),register:root=>marineLighting.register(root)});
       for(const id of voyage.stowedEquipment||[])boatProps.setStowed(id,true);
       marineLighting.register(marineBoat);
       if(marineAssets)marineReview.materials=applyMarineDetails(marineBoat,marineAssets);
@@ -987,7 +994,7 @@ async function boot() {
         window.__moonCam=true;window.__cam=null;window.__birdCam=false;camNear.fov=camFar.fov=30;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();return bestHour;
       },
       onBird(){if(!wildlife.preview(camNear,Math.atan2(-sm.u,-sm.v)))toast('Albatross is loading. Try again in a moment.');},
-      onWhale(){if(!whales.preview(camNear))toast('Whale is loading. Try again in a moment.');},
+      onWhale(kind='humpback'){resetStudioCamera(-.025);whales.preview(camNear,kind);toast('Preparing '+kind+' encounter…');},
       onPaddle(){resetStudioCamera(-.42);keys.add('KeyW');setTimeout(()=>keys.delete('KeyW'),6000);},
       onSingleStroke(side){resetStudioCamera(-.42);keys.delete('KeyW');keys.delete('ArrowUp');touchInput.paddle=false;if(!canoe.requestStroke(side))toast('Let this stroke finish, then preview another.');},
       onClearScreen(){lensRain.clear();},onSpray(){lensRain.splash(1.5);},onSail:toggleSail,onLantern:toggleLantern,

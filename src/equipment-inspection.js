@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {createBoatMaterial} from './boat-materials.js';
+import {applyTapePose} from './tape-transport.js';
 export const EQUIPMENT={
+ anbernic:{title:'Anbernic RG35XX',kind:'OBJECT ROOM / POCKET GARDEN',description:'Your Object Room handheld, brought aboard at its real size. Choose its classic grey shell or transparent Atomic purple finish. Turn it over to see the internals, or play Pocket Garden on its own screen. Arrow keys move; A explores; Start pauses. Your garden is saved with your voyage.'},
+ gps:{title:'GPS tablet',kind:'GLOBAL NAVIGATION / REAL GEOGRAPHY',description:'Your position on an offline world chart. Pick a country, island, town or coordinates, then plot a passage around land. Select Use GPS to operate the screen; Inspect device returns to the 3D view.'},
  backpack:{title:'Backpack',kind:'CANVAS / PERSONAL KIT',description:'Turn it over to inspect the fabric, pockets and straps. Keep the small instruments here when you want a clear bench.'},
  radio:{title:'Handheld radio',kind:'WORLD RADIO',description:'Tune a live station, search by country, or turn the dial. Playback continues when you put the radio down.'},
  walkman:{title:'Sony Walkman',kind:'SPOTIFY / DIGITAL AUDIO TAPE',description:'Your Spotify player, carried aboard. Its original LCD shows the connection, playback state and elapsed time.'},
@@ -37,7 +40,7 @@ export function inspectionObject(source,environment,{lampUniform=null}={}){
  root.position.copy(center).multiplyScalar(-scale);root.scale.setScalar(scale);
  return root;
 }
-export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=()=>{},onLantern=()=>{},lanternOn=()=>false,onBinoculars=()=>{},stow=()=>{},isStowed=()=>false}={}){
+export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=()=>{},onLantern=()=>{},lanternOn=()=>false,onBinoculars=()=>{},stow=()=>{},isStowed=()=>false,gps=null,anbernic=null,getTapeState=()=>({phase:0})}={}){
  const wrap=document.createElement('section');wrap.className='equipment-inspection';wrap.hidden=true;wrap.setAttribute('role','dialog');wrap.setAttribute('aria-modal','true');wrap.setAttribute('aria-labelledby','equipmentTitle');
  wrap.innerHTML=`<header class="equipment-header"><div><p class="equipment-eyebrow">ABOARD / OBJECT STUDY</p><h2 id="equipmentTitle">Your equipment</h2></div><button type="button" id="equipmentClose" aria-label="Put the item down">Put down <span>Esc</span></button></header>
  <div class="equipment-layout"><div class="equipment-view"><div id="equipmentStage" class="equipment-stage" tabindex="0" aria-label="3D object: drag or arrow keys to rotate, scroll or plus and minus to zoom"></div><div class="equipment-view-controls"><button id="equipmentFront" type="button">Front</button><button id="equipmentBack" type="button">Back</button><button id="equipmentReset" type="button">Reset view</button><span>Drag to turn · scroll or pinch to zoom</span></div></div>
@@ -53,6 +56,7 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
  const controls=new OrbitControls(camera,stage);controls.enableDamping=true;controls.dampingFactor=.12;controls.enablePan=false;controls.minDistance=1.2;controls.maxDistance=9;
  controls.minPolarAngle=.02;controls.maxPolarAngle=Math.PI-.02;controls.enabled=false;
  const lampUniform={value:0};
+ const useButton=document.createElement('button');useButton.id='gpsUse';useButton.textContent='Use GPS';useButton.hidden=true;$('equipmentClose').before(useButton);
  const assets=new Map();let active=false,current=null,object=null,lastFocus=null,lastStatus='',distance=4;
  const mediaPanel=document.getElementById('radio'),mediaAnchor=document.createComment('radio original location');mediaPanel.before(mediaAnchor);
  function disposeObject(){if(!object)return;object.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const k of ['map','emissiveMap'])if(m[k]&& !o.userData.liveScreen)m[k].dispose();m.dispose();}});scene.remove(object);object=null;}
@@ -61,25 +65,36 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
   distance=Math.max(3.0,1.12/Math.tan(35*Math.PI/360)/Math.min(1,camera.aspect));controls.maxDistance=Math.max(9,distance*2);
   camera.position.set(front?.45:-.45,.24,front?distance:-distance);controls.target.set(0,0,0);controls.update();
  }
- function showModel(){disposeObject();const source=assets.get(current);$('equipmentLoading').hidden=!!source;if(!source)return;object=inspectionObject(source,environment,current==='lantern'?{lampUniform}:{});scene.add(object);frame();}
+ function gpsView(){
+  if(!gps?.using||!object)return;const mesh=object.getObjectByName('Live GPS screen');if(!mesh)return;object.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(mesh),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),r=stage.getBoundingClientRect();camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();const d=Math.max(size.y,size.x/camera.aspect)*.61/Math.tan(35*Math.PI/360)+.03;camera.position.set(center.x,center.y,d);controls.target.copy(center);camera.lookAt(center);
+ }
+ function setGPS(value){if(value){gps.show(stage);controls.enabled=false;}else{gps?.hide();controls.enabled=active;}wrap.classList.toggle('equipment-using-gps',value);useButton.textContent=value?'Inspect device':'Use GPS';if(value)gpsView();else frame();}
+ useButton.onclick=()=>setGPS(!gps.using);
+ function showModel(){disposeObject();const source=assets.get(current);$('equipmentLoading').hidden=!!source;if(!source)return;object=inspectionObject(source,environment,current==='lantern'?{lampUniform}:{});scene.add(object);if(gps?.using)gpsView();else frame();}
  function action(label,fn){const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',fn);$('equipmentActions').append(button);return button;}
  function actions(){
   $('equipmentActions').replaceChildren();
+  if(current==='anbernic'){
+   action(anbernic.playing?'Stop playing':'Play Pocket Garden',()=>{anbernic.playing=!anbernic.playing;actions();if(anbernic.playing){camera.position.set(0,0,3.05);controls.target.set(0,0,0);controls.update();stage.focus();}});
+   action(anbernic.finish==='atomic'?'Finish: Atomic purple → Classic grey':'Finish: Classic grey → Atomic purple',()=>{anbernic.setFinish(anbernic.finish==='atomic'?'classic':'atomic');actions();});
+   action(anbernic.power?'Power off':'Power on',()=>{anbernic.input('Power');actions();});
+   const pad=document.createElement('div');pad.className='handheld-controls';for(const [k,label]of [['Up','↑'],['Left','←'],['Down','↓'],['Right','→'],['A','A'],['B','B'],['Start','Start']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label','Handheld '+k);b.onclick=()=>anbernic.input(k);pad.append(b);}$('equipmentActions').append(pad);
+  }
   if(current==='lantern'){action(lanternOn()?'Extinguish lantern':'Light lantern',()=>{onLantern();actions();});}
   if(current==='binoculars'){action('Look through binoculars',()=>{close();onBinoculars();});}
-  if(['walkman','binoculars','radio'].includes(current)){
+  if(['walkman','binoculars','radio','anbernic'].includes(current)){
    action(isStowed(current)?'Take out of backpack':'Stow in backpack',()=>{stow(current,!isStowed(current));actions();});
   }
   if(current==='backpack'){
    const label=document.createElement('h3');label.textContent='Your small kit';$('equipmentActions').append(label);
-   for(const id of ['binoculars','walkman','radio']){
+   for(const id of ['binoculars','walkman','radio','anbernic']){
     const row=document.createElement('div');row.className='equipment-kit-row';
     const inspect=document.createElement('button');inspect.type='button';inspect.textContent=EQUIPMENT[id].title+(isStowed(id)?' · packed':' · on the bench');inspect.onclick=()=>select(id);
     const toggle=document.createElement('button');toggle.type='button';toggle.textContent=isStowed(id)?'Take out':'Pack';toggle.onclick=()=>{stow(id,!isStowed(id));actions();};row.append(inspect,toggle);$('equipmentActions').append(row);
    }
   }
  }
- function select(id){if(!EQUIPMENT[id])return;current=id;lastStatus='';const item=EQUIPMENT[id];
+ function select(id){if(!EQUIPMENT[id])return;gps?.hide();wrap.classList.remove('equipment-using-gps');controls.enabled=active;useButton.hidden=id!=='gps';useButton.textContent='Use GPS';if(anbernic)anbernic.playing=false;current=id;lastStatus='';const item=EQUIPMENT[id];
   $('equipmentTitle').textContent=item.title;$('equipmentKind').textContent=item.kind;$('equipmentDescription').textContent=item.description;
   wrap.querySelectorAll('[data-equipment]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.equipment===id)));
   const media=id==='radio'||id==='walkman';wrap.classList.toggle('equipment-has-media',media);
@@ -88,21 +103,23 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
   actions();showModel();
  }
  function open(id='backpack'){if(!active){lastFocus=document.activeElement;active=true;wrap.hidden=false;document.body.classList.add('inspecting-equipment');controls.enabled=true;onOpen();}$('equipmentClose').focus();select(id);}
- function close(){if(!active)return;active=false;controls.enabled=false;wrap.hidden=true;document.body.classList.remove('inspecting-equipment');radio.setOpen(false);mediaAnchor.after(mediaPanel);disposeObject();onClose();lastFocus?.focus?.({preventScroll:true});}
+ function close(){if(!active)return;if(anbernic)anbernic.playing=false;gps?.hide();wrap.classList.remove('equipment-using-gps');active=false;controls.enabled=false;wrap.hidden=true;document.body.classList.remove('inspecting-equipment');radio.setOpen(false);mediaAnchor.after(mediaPanel);disposeObject();onClose();lastFocus?.focus?.({preventScroll:true});}
  $('equipmentClose').onclick=close;$('equipmentFront').onclick=()=>frame(true);$('equipmentBack').onclick=()=>frame(false);$('equipmentReset').onclick=()=>frame(true);
  wrap.querySelectorAll('[data-equipment]').forEach(button=>button.onclick=()=>select(button.dataset.equipment));
  document.getElementById('radioClose').addEventListener('click',()=>{if(active&&['radio','walkman'].includes(current))close();});
  stage.addEventListener('keydown',e=>{
+  if(gps?.using)return;
+  if(current==='anbernic'&&anbernic.playing)return;
   const delta={ArrowLeft:[-.13,0],ArrowRight:[.13,0],ArrowUp:[0,-.13],ArrowDown:[0,.13]}[e.key];
   if(delta){e.preventDefault();const spherical=new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));spherical.theta+=delta[0];spherical.phi=THREE.MathUtils.clamp(spherical.phi+delta[1],.02,Math.PI-.02);camera.position.setFromSpherical(spherical).add(controls.target);controls.update();}
   if(['+','=','-'].includes(e.key)){e.preventDefault();const offset=camera.position.clone().sub(controls.target),next=THREE.MathUtils.clamp(offset.length()*(e.key==='-'?1.1:.9),controls.minDistance,controls.maxDistance);camera.position.copy(controls.target).add(offset.setLength(next));controls.update();}
  });
- wrap.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}if(e.key==='Tab'){
+ wrap.addEventListener('keydown',e=>{if(current==='anbernic'&&anbernic.playing){const key={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',a:'A',z:'A',b:'B',x:'B',Enter:'Start'}[e.key];if(key&&e.target===stage){e.preventDefault();e.stopPropagation();anbernic.input(key);return;}if(key&&e.key!=='Enter'&&!e.target.closest('input,select,textarea')){e.preventDefault();anbernic.input(key);return;}}if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}if(e.key==='Tab'){
   const nodes=[...wrap.querySelectorAll('button,select,input,a,[tabindex="0"]')].filter(el=>!el.disabled&&el.getClientRects().length);const first=nodes[0],last=nodes.at(-1);
   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
  }});
- function render(dt){if(!active)return;controls.update();const r=stage.getBoundingClientRect(),w=window.innerWidth,h=window.innerHeight;
-  camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();
+ function render(dt){if(!active)return;if(!gps?.using)controls.update();else gpsView();if(current==='walkman')applyTapePose(object,getTapeState());if(current==='anbernic')anbernic.applyFinish(object);const r=stage.getBoundingClientRect(),w=window.innerWidth,h=window.innerHeight;
+  camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();gps?.align(object,camera,stage);
   lampUniform.value=current==='lantern'&&lanternOn()?1:0;
   glow.intensity=lampUniform.value*2.5;
   if(object&&current==='lantern')object.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.emissive&&/glass|flame|glow/i.test(m.name))m.emissive.setRGB(glow.intensity*.25,glow.intensity*.08,.005);});

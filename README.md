@@ -260,3 +260,26 @@ New-voyage story:
 `npm test` now runs every test script, including actual-model metre scale, surface contact, clearance and size budgets. A review-branch/PR verification workflow runs tests and builds without deploying. Main retains its GitHub Pages deployment workflow, now with tests before build. This update is prepared on a review branch; merging it into main is the live-deployment step.
 
 Gear/opening validation: all 18 test scripts and the production build pass. Browser checks covered desktop/phone-width home and help, complete story playback, whole-globe portrait framing, original supplied textures, direct radio interaction and scene review. Real mobile-device frame rate remains unmeasured.
+
+### GPS, handheld and marine encounters — 29 October 2026
+
+The supplied rugged tablet is 29 cm high and rests on the forward bench. Open Equipment → GPS tablet → Use GPS. The operable interface is registered to the model's glass; Inspect device restores rotation. Search 7,342 real populated places, countries, retained named Pacific islands, or signed latitude/longitude. Tap the map to select, drag/pinch/wheel to explore, Follow to recenter, World for the global chart, and Route to fit the passage. Plot passage replaces the course; Add waypoint appends another coastal stop. Courses use great-circle legs with coastline intersections checked in a worker, plus an adaptive offshore route grid. Inland towns lead to an offshore coastal approach, with the inland distance disclosed when plotted. Narrow inlets may use a nearby open coast. Failed searches remain errors rather than drawing a line through land.
+
+The GPS uses the simulated boat's actual position and velocity. It does not request the player's browser location. Course, speed, cross-track distance, active leg and remaining passage update during the voyage. ETA appears only while making progress toward the current leg; a multi-month ETA at drifting speed is intentional. Navigation and the current leg save with the voyage. The Natural Earth 1:10m game chart is offline once loaded; it contains no surveyed depth, reefs, hazards or berth navigation. Provenance and licence notices are in `public/data/navigation-sources.json` and `boat-gear.json`.
+
+Walkman reel meshes are separated around their authored axles, without replacing the cassette geometry. The boat and inspection copy share one transport phase. They turn only after Spotify confirms playback, and stop when paused, buffering, powered off or switched to radio. Start playback using Spotify's native Play control.
+
+The Object Room Anbernic RG35XX retains its transparent shell and internals at 11.7 cm tall. Its original Pocket Garden runs on its physical screen. Play Pocket Garden, use the on-screen direction buttons or focus the model and press arrow keys; A explores, Enter pauses. Garden progress saves with the voyage. It can be packed into the backpack.
+
+The six supplied marine models are converted without running embedded asset scripts. Orca, blue whale, dolphin and shark retain their authored skeletal animation; the static humpback uses restrained tail deformation with a surface/breath/dive cycle. Pods use staggered surfacing and separated paths. Animals avoid charted land. Every metre-scale check evaluates the actual skinned pose, not just unskinned source bounds.
+
+| Encounter | Length | Natural appearance |
+|---|---:|---|
+| Humpback | 15 m | Slow surface, breath and dive |
+| Blue whale | 27 m | Large open-water encounter, away from equatorial latitudes |
+| Female orca | 6.5 m | Small pod with staggered breathing |
+| Bottlenose dolphin | 3.2 m | Small pod in warmer latitudes, porpoising motion |
+| Blacktip shark | 2.2 m | Warm coastal water; dorsal fin and shallow pass |
+| Cargo ship | 220 m | Distant passage, typically 1.3–2.1 km away; first opportunity after 40–80 active minutes, then 1–3 hours between opportunities |
+
+These are plausible game habitat filters and encounter schedules, not live animal/AIS tracking. Biological size reference: [NOAA blue whale](https://www.fisheries.noaa.gov/species/blue-whale) and [NOAA cetacean field guide](https://www.greateratlantic.fisheries.noaa.gov/public/public/web/NEROINET/Protected/whaletrp/docs/f-nwatlantic.pdf). Studio → View & encounters previews every asset independently, including a closer ship view, and provides separate life/shipping switches. Assets load when needed rather than downloading all six at entry. See `public/data/marine-encounters.json` for source archive hashes, scale, geometry and animation audits.

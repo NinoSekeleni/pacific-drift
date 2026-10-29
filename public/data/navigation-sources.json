@@ -1,0 +1,16 @@
+{
+  "chart": "Natural Earth 1:10m outer coastlines, world-atlas 2.0.2, retained Pacific micro-islands",
+  "places": {
+    "source": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_populated_places_simple.geojson",
+    "sha256": "fd3fa867a320cbd5c5b6bb5bc550afeec2939fb2cef688e508007282a55ac42f",
+    "bytes": 4932147,
+    "features": 7342,
+    "approval": "User explicitly approved Download the place-name data in this chat.",
+    "license": "Natural Earth public domain; https://www.naturalearthdata.com/about/terms-of-use/"
+  },
+  "placeCount": 7342,
+  "geographyLicense": "Public domain https://www.naturalearthdata.com/about/terms-of-use/",
+  "packageLicense": "ISC; world-atlas packaging",
+  "downloadApproval": "User approved Download the place-name data on 2026-10-29.",
+  "limits": "Simulation ocean chart. No bathymetry, reefs, harbour soundings, tides or navigational hazards. Geographic routing to a coastal approach, not a surveyed port berth."
+}
