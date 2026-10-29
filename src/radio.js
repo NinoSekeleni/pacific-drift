@@ -424,10 +424,9 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   let controller = null, apiLoading = false, pendingUri = null, tapeUri = null;
   const tapeState={ready:false,isPaused:true,isBuffering:false,position:0,duration:0,error:false};
   const currentPlaylist = () => parsePlaylist(getState().playlist) || DEFAULT_PLAYLIST;
-  function ensureController(uri, autoplay) {
+  function ensureController(uri) {
     if (controller) {
       if (tapeUri !== uri) { tapeState.isPaused=true;tapeState.position=0;tapeState.isBuffering=true;$('spotifyPlaybackState').textContent='Loading your Spotify music…';controller.loadUri(uri); tapeUri = uri; }
-      if (autoplay) controller.play();
       return;
     }
     tapeState.error=false;pendingUri = uri;
@@ -435,15 +434,15 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
     apiLoading = true;$('spotifyPlaybackState').textContent='Connecting to Spotify…';
     window.onSpotifyIframeApiReady = (API) => {
       API.createController(document.getElementById('spotifyEmbed'), { uri: pendingUri, width: '100%', height: 152 }, (c) => {
-        controller = c;tapeState.ready=true;tapeState.error=false;$('spotifyPlaybackState').textContent='Spotify ready. Press play to begin.';
+        controller = c;tapeState.error=false;
+        c.addListener('ready',()=>{tapeState.ready=true;$('spotifyPlaybackState').textContent='Spotify ready. Press Play in the player to begin.';});
         c.addListener('playback_update',event=>{
           const d=event.data||{};
-          tapeState.isPaused=d.isPaused!==false;tapeState.isBuffering=!!d.isBuffering;
+          tapeState.isPaused=d.isPaused!==false;if(!tapeState.isPaused)tapeState.ready=true;tapeState.isBuffering=!!d.isBuffering;
           tapeState.position=Number.isFinite(d.position)?d.position:0;tapeState.duration=Number.isFinite(d.duration)?d.duration:0;
           const seconds=Math.floor(tapeState.position/1000);$('spotifyPlaybackState').textContent=tapeState.isBuffering?'Spotify buffering…':tapeState.isPaused?'Spotify paused':`Playing on Spotify · ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
         });
         tapeUri = pendingUri;
-        if (state.mode === 'TAPE' && state.on) controller.play();
       });
     };
     const sc = document.createElement('script');
@@ -452,7 +451,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
     sc.onerror = () => { tapeState.error=true;$('spotifyPlaybackState').textContent='Spotify is unavailable. Check your connection and try again.';$('tapeNote').textContent = 'Spotify could not load. Check your connection and try the tape deck again.'; apiLoading = false; };
     document.body.appendChild(sc);
   }
-  function startTape() { ensureController(currentPlaylist(), true); }
+  function startTape() { ensureController(currentPlaylist()); }
   function pauseTape() { if (controller) controller.pause(); }
   $('playlistForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -460,13 +459,13 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
     if (!uri) { $('tapeNote').textContent = 'That link is not a Spotify track, playlist or album. Copy the share link from Spotify and paste it here.'; return; }
     onPlaylist(playlistInput.value.trim());
     $('tapeNote').textContent = 'Your playlist is in the tape deck.';
-    if(!state.on)setPower(true);else ensureController(uri, true);
+    if(!state.on)setPower(true);else ensureController(uri);
   });
   $('playlistReset').addEventListener('click', () => {
     onPlaylist('');
     playlistInput.value = '';
     $('tapeNote').textContent = 'Back to the Pacific Drift playlist.';
-    if(!state.on)setPower(true);else ensureController(DEFAULT_PLAYLIST, true);
+    if(!state.on)setPower(true);else ensureController(DEFAULT_PLAYLIST);
   });
 
   /* ----- Panel ----- */
@@ -505,7 +504,6 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   return {
     update, key, setOpen,
     openSource(mode){setMode(mode==='TAPE'?'TAPE':'WORLD');setOpen(true);},
-    toggleTape(){if(!state.on){setPower(true);return;}if(!controller){startTape();return;}if(tapeState.isPaused)controller.play();else controller.pause();},
     mediaState(){return {mode:state.mode,on:state.on,station:state.list[state.index]?.name||'',status:stateOut.textContent,spotify:{...tapeState,playing:state.mode==='TAPE'&&state.on&&!tapeState.isPaused}};},
     toggle() { setOpen(!state.open); },
     get open() { return state.open; },
