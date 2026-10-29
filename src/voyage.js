@@ -46,7 +46,7 @@ export function clearVoyage() {
 
 const angleDiff = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
 
-/** Sailing speed factor of a crab-claw outrigger rig by true-wind angle (0 = head to wind). */
+/** Sailing speed factor of a small canoe sail by true-wind angle (0 = head to wind). */
 function polar(twa) {
   const a = Math.abs(twa);
   if (a < 52) return 0;
@@ -56,12 +56,13 @@ function polar(twa) {
   return 0.5 - 0.1 * ((a - 140) / 40);
 }
 
-export const PADDLE_SPEED = 1.45; // m/s, a steady single paddler in an outrigger canoe
+export const PADDLE_SPEED = 1.45; // m/s, a steady single paddler in a Canadian canoe
 const MAX_SAIL = 2.7;             // m/s, about 5 knots
 
 /**
  * Advance the voyage by dt seconds.
- * input: { paddle: 0..1, steer: -1..1 } (both zero when nobody is aboard)
+ * input: { paddle: 0..1, steer: -1..1 }; optional paddleForce supplies
+ * the actual immersed stroke instead of the legacy steady speed request.
  * Returns the conditions used, for rendering and audio.
  */
 export function step(s, dt, input, land, cache = {}) {
@@ -81,10 +82,15 @@ export function step(s, dt, input, land, cache = {}) {
     const eff = w.speed > 13 ? 13 + (w.speed - 13) * 0.3 : w.speed; // reefed in strong wind
     sailSpeed = Math.min(MAX_SAIL, polar(twa) * eff);
   }
-  const paddleSpeed = input.paddle * PADDLE_SPEED;
+  const physicalStroke=Number.isFinite(input.paddleForce);
+  const paddleSpeed = physicalStroke ? 0 : input.paddle * PADDLE_SPEED;
   const target = Math.max(sailSpeed, paddleSpeed) + 0.25 * Math.min(sailSpeed, paddleSpeed);
   const k = 1 - Math.exp(-dt / (target > s.speed ? 7 : 12));
   s.speed += (target - s.speed) * k;
+  // A blade supplies a short impulse, followed by the existing hull coasting.
+  // Fade its contribution near a brisk paddling speed; sailing remains free
+  // to exceed that speed. Slow-motion contact already scales its force.
+  if(physicalStroke)s.speed+=Math.max(0,Math.min(1,input.paddleForce))*.72*dt*Math.max(0,1-(s.speed/2.6)**2);
 
   const hx = Math.sin(s.heading * DEG), hy = Math.cos(s.heading * DEG);
   // Leeway: windage pushes the canoe downwind, more when sailing across the wind
@@ -129,15 +135,19 @@ export function step(s, dt, input, land, cache = {}) {
 }
 
 /** Replay the time nobody was aboard. The lashed steering oar holds the heading. */
-export function catchUp(s, now, land) {
-  const from = s.t;
+export function catchUp(s, now, land, onStep) {
+  const from = s.t, fromDist = s.dist;
   const cache = {};
   const STEP = 60;
   let n = 0;
   while (!s.landfall && now - s.t > STEP * 1000) {
-    step(s, STEP, { paddle: 0, steer: 0 }, land, cache);
+    const conditions = step(s, STEP, { paddle: 0, steer: 0 }, land, cache);
+    onStep?.(conditions);
     if (++n > 400000) break;
   }
-  if (!s.landfall && now - s.t > 0) step(s, (now - s.t) / 1000, { paddle: 0, steer: 0 }, land, cache);
-  return { away: now - from, landed: !!s.landfall };
+  if (!s.landfall && now - s.t > 0) {
+    const conditions = step(s, (now - s.t) / 1000, { paddle: 0, steer: 0 }, land, cache);
+    onStep?.(conditions);
+  }
+  return { away: now - from, distance: s.dist - fromDist, landed: !!s.landfall };
 }

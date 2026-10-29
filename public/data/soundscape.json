@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "recordings": [
+    {
+      "id": "magnific-142",
+      "role": "water",
+      "file": "audio/magnific/tiny-aqua-slaps-142.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/tiny-aqua-slaps/142",
+      "license": "Magnific stock audio; see https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
+      "loop": false,
+      "gain": 0.9,
+      "name": "Tiny Aqua Slaps",
+      "segments": [
+        {
+          "start": 0,
+          "duration": 1.2
+        },
+        {
+          "start": 2.1,
+          "duration": 1.15
+        },
+        {
+          "start": 3.15,
+          "duration": 1.25
+        },
+        {
+          "start": 4.25,
+          "duration": 1.05
+        }
+      ],
+      "usage": "Short, spaced close-water laps, not a continuous ocean recording."
+    },
+    {
+      "id": "magnific-609",
+      "file": "audio/magnific/water-dropletts-609.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/water-dropletts/609",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
+      "loop": false,
+      "role": "drip",
+      "gain": 0.32,
+      "segments": [
+        {
+          "start": 1.58,
+          "duration": 0.4
+        },
+        {
+          "start": 2.15,
+          "duration": 0.55
+        },
+        {
+          "start": 2.7,
+          "duration": 0.55
+        },
+        {
+          "start": 3.67,
+          "duration": 0.3
+        },
+        {
+          "start": 4.19,
+          "duration": 0.45
+        },
+        {
+          "start": 4.72,
+          "duration": 0.4
+        }
+      ],
+      "name": "Water Dropletts"
+    },
+    {
+      "id": "magnific-210",
+      "role": "heavyRain",
+      "file": "audio/magnific/pouring-rain-210.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/pouring-rain/210",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User downloaded the rain clips personally in Chrome and confirmed in this chat that the additional rain downloads were theirs (2026-10-28).",
+      "loop": true,
+      "gain": 0.8,
+      "name": "Pouring Rain"
+    },
+    {
+      "id": "magnific-279",
+      "role": "thunder",
+      "file": "audio/magnific/thunderstorm-279.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/thunderstorm-loud-thunder-heavy-rain/279",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User downloaded the rain clips personally in Chrome and confirmed in this chat that the additional rain downloads were theirs (2026-10-28).",
+      "loop": false,
+      "gain": 0.5,
+      "name": "Thunderstorm"
+    },
+    {
+      "id": "magnific-211",
+      "role": "wind",
+      "file": "audio/magnific/strong-winds-211.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/strong-winds/211",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
+      "loop": true,
+      "gain": 0.7,
+      "name": "Strong Winds"
+    },
+    {
+      "id": "magnific-262",
+      "role": "rain",
+      "file": "audio/magnific/soft-rain-262.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/soft-rain/262",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
+      "loop": true,
+      "gain": 0.85,
+      "name": "Soft Rain"
+    },
+    {
+      "id": "magnific-225",
+      "name": "Rain and thunder",
+      "role": "stormRain",
+      "file": "audio/magnific/rain-and-thunder-225.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/rain-and-thunder/225",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User personally downloaded these clips and explicitly requested using the other clips in Downloads on 2026-10-28.",
+      "loop": true,
+      "gain": 0.65
+    },
+    {
+      "id": "magnific-280",
+      "name": "Intense Thunderstorm Heavy Rain",
+      "role": "stormRain",
+      "file": "audio/magnific/intense-thunderstorm-heavy-rain-280.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/intense-thunderstorm-heavy-rain/280",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User personally downloaded these clips and explicitly requested using the other clips in Downloads on 2026-10-28.",
+      "loop": true,
+      "gain": 0.65
+    },
+    {
+      "id": "magnific-276",
+      "name": "Thunder Downpour Wind Branches Rustling Violently",
+      "role": "audition",
+      "file": "audio/magnific/thunder-downpour-wind-branches-rustling-violently-276.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/thunder-downpour-wind-branches-rustling-violently/276",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User personally downloaded these clips and explicitly requested using the other clips in Downloads on 2026-10-28.",
+      "loop": false,
+      "gain": 0.65
+    },
+    {
+      "id": "magnific-278",
+      "name": "Night Storm Rain",
+      "role": "nightRain",
+      "file": "audio/magnific/night-storm-rain-278.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/night-storm-rain/278",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User personally downloaded these clips and explicitly requested using the other clips in Downloads on 2026-10-28.",
+      "loop": true,
+      "gain": 0.65
+    },
+    {
+      "id": "magnific-3021",
+      "name": "Rowboat paddles splashing in lake",
+      "role": "paddle",
+      "file": "audio/magnific/paddle-splash-3021.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/rowboat-paddles-splashing-in-lake/3021",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User approved Download and try this clip in this chat on 2026-10-28.",
+      "loop": false,
+      "gain": 0.24,
+      "segments": [
+        {
+          "start": 0.12,
+          "duration": 1.1
+        }
+      ]
+    },
+    {
+      "id": "magnific-142",
+      "role": "waves",
+      "file": "audio/magnific/tiny-aqua-slaps-142.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/tiny-aqua-slaps/142",
+      "license": "Magnific stock audio; see https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
+      "loop": false,
+      "gain": 0.9,
+      "name": "Tiny Aqua Slaps",
+      "segments": [
+        {
+          "start": 0.1,
+          "duration": 2.6
+        },
+        {
+          "start": 2.2,
+          "duration": 2.6
+        }
+      ],
+      "usage": "Provisional spatial waves detail from the approved water clip. Replace with a dedicated offshore recording when approved."
+    },
+    {
+      "id": "magnific-142",
+      "role": "ocean",
+      "file": "audio/magnific/tiny-aqua-slaps-142.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/tiny-aqua-slaps/142",
+      "license": "Magnific stock audio; see https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
+      "loop": false,
+      "gain": 0.8,
+      "name": "Tiny Aqua Slaps",
+      "segments": [
+        {
+          "start": 0.05,
+          "duration": 3.1
+        },
+        {
+          "start": 2.0,
+          "duration": 3.0
+        }
+      ],
+      "usage": "Provisional spatial ocean detail from the approved water clip. Replace with a dedicated offshore recording when approved."
+    },
+    {
+      "id": "magnific-3643",
+      "name": "Small Fishing Boat Rocking",
+      "role": "ocean",
+      "file": "audio/magnific/small-fishing-boat-rocking-3643.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/small-fishing-boat-rocking/3643",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User separately approved Download and try this clip in this chat on 2026-10-28.",
+      "loop": true,
+      "gain": 0.85,
+      "usage": "Approved boat-rocking water movement with light creaks; broad quiet ocean ambience. Field-recording provenance is not claimed."
+    },
+    {
+      "id": "magnific-2995",
+      "name": "Furious ocean waves",
+      "role": "waves",
+      "file": "audio/magnific/furious-ocean-waves-2995.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/furious-ocean-waves/2995",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User separately approved Download and try this clip in this chat on 2026-10-28.",
+      "loop": true,
+      "gain": 0.85,
+      "usage": "Rough-sea layer only, silent below approximately 1.3 m wave height and fully developed by 3 m (or sooner with strong wind).",
+      "minWaveHeight": 1.3
+    }
+  ],
+  "note": "All thirteen distinct downloaded Magnific clips remain available for audition. Ocean ambience uses approved boat-rocking clip 3643; rough-wave layer uses approved clip 2995 only in rough conditions. Clip 142 supplies spaced close-water detail. Provisional ocean/wave events from clip 142 are disabled when the dedicated loops are installed. Clip 276 contains branches and is audition-only. No drip recording is assigned to paddle strokes. Field-recording provenance is not claimed."
+}

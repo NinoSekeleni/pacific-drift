@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {createLensRain} from '../src/lens-rain.js';
+let rendered=null,target=null;
+const renderer={getDrawingBufferSize:v=>v.set(1280,720),setRenderTarget:t=>target=t,render:s=>rendered=s};
+const lens=createLensRain(renderer);
+lens.setIntensity(1.7);lens.splash(1.5);
+assert.ok(lens.dropCount>=30,'a full splash must put a visible burst of beads across the view');
+lens.update(.1,0,12,.05,1,true);lens.begin();assert.ok(target,'wet view must render through the refraction target');lens.render();assert.equal(target,null);
+const material=rendered.children[0].material,uniforms=material.uniforms;
+assert.ok(uniforms.uSheet.value>.4,'fresh impact needs a brief visible water sheet');
+assert.ok(uniforms.uFilms.value.some(f=>f.z>.1&&f.w>.2),'a splash should read as broad wet films, not giant beads');
+assert.ok(uniforms.uDrops.value.every(d=>d.z<=.016),'beads must remain small rather than becoming glass bubbles');
+for(const d of uniforms.uDrops.value)for(const value of d.toArray())assert.ok(Number.isFinite(value));
+for(let i=0;i<240;i++)lens.update(.1,0,0,.05,1+i*.1,false);
+assert.equal(lens.dropCount,0,'screen must dry after the rain stops');lens.begin();assert.equal(target,null);
+assert.ok(uniforms.uFilms.value.every(f=>f.z===0),'wet films must clear as the view dries');
+console.log('PASS wet-film splash, bounded fine droplets, refraction target and complete drying');

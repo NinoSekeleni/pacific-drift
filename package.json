@@ -1,13 +1,14 @@
 {
   "name": "pacific-drift",
   "version": "1.0.0",
-  "description": "Alone in an outrigger canoe at Point Nemo with a compass, a radio and the sky.",
+  "description": "A real-time voyage in a wooden sailing rowboat from Point Nemo, with a compass, radio and the sky.",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:data": "node tools/build-data.mjs"
+    "build:data": "node tools/build-data.mjs",
+    "test": "node tools/test-all.mjs"
   },
   "license": "UNLICENSED",
   "dependencies": {

@@ -2,6 +2,10 @@
 // with a small sprit sail, a single-blade paddle and a hurricane lantern, riding the sea.
 import * as THREE from 'three';
 import { LAYER_NEAR } from './sky.js';
+import {createMarineSurfaceMaps} from './surface-materials.js';
+import {createRowingRig,ROWING_SEAT} from './rowing-rig.js';
+import {createBoatMaterial} from './boat-materials.js';
+import {prepareMarineUV} from './marine-assets.js';
 
 const DEG = Math.PI / 180;
 export const LENGTH = 5.2;
@@ -140,14 +144,25 @@ function rod(a, b, r, mat, seg = 8) {
 }
 
 export function createCanoe(scene) {
+  const surfaces=createMarineSurfaceMaps();
   const navy = new THREE.MeshStandardMaterial({ map: navyTex(), roughness: 0.32, metalness: 0.05, side: THREE.FrontSide });
   const cedar = new THREE.MeshStandardMaterial({ map: cedarTex(), roughness: 0.38, side: THREE.BackSide });
-  const ash = new THREE.MeshStandardMaterial({ color: 0xd9ab6a, roughness: 0.45 });
+  const ash = new THREE.MeshStandardMaterial({ ...surfaces.wood, color: 0xd9ab6a, roughness: 0.52 });
   const walnut = new THREE.MeshStandardMaterial({ color: 0x8a4a26, roughness: 0.4 });
   const cane = new THREE.MeshStandardMaterial({ map: caneTex(), alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, roughness: 0.7 });
-  const sailMat = new THREE.MeshStandardMaterial({ color: 0xf0e6cf, roughness: 0.95, side: THREE.DoubleSide, transparent: true, opacity: 0.94 });
+  const sailMat = new THREE.MeshStandardMaterial({ ...surfaces.canvas, color: 0xf0e6cf, roughness: 0.98, side: THREE.DoubleSide, transparent: true, opacity: 0.94 });
 
+  const wetMaterials = new Map();
+  const surfaceMeshes = [];
+  let wetness = 0;
+  function registerWet(material) {
+    if (material && material.isMeshStandardMaterial && !wetMaterials.has(material)) {
+      wetMaterials.set(material,{roughness:material.roughness,color:material.color.clone()});
+    }
+  }
+  for (const material of [navy,cedar,ash,walnut]) registerWet(material);
   const canoe = new THREE.Group();
+  let rowingRig=null,waterOutline=null;const seating=SEAT.clone();let wetPoints=WET,rollResponse=1.15;
   const hullGeo = hullGeometry();
   const outer = new THREE.Mesh(hullGeo, navy);
   const innerHull = new THREE.Mesh(hullGeo, cedar);
@@ -287,76 +302,88 @@ export function createCanoe(scene) {
   }
   buildCap(hullParts.filter((o) => o.isMesh));
 
-  // Small sprit sail on a mast stepped at the forward thwart
-  const woodSpar = new THREE.MeshStandardMaterial({ color: 0xc9995a, roughness: 0.6 });
-  const rig = new THREE.Group();
+  // The mast never scales. A laced luff hoists the cloth above the fixed boom;
+  // pressure bends the interior while corners and the foot remain attached.
+  const woodSpar = new THREE.MeshStandardMaterial({ ...surfaces.wood, color: 0xc9995a, roughness: 0.6 });
+  const rig = new THREE.Group();rig.name='Sail rig';
   rig.position.set(0, keelAt(sAt(-0.95)) + 0.02, -0.95);
   canoe.add(rig);
   const MAST_H = 2.7, BOOM_Y = 0.55, BOOM_L = 1.7;
-  rig.add(rod(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, MAST_H, 0), 0.028, woodSpar));
-  const boom = rod(new THREE.Vector3(0, BOOM_Y, 0), new THREE.Vector3(0, BOOM_Y, BOOM_L), 0.022, woodSpar);
+  const mast=rod(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, MAST_H, 0), 0.028, woodSpar);mast.name='Fixed mast';rig.add(mast);
+  const boom = rod(new THREE.Vector3(0, BOOM_Y, 0), new THREE.Vector3(0, BOOM_Y, BOOM_L), 0.022, woodSpar);boom.name='Sail boom';
   rig.add(boom);
-  const SU = 16, SV = 10;
+  const SU = 20, SV = 14;
   const sailGeo = new THREE.BufferGeometry();
-  const sailPos = new Float32Array((SU + 1) * (SV + 1) * 3);
-  sailGeo.setAttribute('position', new THREE.BufferAttribute(sailPos, 3));
+  const sailPos = new Float32Array((SU + 1) * (SV + 1) * 3),sailUv=new Float32Array((SU+1)*(SV+1)*2);
+  sailGeo.setAttribute('position', new THREE.BufferAttribute(sailPos, 3).setUsage(THREE.DynamicDrawUsage));
+  for(let i=0;i<=SU;i++)for(let j=0;j<=SV;j++){const k=(i*(SV+1)+j)*2;sailUv[k]=j/SV;sailUv[k+1]=i/SU;}
+  sailGeo.setAttribute('uv',new THREE.BufferAttribute(sailUv,2));
   const sIdx = [];
   for (let i = 0; i < SU; i++) for (let j = 0; j < SV; j++) {
     const a = i * (SV + 1) + j, b = a + 1, c = a + SV + 1, d = c + 1;
     sIdx.push(a, c, b, b, c, d);
   }
   sailGeo.setIndex(sIdx);
-  const sail = new THREE.Mesh(sailGeo, sailMat);
+  const sail = new THREE.Mesh(sailGeo, sailMat);sail.name='Anchored sail cloth';sail.frustumCulled=false;
   rig.add(sail);
-  const LUFF0 = new THREE.Vector3(0, BOOM_Y, 0), HEAD = new THREE.Vector3(0, MAST_H - 0.05, 0), CLEW = new THREE.Vector3(0, BOOM_Y, BOOM_L);
-  const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpP = new THREE.Vector3();
-  function shapeSail(billow, t) {
+  let lastSailNormals=-Infinity;
+  function shapeSail(billow, t, hoist=1) {
+    const raised=hoist*hoist*(3-2*hoist);
+    const headY=BOOM_Y+.055+(MAST_H-.05-BOOM_Y-.055)*raised;
     for (let i = 0; i <= SU; i++) {
-      const u = i / SU; // foot to head
-      tmpA.lerpVectors(LUFF0, HEAD, u);
-      tmpB.lerpVectors(CLEW, HEAD, u);
+      const u = i / SU;
+      const along=Math.sin(Math.PI*u),height=BOOM_Y+(headY-BOOM_Y)*u;
       for (let j = 0; j <= SV; j++) {
-        const v = j / SV; // luff to leech
-        tmpP.lerpVectors(tmpA, tmpB, v);
-        tmpP.x += Math.sin(v * Math.PI) * Math.sin((u * 0.9 + 0.05) * Math.PI) * billow * (0.95 + 0.05 * Math.sin(t * 3 + u * 6 + v * 3));
-        const k = (i * (SV + 1) + j) * 3;
-        sailPos[k] = tmpP.x; sailPos[k + 1] = tmpP.y; sailPos[k + 2] = tmpP.z;
+        const v=j/SV,k=(i*(SV+1)+j)*3;
+        const interior=along*Math.sin(Math.PI*v);
+        const leech=along*Math.pow(v,4);
+        const smallRipple=Math.sin(t*3.1-u*10.5+v*7.0)+Math.sin(t*4.7-u*15+v*3)*.3;
+        const fill=interior*billow*(.98+.02*Math.sin(t*.71));
+        // Tension keeps most cloth quiet. The free trailing edge carries the
+        // visible flutter; it cannot detach the luff, head, clew or boom foot.
+        const flutter=leech*smallRipple*Math.min(.018,Math.abs(billow)*.08)*raised;
+        const folds=Math.sin(u*Math.PI*18)*.012*interior*(1-raised);
+        sailPos[k]=(fill+flutter)*raised+folds;
+        sailPos[k+1]=height;
+        sailPos[k+2]=v*BOOM_L*(1-u);
       }
     }
     sailGeo.attributes.position.needsUpdate = true;
-    sailGeo.computeVertexNormals();
+    // Just 315 vertices; a 30 Hz normal update avoids unnecessary work on phones.
+    if(t-lastSailNormals>=1/30||!Number.isFinite(lastSailNormals)){sailGeo.computeVertexNormals();lastSailNormals=t;}
   }
-  shapeSail(0.2, 0);
-  // Furled sail lying along the thwarts when lowered
-  const bundle = new THREE.Group();
-  const canvasMat = new THREE.MeshStandardMaterial({ color: 0xd8ccb0, roughness: 1 });
-  bundle.add(rod(new THREE.Vector3(0.24, GUN - 0.04, -1.55), new THREE.Vector3(0.26, GUN - 0.03, 0.55), 0.045, canvasMat, 10));
-  bundle.add(rod(new THREE.Vector3(0.3, GUN - 0.01, -1.7), new THREE.Vector3(0.3, GUN, 0.7), 0.018, woodSpar));
-  for (const z of [-1.2, -0.5, 0.2]) {
-    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.006, 5, 12), new THREE.MeshStandardMaterial({ color: 0x6b5a40, roughness: 1 }));
-    tie.position.set(0.245, GUN - 0.035, z);
-    bundle.add(tie);
+  shapeSail(.2,0);
+  // Furled cloth occupies the actual boom, so lowering does not teleport the rig
+  // to the gunwale or shrink the mast into the canoe.
+  const bundle = new THREE.Group();bundle.name='Furled sail';
+  const canvasMat = new THREE.MeshStandardMaterial({ ...surfaces.canvas, color: 0xd8ccb0, roughness: 1, transparent:true,opacity:1 });
+  bundle.add(rod(new THREE.Vector3(0,BOOM_Y+.035,.025),new THREE.Vector3(0,BOOM_Y+.035,BOOM_L-.025),.048,canvasMat,12));
+  const tieMat=new THREE.MeshStandardMaterial({color:0x6b5a40,roughness:1,transparent:true});
+  for(const z of [.3,.85,1.4]){const tie=new THREE.Mesh(new THREE.TorusGeometry(.05,.005,5,12),tieMat);tie.position.set(0,BOOM_Y+.035,z);bundle.add(tie);}
+  rig.add(bundle);
+
+  // A solid beavertail blade, oval ash shaft and rounded palm grip. Their grain
+  // runs along the handle; the blade narrows smoothly through the throat.
+  const paddleWood = new THREE.MeshStandardMaterial({ ...surfaces.wood,color:0xc48a4b,roughness:.46 });registerWet(paddleWood);
+  const paddlePivot = new THREE.Group();paddlePivot.name='Paddle pivot';canoe.add(paddlePivot);
+  const paddle = new THREE.Group();paddle.name='Carved canoe paddle';paddle.scale.setScalar(.8);paddlePivot.add(paddle);
+  const shaftProfile=[[-.80,.018],[-.65,.017],[-.25,.0155],[.25,.0145],[.48,.017],[.53,.019]].map(([y,r])=>new THREE.Vector2(r,y));
+  const shaft=new THREE.Mesh(new THREE.LatheGeometry(shaftProfile,16),paddleWood);shaft.scale.z=.87;paddle.add(shaft);
+  const bladeProfile=[];
+  for(let i=0;i<=24;i++){
+    const t=i/24,y=-1.43+t*.74;
+    const width=i===24?.018:Math.max(.001,.094*Math.pow(Math.sin(Math.PI*t),.6)*(1.06-.22*t));
+    bladeProfile.push(new THREE.Vector2(width,y+1.1));
   }
-  canoe.add(bundle);
+  const blade=new THREE.Mesh(new THREE.LatheGeometry(bladeProfile,24),paddleWood);blade.name='Beavertail blade';blade.scale.z=.12;blade.position.y=-1.1;paddle.add(blade);
+  const grip=new THREE.Mesh(new THREE.SphereGeometry(1,20,12),paddleWood);grip.name='Palm grip';grip.scale.set(.064,.029,.027);grip.position.y=.557;paddle.add(grip);
+  const gripNeck=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),paddleWood);gripNeck.scale.set(.024,.052,.020);gripNeck.position.y=.515;paddle.add(gripNeck);
+  const paddleStrokePosition=new THREE.Vector3(),paddleRestPosition=new THREE.Vector3(.10,GUN+.022,1.60);
+  const paddleStrokeQuat=new THREE.Quaternion(),paddleRestQuat=new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2,0,0)),paddleEuler=new THREE.Euler(),paddleFeatherQuat=new THREE.Quaternion(),paddleAxisY=new THREE.Vector3(0,1,0);
 
-  // Single-blade canoe paddle of ash
-  const paddlePivot = new THREE.Group();
-  canoe.add(paddlePivot);
-  const paddle = new THREE.Group();
-  paddlePivot.add(paddle);
-  paddle.add(rod(new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, -0.9, 0), 0.016, ash));
-  const blade = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 4, 10), ash);
-  blade.scale.z = 0.09;
-  blade.position.set(0, -1.12, 0);
-  paddle.add(blade);
-  const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, 0.07, 4, 8), ash);
-  grip.rotation.z = Math.PI / 2;
-  grip.position.set(0, 0.52, 0);
-  paddle.add(grip);
-
-  // Hurricane lantern on the floor in front of the paddler
+  // Hurricane lantern standing on the central yoke, even before the model loads.
   const lantern = new THREE.Group();
-  lantern.position.set(0, sheerAt(sAt(BOW_Z + 0.32)) - 0.005, BOW_Z + 0.32); // on the bow deck, lighting the water ahead
+  lantern.position.set(0, 0.184, 0);
   canoe.add(lantern);
   const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a35, roughness: 0.55, metalness: 0.6 });
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xfff3dd, roughness: 0.15, transparent: true, opacity: 0.35, emissive: 0x000000 });
@@ -397,24 +424,66 @@ export function createCanoe(scene) {
   lampLight.layers.enableAll();
   scene.add(canoe);
 
-  let strokeT = 0, side = 1, strokes = 0, paddleVis = 0, lastCatch = -1;
-  const sailState = { shown: 1, angle: 0 };
+  let strokeT=0,side=1,strokes=0,paddleVis=0,strokeActive=false,strokeQueued=false,singleStrokeLatch=false,strokeSerial=0;
+  let waterCaught=false,waterExited=false,previousSubmerged=0,previousBladeValid=false,paddleHeightCorrection=0;
+  const sailState = { shown: 1, angle: 0, billow:0 };
+  // Dense crest samples include both gunwales and the stems, where short waves
+  // can pass between the weighted points used to fit the boat's attitude.
+  const crestPoints = [];
+  for (let al = -2.5; al <= 2.501; al += 0.2) {
+    const width = halfBeam(al / (LENGTH / 2)) * 0.88;
+    for (const ac of [-width, 0, width]) crestPoints.push([al, ac]);
+  }
   const samp = {};
   const q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ');
   let pitchS = 0, rollS = 0, heaveS = 0, yawS = 0, heaveV = 0, pitchV = 0, rollV = 0, settled = false;
-  const bladeWorld = new THREE.Vector3();
+  const bladeWorld=new THREE.Vector3(),previousBlade=new THREE.Vector3(),bladeTip=new THREE.Vector3(),bladeThroat=new THREE.Vector3(),contactPoint=new THREE.Vector3(),eyePosition=new THREE.Vector3(),eyeTarget=new THREE.Vector3();
+  const paddleLocalMatrix=new THREE.Matrix4(),waterSample={},tipSample={},throatSample={};
+  const paddlePose={topGrip:new THREE.Vector3(),shaftGrip:new THREE.Vector3(),quaternion:new THREE.Quaternion(),axis:new THREE.Vector3(0,1,0),side:1,committedSide:1,blend:0,phase:0,active:false,stage:'parked',submerged:0,drive:0,strokeId:0,timeScale:1,world:{topGrip:new THREE.Vector3(),shaftGrip:new THREE.Vector3(),axis:new THREE.Vector3(0,1,0),quaternion:new THREE.Quaternion(),bladeCenter:new THREE.Vector3(),bladeTip:new THREE.Vector3()}};
+  function requestStroke(requestedSide=side){
+    if(rowingRig)return rowingRig.requestStroke();
+    if(strokeActive||strokeQueued||paddleVis>.02)return false;
+    side=requestedSide<0?-1:1;strokeQueued=true;return true;
+  }
+  function beginStroke(){strokeActive=true;strokeT=0;strokeQueued=false;strokeSerial++;waterCaught=false;waterExited=false;previousSubmerged=0;}
+  function refreshPaddlePose(stage,scale){
+    paddlePivot.updateMatrixWorld(true);
+    paddleLocalMatrix.multiplyMatrices(paddlePivot.matrix,paddle.matrix);
+    paddlePose.topGrip.set(0,.557,0).applyMatrix4(paddleLocalMatrix);
+    paddlePose.shaftGrip.set(0,-.14,0).applyMatrix4(paddleLocalMatrix);
+    paddlePose.quaternion.copy(paddlePivot.quaternion).multiply(paddle.quaternion);
+    paddlePose.axis.set(0,1,0).applyQuaternion(paddlePose.quaternion).normalize();
+    paddlePose.world.topGrip.copy(paddlePose.topGrip).applyMatrix4(canoe.matrixWorld);
+    paddlePose.world.shaftGrip.copy(paddlePose.shaftGrip).applyMatrix4(canoe.matrixWorld);
+    paddle.getWorldQuaternion(paddlePose.world.quaternion);
+    paddlePose.world.axis.set(0,1,0).applyQuaternion(paddlePose.world.quaternion).normalize();
+    bladeWorld.set(0,-1.1,0).applyMatrix4(paddle.matrixWorld);
+    bladeTip.set(0,-1.425,0).applyMatrix4(paddle.matrixWorld);
+    bladeThroat.set(0,-.72,0).applyMatrix4(paddle.matrixWorld);
+    paddlePose.world.bladeCenter.copy(bladeWorld);paddlePose.world.bladeTip.copy(bladeTip);
+    Object.assign(paddlePose,{side,committedSide:side,blend:paddleVis,phase:strokeT,active:strokeActive,stage,strokeId:strokeSerial,timeScale:scale});
+  }
+  let eyeInitialized=false,eyePitch=0,eyeRoll=0;
+  const smoothUnit=t=>{t=THREE.MathUtils.clamp(t,0,1);return t*t*(3-2*t);};
 
   /**
    * Place the canoe on the sea and animate rig, paddle and lantern.
    * opts: { x, z, headingDeg, paddling, sailUp, apparentFromRel (deg off the bow, + starboard), windSpeed, t, dt, waveT, ocean, lantern, light, onCatch }
    */
   function update(o) {
+    const rain = Math.max(0, Math.min(1, o.rain || 0));
+    const targetWet = Math.min(1,rain*1.6 + Math.max(0,o.windSpeed-12)*.025);
+    wetness += (targetWet-wetness)*(1-Math.exp(-o.dt/(targetWet>wetness?12:180)));
+    for (const [material,base] of wetMaterials) {
+      material.roughness = base.roughness*(1-wetness*(material.userData.boatFabric?.12:.62));
+      material.color.copy(base.color).multiplyScalar(1-wetness*.16);
+    }
     const h = o.headingDeg * DEG;
     const fx = Math.sin(h), fz = -Math.cos(h);
     const rx = Math.cos(h), rz = Math.sin(h);
     // Fit a plane to the sea under the hull (least squares over the wetted points)
     let S0 = 0, Sa = 0, Sc = 0, Saa = 0, Scc = 0, Sac = 0, Sy = 0, Say = 0, Scy = 0;
-    for (const [al, ac, wgt] of WET) {
+    for (const [al, ac, wgt] of wetPoints) {
       o.ocean.sample(o.x + fx * al + rx * ac, o.z + fz * al + rz * ac, o.waveT, samp);
       const y = samp.h;
       S0 += wgt; Sa += wgt * al; Sc += wgt * ac; Saa += wgt * al * al; Scc += wgt * ac * ac; Sac += wgt * al * ac;
@@ -423,13 +492,13 @@ export function createCanoe(scene) {
     const sol = solve3([[S0, Sa, Sc], [Sa, Saa, Sac], [Sc, Sac, Scc]], [Sy, Say, Scy]);
     // A short steep crest under part of the hull lifts the canoe over it rather than burying the bow
     let over = 0;
-    for (const [al, ac] of WET) {
-      o.ocean.sample(o.x + fx * al + rx * ac, o.z + fz * al + rz * ac, o.waveT, samp);
+    for (const [al, ac] of crestPoints) {
+      o.ocean.sample(o.x + fx * al*(rowingRig?.90:1) + rx * ac*(rowingRig?1.8:1), o.z + fz * al*(rowingRig?.90:1) + rz * ac*(rowingRig?1.8:1), o.waveT, samp);
       over = Math.max(over, samp.h - (sol[0] + sol[1] * al + sol[2] * ac));
     }
-    const heave = sol[0] + Math.max(0, over - 0.05) * 0.85;
+    const heave = sol[0] + Math.max(0, over - 0.035) * 0.95;
     const pitch = Math.atan(sol[1]);
-    const roll = Math.atan(sol[2]) * 1.15; // an open canoe is tender and rolls readily
+    const roll = Math.atan(sol[2]) * rollResponse; // an open canoe is tender and rolls readily
     // After a long frame (a hidden tab, a slow device) the hull simply settles where the sea now is
     if (!settled || (o.rawDt || 0) > 0.3) { heaveS = heave; pitchS = pitch; rollS = roll; heaveV = pitchV = rollV = 0; settled = true; }
     // Buoyancy: the hull is a lightly damped mass, so it lifts, overshoots a little and settles,
@@ -451,23 +520,42 @@ export function createCanoe(scene) {
     canoe.quaternion.setFromEuler(e);
     // Tell the sea where the hull sits so it settles around it instead of passing through
     const ou = o.ocean.uniforms;
-    ou.uHull.value.set(o.x, heaveS, o.z, 1);
-    ou.uHullAx.value.set(fx, fz, Math.sin(pitchS), Math.sin(rollS));
+    ou.uHull.value.set(o.x, o.z, heaveS, 1);
+    ou.uHullAx.value.set(fx, fz, Math.tan(pitchS), Math.tan(rollS) / Math.cos(pitchS));
+    canoe.updateMatrixWorld(true);
+    ou.uHullInverse.value.copy(canoe.matrixWorld).invert();
 
-    // Sail: raise and lower smoothly, swing to leeward and fill with the wind
+    // Only the observer is stabilized: physics, hull transforms and ocean masks
+    // above retain their actual full motion. Keep the head close to the seat.
+    eyeTarget.copy(seating).applyMatrix4(canoe.matrixWorld);
+    const eyePitchTarget=THREE.MathUtils.clamp(pitchS*.52,-.145,.145);
+    const eyeRollTarget=THREE.MathUtils.clamp(rollS*.34,-.105,.105);
+    if(!eyeInitialized||(o.rawDt||0)>.3){eyePosition.copy(eyeTarget);eyePitch=eyePitchTarget;eyeRoll=eyeRollTarget;eyeInitialized=true;}
+    else{
+      eyePosition.x=eyeTarget.x;eyePosition.z=eyeTarget.z;
+      const headHeightTarget=heaveS+seating.y*.35+(eyeTarget.y-heaveS)*.65;
+      eyePosition.y+=(headHeightTarget-eyePosition.y)*(1-Math.exp(-o.dt/.20));
+      eyePosition.y=THREE.MathUtils.clamp(eyePosition.y,eyeTarget.y-.22,eyeTarget.y+.22);
+      eyePitch+=(eyePitchTarget-eyePitch)*(1-Math.exp(-o.dt/.34));
+      eyeRoll+=(eyeRollTarget-eyeRoll)*(1-Math.exp(-o.dt/.44));
+    }
+
     const target = o.sailUp ? 1 : 0;
     if (!sailState.init) { sailState.shown = target; sailState.init = true; }
-    sailState.shown += (target - sailState.shown) * Math.min(1, o.dt * 1.5);
+    sailState.shown+=THREE.MathUtils.clamp(target-sailState.shown,-o.dt*.34,o.dt*.34);
     if (o.light) sailMat.emissive.setRGB(o.light[0] * 0.28, o.light[1] * 0.27, o.light[2] * 0.25);
-    rig.visible = sailState.shown > 0.02;
-    bundle.visible = sailState.shown < 0.6;
-    rig.scale.set(1, Math.max(0.02, sailState.shown), 1);
-    const rel = o.apparentFromRel;
+    rig.visible=true;
+    sail.visible=sailState.shown>.012;
+    canvasMat.opacity=1-smoothUnit(sailState.shown/.22);tieMat.opacity=canvasMat.opacity;
+    bundle.visible=canvasMat.opacity>.005;
+    const rel = o.apparentFromRel||0;
     const leeward = rel >= 0 ? -1 : 1;
     const swing = leeward * Math.min(75, Math.max(8, Math.abs(rel) * 0.5));
-    sailState.angle += (swing * DEG - sailState.angle) * Math.min(1, o.dt * 0.8);
-    rig.rotation.y = sailState.angle; // boom trails aft and swings to leeward
-    shapeSail(leeward * Math.min(0.42, 0.14 + o.windSpeed * 0.03) * (o.sailUp ? 1 : 0.2), o.t);
+    sailState.angle+=(swing*DEG-sailState.angle)*(1-Math.exp(-o.dt/.95));
+    rig.rotation.y=sailState.angle;
+    const pressure=leeward*Math.min(.33,.025+Math.max(0,o.windSpeed)*.017);
+    sailState.billow+=(pressure-sailState.billow)*(1-Math.exp(-o.dt/.65));
+    shapeSail(sailState.billow,o.t,sailState.shown);
 
     // Lantern: a kerosene flame flickers; light fades in and out when trimmed
     lampLevel += ((o.lantern ? 1 : 0) - lampLevel) * Math.min(1, o.dt * 3);
@@ -479,35 +567,84 @@ export function createCanoe(scene) {
     flame.scale.set(0.06 * (0.95 + 0.05 * flick), 0.09 * flick, 1);
     glassMat.emissive.setRGB(0.55 * lampLevel * flick, 0.32 * lampLevel * flick, 0.12 * lampLevel * flick);
 
-    // Paddle strokes, switching sides every few strokes
-    paddleVis += ((o.paddling ? 1 : 0) - paddleVis) * Math.min(1, o.dt * 4);
-    paddlePivot.visible = paddleVis > 0.02;
-    if (o.paddling) {
-      strokeT += o.dt / 1.15;
-      if (strokeT >= 1) { strokeT -= 1; strokes++; if (strokes % 7 === 0) side = -side; }
+    if(rowingRig){rig.visible=false;paddlePivot.visible=false;rowingRig.update(o);Object.assign(paddlePose,rowingRig.pose);return;}
+    // A full stroke is a committed action. It prepares, reaches, enters, pulls,
+    // exits and feathers back before the paddle is allowed to park.
+    const timeScale=THREE.MathUtils.clamp(o.paddleTimeScale??1,.25,1),paddleDt=o.dt*timeScale;
+    if(o.singleStroke&&!singleStrokeLatch)requestStroke(o.paddleSide??side);
+    singleStrokeLatch=!!o.singleStroke;
+    const continuous=!!o.paddling&&!o.singleStroke;
+    const preparing=continuous||strokeQueued||strokeActive;
+    paddleVis=THREE.MathUtils.clamp(paddleVis+(preparing?1:-1)*paddleDt*3.6,0,1);
+    if(!strokeActive&&(continuous||strokeQueued)&&paddleVis>=.99)beginStroke();
+    if(strokeActive){
+      strokeT+=paddleDt/1.42;
+      if(strokeT>=1){
+        strokes++;strokeActive=false;strokeT=0;
+        if(continuous)beginStroke();
+      }
     }
-    const ph = strokeT;
-    const pull = ph < 0.6;
-    const u = pull ? ph / 0.6 : (ph - 0.6) / 0.4;
-    const swingX = pull ? -0.75 + 1.2 * u : 0.45 - 1.2 * u;
-    const lift = pull ? 0 : Math.sin(u * Math.PI) * 0.35;
-    paddlePivot.position.set(side * (halfBeam(sAt(SEAT.z - 0.4)) + 0.04), SEAT.y + 0.05 + lift * 0.4 - (1 - paddleVis) * 0.8, SEAT.z - 0.4);
-    paddle.rotation.set(swingX, 0, side * (0.14 + lift));
-    if (o.paddling && pull && u < 0.12 && lastCatch !== strokes) {
-      lastCatch = strokes;
-      blade.getWorldPosition(bladeWorld);
-      o.onCatch && o.onCatch(bladeWorld.x, bladeWorld.z);
+    const ph=strokeActive?strokeT:0;
+    const entry=smoothUnit(ph/.16),pull=smoothUnit((ph-.16)/.44),exit=smoothUnit((ph-.60)/.16),recovery=smoothUnit((ph-.76)/.24);
+    let pitchP,yP,zP,lean;
+    if(ph<.16){pitchP=THREE.MathUtils.lerp(.75,.27,entry);yP=THREE.MathUtils.lerp(.77,.62,entry);zP=THREE.MathUtils.lerp(1.30,1.26,entry);lean=.65;}
+    else if(ph<.60){pitchP=THREE.MathUtils.lerp(.27,-.27,pull);yP=.62;zP=THREE.MathUtils.lerp(1.26,1.33,pull);lean=.65;}
+    else if(ph<.76){pitchP=THREE.MathUtils.lerp(-.27,-1.08,exit);yP=THREE.MathUtils.lerp(.62,.76,exit);zP=THREE.MathUtils.lerp(1.33,1.72,exit);lean=THREE.MathUtils.lerp(.65,.78,exit);}
+    else{pitchP=THREE.MathUtils.lerp(-1.08,.75,recovery);yP=THREE.MathUtils.lerp(.76,.77,recovery)-Math.sin(recovery*Math.PI)*.09;zP=THREE.MathUtils.lerp(1.72,1.30,recovery);lean=THREE.MathUtils.lerp(.78,.65,recovery)+Math.sin(recovery*Math.PI)*.60;}
+    const feather=ph<.60?0:Math.sin(smoothUnit((ph-.60)/.40)*Math.PI)*1.35;
+    paddleStrokePosition.set(side*(halfBeam(sAt(SEAT.z-.35))+.016),yP,zP);
+    const blend=smoothUnit(paddleVis);
+    paddlePivot.position.lerpVectors(paddleRestPosition,paddleStrokePosition,blend);
+    paddleEuler.set(pitchP,0,side*lean,'YXZ');paddleStrokeQuat.setFromEuler(paddleEuler);
+    // Feather about the shaft itself, not world-up: grip/axis positions must not
+    // sweep sideways merely because the blade is turning edge-on to recover.
+    paddleStrokeQuat.multiply(paddleFeatherQuat.setFromAxisAngle(paddleAxisY,side*feather));
+    paddle.quaternion.copy(paddleRestQuat).slerp(paddleStrokeQuat,blend);
+    paddlePivot.visible=true;
+    let stage=strokeActive?(ph<.16?'entry':ph<.60?'power':ph<.76?'exit':'recovery'):(preparing?'preparing':paddleVis>.001?'parking':'parked');
+    refreshPaddlePose(stage,timeScale);
+    // Use the actual blade location, not the boat origin or a timer, to meet the
+    // changing waterline. Bounded hand-height correction preserves seated reach.
+    let targetHeightCorrection=0;
+    if(strokeActive){
+      o.ocean.sample(bladeWorld.x,bladeWorld.z,o.waveT,waterSample);
+      const depth=ph<.16?THREE.MathUtils.lerp(-.24,.08,entry):ph<.60?.08:THREE.MathUtils.lerp(.08,-.35,exit);
+      targetHeightCorrection=(waterSample.h-depth-bladeWorld.y)/Math.max(.35,canoe.matrixWorld.elements[5]);
+      if(ph>=.76){
+        o.ocean.sample(bladeTip.x,bladeTip.z,o.waveT,tipSample);
+        targetHeightCorrection=Math.max(0,(tipSample.h+.10-bladeTip.y)/Math.max(.35,canoe.matrixWorld.elements[5]));
+      }
+      targetHeightCorrection=THREE.MathUtils.clamp(targetHeightCorrection,-.24,.24);
     }
+    paddleHeightCorrection+=(targetHeightCorrection-paddleHeightCorrection)*(1-Math.exp(-o.dt*14));
+    paddlePivot.position.y+=paddleHeightCorrection*blend;
+    refreshPaddlePose(stage,timeScale);
+    o.ocean.sample(bladeWorld.x,bladeWorld.z,o.waveT,waterSample);
+    o.ocean.sample(bladeTip.x,bladeTip.z,o.waveT,tipSample);
+    o.ocean.sample(bladeThroat.x,bladeThroat.z,o.waveT,throatSample);
+    const tipDepth=tipSample.h-bladeTip.y,centerDepth=waterSample.h-bladeWorld.y,throatDepth=throatSample.h-bladeThroat.y;
+    const immersed=THREE.MathUtils.clamp(Math.max(tipDepth,centerDepth,throatDepth)/Math.max(.08,Math.abs(bladeThroat.y-bladeTip.y)),0,1);
+    paddlePose.submerged=strokeActive?immersed:0;
+    paddlePose.drive=stage==='power'&&waterCaught&&!waterExited?immersed*smoothUnit((ph-.16)/.06)*(1-smoothUnit((ph-.53)/.07))*timeScale:0;
+    const contactFraction=THREE.MathUtils.clamp(tipDepth/(tipDepth-throatDepth||1),0,1);
+    contactPoint.lerpVectors(bladeTip,bladeThroat,contactFraction);
+    o.ocean.sample(contactPoint.x,contactPoint.z,o.waveT,waterSample);contactPoint.y=waterSample.h;
+    const vx=previousBladeValid?THREE.MathUtils.clamp((bladeWorld.x-previousBlade.x)/Math.max(.001,o.dt),-12,12):0;
+    const vz=previousBladeValid?THREE.MathUtils.clamp((bladeWorld.z-previousBlade.z)/Math.max(.001,o.dt),-12,12):0;
+    const strength=THREE.MathUtils.clamp(Math.hypot(vx,vz)*.20+immersed*.55,.10,1.3);
+    const emitWater=phase=>{if(o.onPaddleWater)o.onPaddleWater({phase,x:contactPoint.x,y:contactPoint.y,z:contactPoint.z,vx,vz,strength,side,submerged:phase==='exit'?0:immersed,strokeId:strokeSerial,progress:ph,dt:o.dt,timeScale,bladeY:Math.min(bladeTip.y,bladeWorld.y),waterHeight:contactPoint.y});};
+    if(strokeActive&&blend>.98){
+      if(!waterCaught&&ph<.60&&immersed>.018){waterCaught=true;emitWater('catch');o.onCatch&&o.onCatch(contactPoint.x,contactPoint.z);}
+      if(waterCaught&&!waterExited&&immersed>.02&&stage==='power')emitWater('pull');
+      if(waterCaught&&!waterExited&&previousSubmerged>.02&&immersed<=.02){waterExited=true;emitWater('exit');}
+    }
+    previousSubmerged=immersed;previousBlade.copy(bladeWorld);previousBladeValid=true;
   }
 
-  /** World transform of the paddler's eye. */
+  /** World transform of the paddler's eye, independent of look-around input. */
   function eye(outPos, outQuat) {
-    canoe.updateMatrixWorld();
-    outPos.copy(SEAT).applyMatrix4(canoe.matrixWorld);
-    // The paddler keeps their head steadier than the hull
-    e.set(pitchS * 0.85, yawS, rollS * 0.8, 'YXZ');
-    q.setFromEuler(e);
-    outQuat.copy(q);
+    if(eyeInitialized)outPos.copy(eyePosition);else outPos.copy(seating).applyMatrix4(canoe.matrixWorld);
+    e.set(eyePitch,yawS,eyeRoll,'YXZ');q.setFromEuler(e);outQuat.copy(q);
   }
 
   /** World position and brightness of the lantern flame. */
@@ -587,10 +724,12 @@ export function createCanoe(scene) {
     // A solid cedar shell just outside the model's inner surface: wherever the generated mesh has
     // gaps, you see planking instead of the sea underneath
     innerHull.visible = true;
-    innerHull.scale.set(1.04, 1, 1.0);
-    innerHull.position.y = -0.025;
+    innerHull.scale.set(0.82, 0.65, 0.90);
+    innerHull.position.y = 0.05;
     const fitted = [];
     holder.traverse((o) => { if (o.isMesh) fitted.push(o); });
+    surfaceMeshes.splice(0,surfaceMeshes.length,...fitted);
+    for (const mesh of fitted) for (const material of (Array.isArray(mesh.material)?mesh.material:[mesh.material])) registerWet(material);
     buildCap(fitted);
     canoe.updateMatrixWorld(true);
     const ray = new THREE.Raycaster();
@@ -604,7 +743,7 @@ export function createCanoe(scene) {
     let run = null, best = null;
     for (let z = -0.4; z <= 0.4; z += 0.01) {
       let top = -Infinity;
-      for (const x of [-0.08, 0.08]) {
+      for (const x of [-0.16, 0.16]) {
         ray.set(new THREE.Vector3(x, 3, z).applyMatrix4(canoe.matrixWorld), down);
         const h = ray.intersectObjects(meshes, false)[0];
         if (h) top = Math.max(top, canoe.worldToLocal(h.point.clone()).y);
@@ -614,10 +753,34 @@ export function createCanoe(scene) {
     }
     if (run && (!best || run.z1 - run.z0 > best.z1 - best.z0)) best = run;
     if (best) lantern.position.set(0, best.y + 0.004, (best.z0 + best.z1) / 2);
+    lantern.userData.support = best || { y: 0.18, z0: 0, z1: 0 };
     return { halfBeam: BEAM, depth: GUN - KEEL, deck: best ? lantern.position.y : null };
   }
 
-  return { group: canoe, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; } };
+  function applyRowingBoat(root){
+    root.name='Supplied wooden rowing boat';canoe.add(root);root.updateMatrixWorld(true);
+    for(const part of hullParts)part.visible=false;rig.visible=false;paddlePivot.visible=false;innerHull.visible=false;
+    root.traverse(o=>{if(o.isMesh)prepareMarineUV(o);});
+    const materialCache=new Map();
+    root.traverse(o=>{o.layers.set(LAYER_NEAR);if(o.isMesh){o.frustumCulled=false;const cloth=o.name==='Sail';const prepare=source=>{const key=source.uuid+':'+cloth+':'+(o.name==='Lacing'?'rope':'wood');if(!materialCache.has(key))materialCache.set(key,createBoatMaterial(source,{cloth}));const material=materialCache.get(key);registerWet(material);return material;};o.material=Array.isArray(o.material)?o.material.map(prepare):prepare(o.material);}});
+    const hull=root.getObjectByName('Hull');surfaceMeshes.splice(0,surfaceMeshes.length,hull,root.getObjectByName('Fittings'));
+    seating.copy(ROWING_SEAT);eyeInitialized=false;rollResponse=.72;
+    wetPoints=WET.map(([al,ac,w])=>[al*.90,ac*2.1,w]);
+    const p=hull.geometry.attributes.position,N=64,z0=-2.367,z1=2.367,dz=(z1-z0)/N;
+    const widths=new Float32Array(N+1),tops=new Float32Array(N+1).fill(-Infinity);
+    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(y>.67||z<z0||z>z1)continue;const k=Math.round((z-z0)/dz);widths[k]=Math.max(widths[k],Math.abs(x));tops[k]=Math.max(tops[k],y);}
+    for(let k=0;k<=N;k++){if(!widths[k]){let distance=Infinity;for(let j=0;j<=N;j++)if(widths[j]&&Math.abs(j-k)<distance){distance=Math.abs(j-k);widths[k]=widths[j];tops[k]=tops[j];}}}
+    const profile=Array.from(widths,(w,k)=>new THREE.Vector2(w*.94,Number.isFinite(tops[k])?tops[k]:.42));
+    const verts=[],idx=[];for(let k=0;k<=N;k++){const w=profile[k].x,y=profile[k].y-.025,z=z0+k*dz;verts.push(-w,y,z,w,y,z);if(k){const a=(k-1)*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
+    if(cap){canoe.remove(cap);cap.geometry.dispose();}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(idx);cap=new THREE.Mesh(geo,capMat);cap.renderOrder=1;cap.layers.set(LAYER_NEAR);cap.frustumCulled=false;canoe.add(cap);
+    const ray=new THREE.Raycaster();ray.layers.enableAll();let best=null;for(const z of [.15,.35,.55,.75]){ray.set(new THREE.Vector3(-.2,2,z).applyMatrix4(canoe.matrixWorld),new THREE.Vector3(0,-1,0).transformDirection(canoe.matrixWorld));const hit=ray.intersectObjects(surfaceMeshes,false)[0];if(hit){const local=canoe.worldToLocal(hit.point.clone());if(local.y>.03&&(!best||local.y>best.y))best=local;}}
+    lantern.position.copy(best||new THREE.Vector3(-.2,.15,.35));lantern.position.y+=.005;lantern.userData.support={y:lantern.position.y,z0:lantern.position.z,z1:lantern.position.z};
+    waterOutline={halfLength:2.367,profile};
+    rowingRig=createRowingRig(canoe,root);
+    return {halfBeam:.86,halfLength:2.367,profile,seat:seating.clone()};
+  }
+
+  return { group: canoe, lantern, surfaceMeshes, applyRowingBoat,get seat(){return seating;},get waterOutline(){return waterOutline;}, requestStroke,getPaddlePose(){return paddlePose;}, get wetness() { return wetness; }, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; },get animationState(){return {strokeActive,strokePhase:strokeT,strokeCount:strokes,paddleBlend:paddleVis,side,strokeQueued,submerged:paddlePose.submerged,drive:paddlePose.drive,sailHoist:sailState.shown};} };
 }
 
 /** Sea mask settings for this hull: (along from, along to, half-beam) and no float. */

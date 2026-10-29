@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "kind": "moon-surface",
+      "id": "magnific-24910085",
+      "file": "textures/magnific/moon-24910085.jpg",
+      "name": "Closeup of a big moon in its full phase with craters visible on its edges",
+      "author": "Wirestock",
+      "sourceUrl": "https://www.magnific.com/free-photo/closeup-big-moon-its-full-phase-with-craters-visible-its-edges_24910085.htm",
+      "license": "Magnific stock photo; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download and use this photograph in this chat on 2026-10-28.",
+      "usage": "Original photograph preserved unchanged; the renderer samples its lunar disc in grayscale and applies the simulated lunar phase. Runtime downsampling limits GPU memory."
+    },
+    {
+      "kind": "moon-survey",
+      "id": "nasa-lroc-2025",
+      "file": "textures/marine/moon-lroc-2k.png",
+      "name": "2025 LROC cylindrical lunar colour map",
+      "author": "NASA Scientific Visualization Studio",
+      "sourceUrl": "https://svs.gsfc.nasa.gov/4720/",
+      "license": "NASA media-use guidelines: https://www.nasa.gov/nasa-brand-center/images-and-media/; credit NASA Scientific Visualization Studio. No endorsement implied.",
+      "approved": true,
+      "approval": "User supplied this downloaded map and requested integration of useful assets on 2026-10-29.",
+      "usage": "2K runtime derivative of lroc_color_16bit_srgb_4k.tif; mapped onto lunar hemisphere, phase lit. Fixed north-up; no libration. Original Magnific photograph remains available for comparison."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+Imported data-map sources and exact derivative file hashes: ../../data/marine-assets.json
+
+Water 002: https://3dtextures.me/2018/11/29/water-002/
+CC0 declaration: https://3dtextures.me/about/
+
+Poly Haven Rough Linen / Lacquered Cherry Wood: https://polyhaven.com/license
+CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
+
+ambientCG Fabric030 / Rope001 / Metal030: https://docs.ambientcg.com/license/
+CC0 1.0 Universal.
+
+NASA lunar map credit: NASA’s Scientific Visualization Studio.
+Source: https://svs.gsfc.nasa.gov/4720/
+Usage guidelines: https://www.nasa.gov/nasa-brand-center/images-and-media/
+No NASA endorsement implied. NASA media is not labelled CC0.
+
+Ultra-Water shader adaptation: see Ultra-Water-LICENSE.txt and Ultra-Water-THIRD_PARTY_NOTICES.md.txt in this directory.

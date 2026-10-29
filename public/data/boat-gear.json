@@ -1,0 +1,54 @@
+{
+  "updated": "2026-10-29",
+  "provenance": "Owner supplied backpack.zip, handheld-portable-radio-walkie-talkie.zip and earth-terra-downloadable-model.zip and requested their integration. Original creator/licence metadata was not included in the supplied archives; original rights are retained. No CC0 or other new licence is claimed for these models/images.",
+  "files": [
+    {
+      "file": "models/backpack.glb",
+      "bytes": 3115544,
+      "sha256": "f149102c1d3c61778c44847cd9876a9c8724433b81992a970a1d2bd69983bdc8"
+    },
+    {
+      "file": "models/handheld-radio.glb",
+      "bytes": 1152168,
+      "sha256": "e32e626a83cb502219d2dbd221aeba63a39e094bfadbb2e847d64df372cbe64c"
+    },
+    {
+      "file": "textures/earth/terra-colour-2k.webp",
+      "bytes": 272228,
+      "sha256": "0a860b557da426bbd76b391c1ac5c2995f1ae882e640168ceddc1d04974b7e1e"
+    },
+    {
+      "file": "textures/earth/terra-clouds-2k.webp",
+      "bytes": 446008,
+      "sha256": "4e4b78d3be8db4c39f888cbcd446b2bb5c6c94a1585a8b8a50d9b5ced6a1dd63"
+    }
+  ],
+  "backpack": {
+    "source": "backpack.zip / source/dengshanbao.glb",
+    "heightMetres": 0.56,
+    "widthMetres": 0.33165144,
+    "depthMetres": 0.45420846,
+    "triangles": 47387,
+    "materials": 4,
+    "placement": "Port bench, forward of the rowing seat; surface contact sampled from supplied boat geometry.",
+    "conversion": "Reduced from approximately 237,000 triangles; rebuilt vertex normals, preserved authored colour/normal/PBR maps, 1K WebP textures."
+  },
+  "radio": {
+    "source": "handheld-portable-radio-walkie-talkie.zip / source/krotkofalowka.7z / krotkofal.fbx",
+    "lengthIncludingAntennaMetres": 0.28,
+    "bodyWidthMetres": 0.07335229,
+    "bodyDepthMetres": 0.04471045,
+    "triangles": 16762,
+    "materials": 1,
+    "placement": "Face-up on starboard bench, forward of the oar handles. Click opens existing radio controls; R remains available.",
+    "conversion": "FBX world transforms baked, glTF UV V convention corrected, one combined mesh and 1K base/normal/packed roughness-metal maps."
+  },
+  "earth": {
+    "source": "earth-terra-downloadable-model.zip / textures/",
+    "usage": "Supplied colour and cloud maps on the existing geographic sphere so longitude/latitude orientation stays correct. Cloud layer fades during descent. Blender file was not executed.",
+    "runtimeResolution": [
+      2048,
+      1024
+    ]
+  }
+}

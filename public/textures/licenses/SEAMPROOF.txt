@@ -1,0 +1,24 @@
+ELEMENTAL RITES - SUMMONING CIRCLE VFX PACK
+Asset License (SEAMPROOF)
+
+This license covers every file in this pack: native 4096 x 4096 frames, sprite sheets, loose sequences, videos, previews, metadata, viewer and engine helpers (the "Assets").
+
+1. GRANT
+On purchase (or download of the free sample) you receive a non-exclusive, worldwide, perpetual license to use, copy, modify, crop, recolour, re-time, composite and incorporate the Assets into your own products, including commercial products: games, applications, films, videos, streams, live events, printed and digital media, and any other finished work. No attribution is required. There is no limit on the number of projects, copies sold, or revenue.
+
+2. WHAT YOU MAY NOT DO
+You may not resell, sublicense, share, give away or redistribute the Assets, or any part of them, as standalone files or as part of another asset pack, template, stock library, generator, training dataset or similar product where the Assets are the item of value rather than part of a larger finished work. Modified or recoloured versions of the Assets are covered by the same restriction.
+
+3. TEAM USE
+A purchase covers one studio or individual and all the people working with them on the same projects. A publisher or client who receives a finished work does not need a separate license for that work. A contractor who wants to use the Assets on other clients' projects needs their own copy.
+
+4. OWNERSHIP
+SEAMPROOF keeps ownership of the Assets and all copyright in them. This license does not transfer ownership.
+
+5. WARRANTY
+The Assets are provided as is. SEAMPROOF is not liable for any damages arising from their use beyond the amount paid for the pack.
+
+6. TERMINATION
+The license ends automatically if you breach section 2. Finished works already published may stay published.
+
+Questions: contact SEAMPROOF through the itch.io page.

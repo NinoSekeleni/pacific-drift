@@ -1,0 +1,10 @@
+import {NodeIO} from '@gltf-transform/core';
+import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
+import {dedup,prune,weld,simplify,textureCompress} from '@gltf-transform/functions';
+import {MeshoptSimplifier} from 'meshoptimizer';
+import sharp from 'sharp';
+const io=new NodeIO().registerExtensions(ALL_EXTENSIONS);
+const doc=await io.read(process.argv[2]);
+await MeshoptSimplifier.ready;
+await doc.transform(dedup(),weld(),simplify({simplifier:MeshoptSimplifier,ratio:.042,error:.004}),prune(),textureCompress({encoder:sharp,targetFormat:'webp',resize:[1024,1024],quality:85}));
+await io.write('public/models/humpback.glb',doc);

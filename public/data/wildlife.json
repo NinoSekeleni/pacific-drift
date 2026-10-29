@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "kind": "albatross",
+      "file": "models/albatross.glb",
+      "sourceUrl": "https://www.magnific.com/app/tools/image-to-3d",
+      "license": "Magnific generated 3D asset in the owner's account; see https://www.magnific.com/legal/terms-of-use",
+      "approved": true,
+      "approval": "Owner approved a 580-credit generation and separately approved downloading this model in this chat on 2026-10-28.",
+      "sourceFile": "model (1).glb",
+      "model": "Tripo H3.1, text mode, standard textures, 100K face cap",
+      "optimized": "Approximately 27K triangles, 1024px WebP textures; outer wings extended to a 2.5:1 span-to-length proportion without changing the central body"
+    },
+    {
+      "kind": "humpback",
+      "file": "models/humpback.glb",
+      "sourceUrl": "https://www.magnific.com/app/creation/O6tPLgYynm",
+      "license": "Magnific generated 3D asset in the owner's account; https://www.magnific.com/legal/terms-of-use",
+      "approved": true,
+      "approval": "User explicitly approved Download and add this whale on 2026-10-28. Generation was inadvertently started for 580 credits before approval; the mistake was disclosed in chat. No further generation was initiated.",
+      "sourceFile": "model (2).glb",
+      "optimized": "Simplified to approximately 40K triangles with 1024px WebP textures."
+    }
+  ]
+}

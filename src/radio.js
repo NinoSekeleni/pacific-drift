@@ -39,7 +39,7 @@ function homeCountry() {
   } catch (e) { /* no locale information */ }
   return null;
 }
-const ALIASES = { sa: 'ZA', rsa: 'ZA', mzansi: 'ZA', uk: 'GB', britain: 'GB', england: 'GB', usa: 'US', us: 'US', america: 'US', uae: 'AE', holland: 'NL' };
+const ALIASES = { 'south africa': 'ZA', sa: 'ZA', rsa: 'ZA', mzansi: 'ZA', uk: 'GB', britain: 'GB', england: 'GB', usa: 'US', us: 'US', america: 'US', uae: 'AE', holland: 'NL' };
 
 async function rb(path) {
   for (const host of HOSTS) {
@@ -91,6 +91,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   const prefs = loadPrefs();
   const HOME = homeCountry();
   let countries = [];
+  let listRequest = 0;
   const state = {
     open: false,
     on: false,
@@ -134,6 +135,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   }
 
   async function loadList(source, keepStationId) {
+    const request = ++listRequest;
     state.source = source;
     state.loading = true;
     setStateText('Searching the airwaves…');
@@ -156,6 +158,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
       ]);
       res = all.flatMap((r) => r || []);
     } else res = await rb(`/json/stations/search?${base.slice(1)}`);
+    if (request !== listRequest) return;
     state.loading = false;
     if (!res) {
       state.list = [];
@@ -462,6 +465,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   function setOpen(open) {
     state.open = open;
     panel.classList.toggle('open', open);
+    document.body.classList.toggle('radio-open', open);
     panel.setAttribute('aria-hidden', String(!open));
     if (open) {
       if (!countriesLoaded) { countriesLoaded = true; loadCountries(); }

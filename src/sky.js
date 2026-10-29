@@ -43,6 +43,11 @@ export const SKY_UNIFORMS_GLSL = /* glsl */`
   uniform float uTime;
   uniform float uStars;
   uniform float uMoonLight;
+  uniform float uMoonRadius;
+  uniform sampler2D tMoonSurface;
+  uniform float uMoonPhotoReady;
+  uniform sampler2D tLunarMap;
+  uniform float uLunarMapReady,uUseLunarMap;
   uniform float uDarkness;
 `;
 
@@ -89,7 +94,7 @@ export const SKY_GLSL = NOISE_GLSL + SKY_UNIFORMS_GLSL + CLOUD_LOOKUP_GLSL + /* 
     col += uGlow * (pow(toward, 3.0) * 0.9 + 0.15) * exp(-up * 5.0);
     float sunUp = smoothstep(-0.06, 0.02, uSunDir.y);
 
-    col += milkyWay(d) * 0.15 * uStars * starGain * smoothstep(0.0, 0.25, up);
+    col += milkyWay(d) * 0.50 * uStars * starGain * smoothstep(0.0, 0.25, up);
 
     float s = max(dot(d, uSunDir), 0.0);
     col += uSunCol * (pow(s, 90.0) * 0.55 + pow(s, 1400.0) * 1.8) * sunUp * (1.0 - uDarkness * 0.8);
@@ -97,22 +102,74 @@ export const SKY_GLSL = NOISE_GLSL + SKY_UNIFORMS_GLSL + CLOUD_LOOKUP_GLSL + /* 
     float moonUp = smoothstep(-0.03, 0.02, uMoonDir.y);
     if (moonUp > 0.0) {
       float md = dot(d, uMoonDir);
-      col += vec3(0.75, 0.8, 0.9) * pow(max(md, 0.0), 600.0) * 0.14 * uMoonLight;
-      float r = 0.0085;
-      if (md > cos(r)) {
+      // A compact optical aureole leaves the lunar disc crisp. Cloud scattering
+      // is already supplied by the volume; a huge painted halo washes out stars.
+      float moonGlare = pow(max(md, 0.0), 2200.0) * 0.065
+                      + pow(max(md, 0.0), 18000.0) * 0.12;
+      col += vec3(0.76, 0.83, 1.0) * moonGlare * uMoonLight;
+      float r = uMoonRadius;
+      if (md > cos(r * 1.01)) {
         vec3 T = normalize(cross(uMoonDir, vec3(0.0, 1.0, 0.0) + 1e-3));
         vec3 B = cross(T, uMoonDir);
         vec3 rel = d - uMoonDir * md;
-        float sr = sin(r);
-        float u = dot(rel, T) / sr;
-        float v = dot(rel, B) / sr;
-        float rr = u * u + v * v;
-        vec3 nrm = normalize(u * T + v * B - sqrt(max(1.0 - rr, 0.0)) * uMoonDir);
-        float lit = max(dot(nrm, uSunDir), 0.0);
-        float mare = 0.8 + 0.2 * noise(vec2(u, v) * 3.0 + 4.0);
-        vec3 mc = vec3(0.95, 0.94, 0.9) * (lit * mare * 1.25 + 0.02);
-        float a = (1.0 - smoothstep(0.9, 1.0, rr)) * moonUp * mix(1.0, 0.45, sunUp);
-        col = mix(col, max(mc, col), a);
+        vec2 q = vec2(dot(rel, T), dot(rel, B)) / sin(r);
+        float rr = dot(q, q);
+        float face = sqrt(max(1.0 - rr, 0.0));
+        vec3 nrm = normalize(q.x * T + q.y * B - face * uMoonDir);
+        float incidence = max(dot(nrm, uSunDir), 0.0);
+        // Broad overlapping basalt plains create recognizable scale rather than
+        // a noisy white coin. This is procedural lunar terrain, not a photo map.
+        float maria = 0.0;
+        maria += exp(-dot((q-vec2(-.32,.30))/vec2(.38,.29),(q-vec2(-.32,.30))/vec2(.38,.29)))*.65;
+        maria += exp(-dot((q-vec2(.16,.37))/vec2(.27,.31),(q-vec2(.16,.37))/vec2(.27,.31)))*.62;
+        maria += exp(-dot((q-vec2(.43,.01))/vec2(.23,.27),(q-vec2(.43,.01))/vec2(.23,.27)))*.56;
+        maria += exp(-dot((q-vec2(-.47,-.16))/vec2(.31,.22),(q-vec2(-.47,-.16))/vec2(.31,.22)))*.56;
+        float albedo = 0.90 - min(.50,maria*.57);
+        albedo *= .94 + .10*fbm(q*19.0+vec2(7.1,1.4),3);
+        // Subpixel crater rims are filtered by their footprint. Relief shading
+        // becomes stronger toward the terminator, while full moon stays pale.
+        vec2 sunOnFace = vec2(dot(uSunDir,T),dot(uSunDir,B));
+        float relief = 0.0;
+        float footprint = max(fwidth(q.x),fwidth(q.y));
+        for(int c=0;c<22;c++) {
+          float fc=float(c);
+          vec2 center=vec2(hash(vec2(fc,11.7)),hash(vec2(fc,33.9)))*1.74-.87;
+          float radius=.018+.067*hash(vec2(fc,71.2));
+          vec2 delta=q-center;
+          float cd=length(delta)/radius;
+          float rim=exp(-pow((cd-.92)/.12,2.0));
+          float bowl=exp(-cd*cd*2.4);
+          float resolved=smoothstep(footprint*.7,footprint*2.2,radius);
+          float slope=dot(delta/(length(delta)+.0001),sunOnFace);
+          relief += (rim*.055-bowl*.026+slope*rim*.12)*resolved;
+        }
+        // A restrained pale ray system around a southern bright impact basin.
+        vec2 ray=q-vec2(.06,-.58);
+        float rayAngle=atan(ray.y,ray.x);
+        float rays=pow(max(0.0,cos(rayAngle*17.0+sin(rayAngle*4.0))),20.0);
+        albedo += rays*exp(-length(ray)*3.8)*.11 + relief;
+        if(uMoonPhotoReady>.5){
+          vec2 photoUv=vec2(.507,.507)+q*vec2(.265,.197);
+          vec3 photo=texture2D(tMoonSurface,photoUv).rgb;
+          float gray=dot(photo,vec3(.299,.587,.114));
+          albedo=clamp(.16+gray*.72,.18,.95);
+        }
+        if(uLunarMapReady>.5&&uUseLunarMap>.5){
+          // NASA SVS cylindrical LROC colour map: longitude zero at image centre.
+          // Map the visible hemisphere onto the disc before applying the phase.
+          // Fixed north-up orientation; lunar libration is not simulated.
+          vec2 lunarUv=vec2(.5+atan(q.x,max(face,.0001))/6.2831853,.5+asin(clamp(q.y,-1.,1.))/3.14159265);
+          vec3 survey=texture2D(tLunarMap,lunarUv).rgb;
+          albedo=clamp(.18+dot(survey,vec3(.299,.587,.114))*.90,.18,.95);
+        }
+        float terminator = smoothstep(0.0,.035,incidence);
+        float lunarScatter = incidence/(incidence+face+.001);
+        float lit = (sqrt(incidence)*.50+lunarScatter*.86)*terminator;
+        float earthshine = .012*(1.0-uMoonLight);
+        vec3 mc = vec3(.98,.965,.93)*max(.1,albedo)*(lit*1.42+earthshine);
+        float edge = max(fwidth(rr)*1.2,.001);
+        float a = (1.0-smoothstep(1.0-edge,1.0,rr))*moonUp*mix(1.0,.48,sunUp);
+        col = mix(col,mc,a);
       }
     }
     return col;
@@ -256,10 +313,31 @@ export function createSky(renderer, scene, isTouch) {
     uTime: { value: 0 },
     uStars: { value: 0 },
     uMoonLight: { value: 0 },
+    uMoonRadius: { value: .013 },
+    tMoonSurface: {value:new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1,THREE.RGBAFormat)},
+    uMoonPhotoReady: {value:0},
+    tLunarMap:{value:null},uLunarMapReady:{value:0},uUseLunarMap:{value:1},
     uDarkness: { value: 0 },
     uLocalToEq: { value: new THREE.Matrix3() },
     tClouds: { value: null }
   };
+
+  uniforms.tMoonSurface.value.needsUpdate=true;
+  new THREE.TextureLoader().load(import.meta.env.BASE_URL+'textures/marine/moon-lroc-2k.png',texture=>{
+    texture.colorSpace=THREE.NoColorSpace;texture.wrapS=THREE.RepeatWrapping;
+    uniforms.tLunarMap.value=texture;uniforms.uLunarMapReady.value=1;
+  },undefined,()=>console.warn('Lunar survey map unavailable; approved photograph retained'));
+  // Keep the approved source untouched; use a smaller bitmap only in GPU memory.
+  fetch(import.meta.env.BASE_URL+'data/visual-assets.json').then(r=>r.ok?r.json():null).then(async manifest=>{
+    const asset=manifest?.assets?.find(a=>a.kind==='moon-surface'&&a.approved&&a.sourceUrl&&a.license&&a.file);
+    if(!asset)return;
+    const texture=await new THREE.TextureLoader().loadAsync(import.meta.env.BASE_URL+asset.file);
+    texture.colorSpace=THREE.NoColorSpace;texture.minFilter=THREE.LinearMipmapLinearFilter;
+    if(typeof createImageBitmap==='function'){
+      try{const old=texture.image;texture.image=await createImageBitmap(old,{resizeWidth:768,resizeHeight:1024,resizeQuality:'high',imageOrientation:'flipY'});texture.flipY=false;}catch{}
+    }
+    texture.needsUpdate=true;uniforms.tMoonSurface.value.dispose();uniforms.tMoonSurface.value=texture;uniforms.uMoonPhotoReady.value=1;
+  }).catch(error=>console.warn('Lunar surface photo unavailable',error));
 
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(9000, 64, 32),
@@ -303,7 +381,7 @@ export function createSky(renderer, scene, isTouch) {
     uCirrus: { value: 0.2 },
     uIsles: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }
   };
-  for (const k of ['uSunDir', 'uMoonDir', 'uZen', 'uHor', 'uGlow', 'uSunCol', 'uTime', 'uStars', 'uMoonLight', 'uDarkness']) cloudUniforms[k] = uniforms[k];
+  for (const k of ['uSunDir', 'uMoonDir', 'uZen', 'uHor', 'uGlow', 'uSunCol', 'uTime', 'uStars', 'uMoonLight', 'uMoonRadius', 'tMoonSurface', 'uMoonPhotoReady', 'uDarkness']) cloudUniforms[k] = uniforms[k];
 
   const cloudMat = new THREE.ShaderMaterial({
     uniforms: cloudUniforms,
@@ -460,7 +538,7 @@ export function createSky(renderer, scene, isTouch) {
   starGroup.matrixAutoUpdate = false;
   starGroup.layers.set(LAYER_FAR);
   scene.add(starGroup);
-  const starUniforms = { uStars: uniforms.uStars, uTime: uniforms.uTime, tClouds: uniforms.tClouds, uPx: { value: renderer.getPixelRatio() }, uLines: { value: 0 } };
+  const starUniforms = { uMoonRadius: uniforms.uMoonRadius, uMoonDir: uniforms.uMoonDir, uStars: uniforms.uStars, uTime: uniforms.uTime, tClouds: uniforms.tClouds, uPx: { value: renderer.getPixelRatio() }, uLines: { value: 0 }, uEye: { value: 0.8 } };
   let labels = [];
   const labelBox = document.getElementById('skyLabels');
 
@@ -489,6 +567,7 @@ export function createSky(renderer, scene, isTouch) {
         attribute float aMag;
         uniform float uStars;
         uniform float uPx;
+        uniform float uEye;
         varying vec3 vCol;
         varying float vA;
         varying vec3 vDir;
@@ -497,27 +576,36 @@ export function createSky(renderer, scene, isTouch) {
           vec4 wp = modelMatrix * vec4(position, 1.0);
           vDir = normalize(wp.xyz - cameraPosition);
           gl_Position = projectionMatrix * viewMatrix * wp;
-          float b = pow(10.0, -0.4 * (aMag - 1.0));
-          gl_PointSize = clamp(1.7 + 2.6 * sqrt(b), 1.6, 7.5) * uPx;
-          vA = clamp(b * 1.1 + 0.2, 0.0, 1.4) * uStars;
-          vCol = aColor;
+          float b = pow(10.0, -0.28 * (aMag - 1.0));
+          // A core narrower than one pixel disappeared between pixel centers.
+          // Give even faint stars a stable footprint, while keeping a tight core.
+          gl_PointSize = clamp(3.0 + 1.7 * sqrt(b), 3.0, 7.0) * uPx;
+          vA = clamp(b * 3.0 + 0.065, 0.0, 4.0) * uEye;
+          vA *= 1.0 - smoothstep(6.4, 7.3, aMag);
+          vCol = mix(vec3(1.0,.985,.965),aColor,.065);
           vSeed = fract(position.x * 0.137 + position.y * 0.071);
         }`,
       fragmentShader: CLOUD_LOOKUP_GLSL + /* glsl */`
         uniform float uTime;
+        uniform float uStars;
+        uniform vec3 uMoonDir;
+        uniform float uMoonRadius;
         varying vec3 vCol;
         varying float vA;
         varying vec3 vDir;
         varying float vSeed;
         void main() {
+          if(uMoonDir.y>0.0 && dot(normalize(vDir),uMoonDir)>cos(uMoonRadius))discard;
           float r = length(gl_PointCoord - 0.5);
-          float a = (1.0 - smoothstep(0.0, 0.5, r)) * vA;
+          float core = exp(-r*r*100.0);
+          float halo = exp(-r*r*24.0)*0.055;
+          float a = (pow(max(core*vA,0.0),0.64)*1.55 + halo*vA) * uStars;
           float h = smoothstep(-0.01, 0.14, vDir.y);
           a *= h;
-          a *= 0.72 + 0.28 * sin(uTime * (2.0 + vSeed * 6.0) + vSeed * 50.0) * (1.0 - h * 0.6);
+          a *= 0.94 + 0.06 * sin(uTime * (1.1 + vSeed * 2.0) + vSeed * 50.0) * (1.0 - h * 0.75);
           a *= 1.0 - cloudsAt(vDir).a;
           if (a < 0.004) discard;
-          gl_FragColor = vec4(vCol, a);
+          gl_FragColor = vec4(vCol, min(1.0,a*5.8));
         }`
     });
     const pts = new THREE.Points(g, m);
@@ -618,5 +706,5 @@ export function createSky(renderer, scene, isTouch) {
     starUniforms.uLines.value = on ? 1 : 0;
   }
 
-  return { uniforms, cloudUniforms, dome, renderClouds, buildStars, setOrientation, updateLabels, setLines, get linesOn() { return linesOn; } };
+  return { uniforms, cloudUniforms, dome, renderClouds, buildStars, setNightVision(value) { starUniforms.uEye.value = value; }, setOrientation, updateLabels, setLines, get linesOn() { return linesOn; } };
 }

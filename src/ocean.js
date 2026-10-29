@@ -9,6 +9,7 @@ const WIND_OFF = [35, -40, 25, -15, 10, -5, 0, 12, -8];
 const SWELL_L = [210, 140, 165];
 const N_WAVES = WIND_L.length + SWELL_L.length;
 const DEG = Math.PI / 180;
+const RIPPLE_COUNT = 32;
 
 function buildGeometry() {
   const seg = 320, rings = 230, r0 = 0.3, rMax = 8800;
@@ -78,9 +79,11 @@ function detailNormals(renderer) {
 const WAVE_GLSL = /* glsl */`
   #define NW ${N_WAVES}
   uniform vec4 uWaves[NW];
+  uniform mat4 uHullInverse; // exact world-to-canoe transform, shared by both shaders
   uniform vec4 uHull;   // canoe x, z, heave, on
-  uniform vec4 uHullAx; // forward x, z, sin(pitch), sin(roll)
-  uniform vec4 uHullSeg; // hull from (along) .x to .y, half-beam .z
+  uniform vec4 uHullAx; // forward x, z, longitudinal slope, transverse slope
+  uniform vec4 uHullSeg;
+      uniform vec2 uHullProfile[65]; // half length .x, half-beam .y
   uniform vec4 uAmaSeg;  // float across .x, from (along) .y to .z, radius .w
   float waveFade(float L, float dist) { return 1.0 - smoothstep(L * 15.0, L * 60.0, dist); }
   float segDist(vec2 p, vec2 a, vec2 b) {
@@ -114,28 +117,37 @@ const WAVE_GLSL = /* glsl */`
 
 export function createOcean(renderer, scene, skyUniforms) {
   const waves = Array.from({ length: N_WAVES }, () => new THREE.Vector4(1, 0, 10, 0));
-  const ripples = Array.from({ length: 24 }, () => new THREE.Vector4(0, 0, -1000, 0));
+  const ripples = Array.from({ length: RIPPLE_COUNT }, () => new THREE.Vector4(0, 0, -1000, 0));
+  const rippleAxes=Array.from({length:RIPPLE_COUNT},()=>new THREE.Vector2(0,-1));
   let rippleNext = 0;
 
   const uniforms = Object.assign({}, skyUniforms, {
     uWaves: { value: waves },
     uRipples: { value: ripples },
+    uWaterRippleAxes: {value:rippleAxes},
+    uWaterWindDir: {value:new THREE.Vector2(0,-1)},
     tDetail: { value: detailNormals(renderer) },
+    tImportedNormal:{value:null},tImportedRoughness:{value:null},tFoamDetail:{value:null},
+    uTextureDetail:{value:0},uFoamDetail:{value:0},uOpticsDetail:{value:0},
     uBody: { value: new THREE.Vector3(0.03, 0.08, 0.1) },
     uFog: { value: new THREE.Vector3() },
     uVis: { value: 30000 },
     uWind: { value: 5 },
     uWhitecap: { value: 0 },
+    uStormChop:{value:0},uFoamActivity:{value:0},
     uRain: { value: 0 },
     uHsWind: { value: 0.5 },
     uWaveT: { value: 0 },
     uHull: { value: new THREE.Vector4() },
+    uHullInverse: { value: new THREE.Matrix4() },
     uHullAx: { value: new THREE.Vector4(0, -1, 0, 0) },
     uHullSeg: { value: new THREE.Vector4(2.6, 0.46, 0, 0) },
+    uHullProfile:{value:Array.from({length:65},()=>new THREE.Vector2())},
     uAmaSeg: { value: new THREE.Vector4(-2.1, -1.7, 2.1, 0.16) },
     uLantern: { value: new THREE.Vector4(0, -100, 0, 0) },
     uBio: { value: 0 },
-    uHullSpeed: { value: 0 }
+    uHullSpeed: { value: 0 },
+    uBoatMotion: { value: 0 }
   });
 
   const mat = new THREE.ShaderMaterial({
@@ -182,17 +194,23 @@ export function createOcean(renderer, scene, skyUniforms) {
       }`,
     fragmentShader: SKY_GLSL + WAVE_GLSL + /* glsl */`
       uniform sampler2D tDetail;
-      uniform vec4 uRipples[24];
+      uniform sampler2D tImportedNormal,tImportedRoughness,tFoamDetail;
+      uniform float uTextureDetail,uFoamDetail,uOpticsDetail;
+      uniform vec4 uRipples[${RIPPLE_COUNT}];
+      uniform vec2 uWaterRippleAxes[${RIPPLE_COUNT}];
+      uniform vec2 uWaterWindDir;
       uniform vec3 uBody;
       uniform vec3 uFog;
       uniform float uVis;
       uniform float uWind;
       uniform float uWhitecap;
+      uniform float uStormChop,uFoamActivity;
       uniform float uRain;
       uniform float uHsWind;
       uniform float uWaveT;
       uniform vec4 uLantern; // position, brightness
       uniform float uBio;       // darkness-weighted bioluminescence strength
+      uniform float uBoatMotion;
       uniform float uHullSpeed; // canoe speed through the water, m/s
       varying vec3 vWorld;
       varying vec2 vBase;
@@ -208,19 +226,19 @@ export function createOcean(renderer, scene, skyUniforms) {
         // Any water inside the hull's outline that stands above the gunwale line is simply not drawn
         // (below that line the depth-only lid over the canoe already hides it)
         if (uHull.w > 0.5) {
-          vec2 rel = vWorld.xz - uHull.xy;
-          float al = dot(rel, uHullAx.xy), ac = dot(rel, vec2(-uHullAx.y, uHullAx.x));
-          float sl = clamp(abs(al) / uHullSeg.x, 0.0, 1.0);
+          vec3 local = (uHullInverse * vec4(vWorld, 1.0)).xyz;
+          float sl = clamp(abs(local.z) / uHullSeg.x, 0.0, 1.0);
           float hb = uHullSeg.y * pow(max(0.0, 1.0 - pow(sl, 2.3)), 0.72);
-          float dH = max(abs(ac) - hb, abs(al) - uHullSeg.x);
-          float pl = uHull.z + al * uHullAx.z + ac * uHullAx.w;
-          if (dH < -0.015 && vWorld.y > pl + 0.08) discard;
+          if(uHullSeg.z>.5){float at=clamp((local.z/uHullSeg.x+1.)*.5*64.,0.,63.999);int ix=int(floor(at));hb=mix(uHullProfile[ix].x,uHullProfile[ix+1].x,fract(at));}
+          float dH = max(abs(local.x) - hb, abs(local.z) - uHullSeg.x);
+          if (dH < -0.012 && local.y > 0.08) discard;
         }
         vec3 toCam = cameraPosition - vWorld;
         float dist = length(toCam);
         vec3 V = toCam / dist;
 
         vec3 N = vec3(0.0, 1.0, 0.0);
+        float crestHistory=0.0,crestFresh=0.0,crestCompression=0.0;
         for (int i = 0; i < NW; i++) {
           vec4 w = uWaves[i];
           if (w.w < 1e-4) continue;
@@ -232,47 +250,121 @@ export function createOcean(renderer, scene, skyUniforms) {
           N.x -= w.x * WA * cos(ph);
           N.z -= w.y * WA * cos(ph);
           N.y -= Q * WA * sin(ph);
+          if(i<${WIND_L.length})crestCompression+=Q*WA*sin(ph);
+          // Short breaking ridges and a weaker remnant; swell height alone
+          // cannot turn an entire wave face into foam.
+          if(i<${WIND_L.length} && w.z>4.0){
+            float steep=smoothstep(.065,.16,WA);
+            float resolved=1.-smoothstep(.10,.65,length(vec2(dFdx(ph),dFdy(ph))));
+            float fresh=pow(max(0.,sin(ph)),24.);
+            float recent=pow(max(0.,sin(ph+k*c*.65)),18.)*.24;
+            float older=pow(max(0.,sin(ph+k*c*1.5)),14.)*.08;
+            crestFresh=max(crestFresh,fresh*steep*resolved);
+            crestHistory=max(crestHistory,(recent+older)*steep*resolved);
+          }
         }
         N.xz *= 1.0 - vMask;
 
         float t = uTime;
         float windK = clamp(uWind / 8.0, 0.15, 1.6);
-        vec2 s1 = slopeAt(vBase / 1.3 + vec2(t * 0.05, t * 0.031));
-        vec2 s2 = slopeAt(vBase / 4.6 + vec2(-t * 0.021, t * 0.04));
-        vec2 s3 = slopeAt(vBase / 29.0 + vec2(t * 0.007, -t * 0.004));
+        vec2 waterWind=normalize(uWaterWindDir+vec2(.00001));
+        vec2 waterCross=vec2(-waterWind.y,waterWind.x);
+        vec2 windUV=vec2(dot(vBase,waterCross),dot(vBase,waterWind));
+        vec2 s1 = slopeAt(windUV / 1.3 + vec2(t * .018, -t * .061));
+        if(uTextureDetail>.001){
+          vec2 uvA=windUV/1.3+vec2(t*.018,-t*.061);
+          vec2 uvB=vec2(-windUV.y,windUV.x)/2.1+vec2(-t*.023,t*.017);
+          vec3 authoredA=texture2D(tImportedNormal,uvA).xyz*2.-1.;
+          vec3 authoredB=texture2D(tImportedNormal,uvB).xyz*2.-1.;
+          vec2 authored=authoredA.xy/max(.45,authoredA.z)*.75+vec2(authoredB.y,-authoredB.x)/max(.45,authoredB.z)*.25;
+          s1=mix(s1,authored*1.3,uTextureDetail*.70);
+        }
+        vec2 s2 = slopeAt(windUV / 4.6 + vec2(-t * .011, -t * .033));
+        vec2 s3 = slopeAt(windUV / 29.0 + vec2(t * .004, -t * .009));
         float near = 1.0 - smoothstep(30.0, 400.0, dist);
-        vec2 slope = (s1 * 0.07 * near + s2 * 0.09 + s3 * 0.12) * windK;
+        vec2 crossChop=slopeAt(windUV/vec2(.55,.85)+vec2(t*.033,-t*.084));
+        vec2 windSlope=(s1*(.065+uStormChop*.075)*near+s2*.085+s3*.11+crossChop*uStormChop*.085*near)*windK;
+        // Fine ripples travel with the wind; unequal scales prevent a sliding tile.
+        vec2 slope=waterCross*windSlope.x+waterWind*windSlope.y;
         float gust = smoothstep(0.32, 0.78, fbm(vBase / 70.0 + vec2(t * 0.012, -t * 0.007), 3));
         slope *= mix(0.55, 1.3, gust) * mix(1.0, 0.8, smoothstep(80.0, 3000.0, dist));
 
         // Raindrops pock the surface
         if (uRain > 0.01) {
-          vec2 rr = vec2(fbm(vBase * 3.1 + t * 7.0, 2), fbm(vBase * 3.1 - t * 6.0 + 9.0, 2)) - 0.5;
-          slope += rr * 0.35 * uRain * near;
+          // Independent short-lived wavelets, filtered before they become pixels.
+          vec2 cell=floor(vBase*4.5);
+          float seed=fract(sin(dot(cell,vec2(127.1,311.7)))*43758.5453);
+          vec2 centre=.35+.30*fract(sin(vec2(dot(cell,vec2(269.5,183.3)),dot(cell,vec2(419.2,371.9))))*43758.5453);
+          vec2 rp=fract(vBase*4.5)-centre;
+          float age=fract(t*(1.6+seed*.6)+seed*7.);
+          float radius=.025+age*.29,rd=length(rp);
+          float wavelet=exp(-pow((rd-radius)/.032,2.))*(1.-age)*(1.-age)*smoothstep(0.,.08,age);
+          float footprint=max(length(dFdx(vBase)),length(dFdy(vBase)));
+          float resolved=1.-smoothstep(.012,.10,footprint);
+          slope+=rp/max(rd,.001)*wavelet*.075*min(1.,uRain)*near*resolved;
         }
 
         // Paddle and wake ripples
         vec2 rg = vec2(0.0);
+        float bioWake = 0.0;
+        float waterWakeFoam=0.0;
+        float waterPixelFootprint=max(length(dFdx(vBase)),length(dFdy(vBase)));
         float rippleFade = 1.0 - smoothstep(25.0, 70.0, dist);
         if (rippleFade > 0.0) {
-          for (int i = 0; i < 24; i++) {
+          for (int i = 0; i < ${RIPPLE_COUNT}; i++) {
             vec4 rp = uRipples[i];
             float age = uTime - rp.z;
-            if (age < 0.0 || age > 8.0) continue;
-            vec2 dv = vBase - rp.xy;
+            if (age < .0 || age > 14.0) continue;
+            vec2 drift=waterWind*age*min(uWind*.012,.28);
+            vec2 dv = vBase - rp.xy-drift;
             float d = length(dv);
-            float front = 0.9 * age + 0.04;
-            float wdt = 0.16 + 0.32 * age;
+            vec2 alongAxis=uWaterRippleAxes[i];
+            vec2 acrossAxis=vec2(-alongAxis.y,alongAxis.x);
+            vec2 q=vec2(dot(dv,acrossAxis),dot(dv,alongAxis));
+            // A widening, anisotropic disturbance stays at the place where the
+            // paddle or hull aerated the water while the canoe travels onward.
+            vec2 eddyQ=q/vec2(.18+age*.095,.24+age*.15);
+            float eddyRadius=length(eddyQ);
+            if(eddyRadius<3.2){
+              float seed=noise(rp.xy*.71);
+              float rotation=(seed>.5?1.0:-1.0);
+              float theta=atan(eddyQ.y,eddyQ.x+.0001);
+              float curl=theta*2.0+log(1.0+eddyRadius*3.0)*4.2-age*.85*rotation+seed*6.28;
+              float curlAA=clamp(waterPixelFootprint*4.0,.09,.7);
+              float filament=1.0-smoothstep(.17,.17+curlAA,abs(sin(curl)));
+              float eddyEnvelope=exp(-eddyRadius*eddyRadius*.65);
+              float fresh=(1.0-exp(-age*9.0))*exp(-age*.72);
+              float memory=(1.0-exp(-age*2.0))*exp(-age*.30)*.12;
+              bioWake+=(fresh+memory)*rp.w*19.0*eddyEnvelope*(.12+filament*.88);
+              float foamAge=(1.0-exp(-age*5.0))*exp(-age*.31);
+              float broken=.3+.7*smoothstep(.33,.69,noise(q*4.0+rp.xy*.37+vec2(age*.12,-age*.08)));
+              float rim=exp(-pow((eddyRadius-(.68+age*.025))/.20,2.0));
+              float turbulence=clamp((rp.w-.018)*9.0,.0,.9);
+              waterWakeFoam+=(rim*.7+eddyEnvelope*.13)*foamAge*broken*turbulence;
+            }
+            // Expanding capillary rings decay faster than the foam they leave.
+            if(age>8.0)continue;
+            float front = .9 * age + .04;
+            float wdt = .16 + .32 * age;
             float x = d - front;
             if (x > wdt * 2.5 || x < -wdt * 3.2) continue;
             float env = exp(-x * x / (wdt * wdt));
-            float k = 12.0 / (1.0 + age * 0.3);
-            float amp = rp.w * exp(-age * 0.45) / (1.0 + d * 0.6);
+            float k = 12.0 / (1.0 + age * .3);
+            float amp = rp.w * exp(-age * .45) / (1.0 + d * .6);
             float dh = amp * env * (k * cos(k * x) - sin(k * x) * 2.0 * x / (wdt * wdt));
             if (d > 1e-3) rg += dv / d * dh;
           }
         }
         N = normalize(N + vec3(slope.x, 0.0, slope.y) - vec3(rg.x, 0.0, rg.y) * rippleFade);
+
+        // Derivative-based specular filtering adapted from Ultra-Water (MIT,
+        // Humpalumps 2026; see shipped notices). Filter unresolved normal changes
+        // rather than letting the sun/moon sparkle into isolated aliased pixels.
+        vec3 normalDx=dFdx(N),normalDy=dFdy(N);
+        float opticalVariance=min(.25*(dot(normalDx,normalDx)+dot(normalDy,normalDy)),.18);
+        float surfaceRoughness=.5;
+        if(uTextureDetail>.001)surfaceRoughness=texture2D(tImportedRoughness,windUV/1.3).g;
+        opticalVariance=(opticalVariance*.15+surfaceRoughness*.00006*windK)*uOpticsDetail;
 
         float NdV = max(dot(N, V), 0.0);
         vec3 R = reflect(-V, N);
@@ -280,9 +372,11 @@ export function createOcean(renderer, scene, skyUniforms) {
         R = normalize(R);
         vec3 refl = skyColor(R, 0.55);
         float moonUp = smoothstep(-0.03, 0.03, uMoonDir.y);
-        refl += vec3(0.85, 0.88, 0.95) * pow(max(dot(R, uMoonDir), 0.0), 900.0) * 2.2 * uMoonLight * moonUp;
+        float moonExponent=1./(1./900.+opticalVariance);
+        refl += vec3(0.85, 0.88, 0.95) * pow(max(dot(R, uMoonDir), 0.0), moonExponent) * (moonExponent/900.) * 2.2 * uMoonLight * moonUp;
         float sunUp = smoothstep(-0.03, 0.05, uSunDir.y);
-        refl += uSunCol * pow(max(dot(R, uSunDir), 0.0), 2200.0) * 5.0 * sunUp * (1.0 - uDarkness * 0.85);
+        float sunExponent=1./(1./2200.+opticalVariance);
+        refl += uSunCol * pow(max(dot(R, uSunDir), 0.0), sunExponent) * (sunExponent/2200.) * 5.0 * sunUp * (1.0 - uDarkness * 0.85);
 
         // Fresnel, softened by the spread of wave slopes below the mesh resolution
         float F = 0.03 + 0.97 * pow(1.0 - NdV, 5.0);
@@ -300,14 +394,38 @@ export function createOcean(renderer, scene, skyUniforms) {
 
         vec3 col = mix(body, refl, F);
 
-        // Whitecaps on the crests in a fresh breeze
-        if (uWhitecap > 0.001) {
-          float crest = smoothstep(0.15, 0.75, vH / max(uHsWind * 0.5, 0.05));
-          float br = fbm(vBase / 6.0 + vec2(t * 0.15, t * 0.08), 4);
-          float foam = crest * smoothstep(1.0 - uWhitecap * 1.6, 1.0 - uWhitecap * 0.6, br) * (1.0 - smoothstep(600.0, 4000.0, dist));
-          vec3 foamCol = (uHor * 0.6 + uZen * 0.3 + uSunCol * 0.35 * lightAmt) * 1.15;
-          col = mix(col, foamCol, clamp(foam, 0.0, 0.9));
+        // Wind-aligned streaks break reflected highlights into long moving
+        // lanes. They emerge only in a breeze and remain broad enough to resolve.
+        float waterStreaks=fbm(vec2(windUV.x*.24,windUV.y*.012-t*.015),3);
+        float waterGustLanes=smoothstep(.61,.81,waterStreaks)*smoothstep(6.0,19.0,uWind);
+        float waterStreakVisibility=(1.0-smoothstep(80.0,1100.0,dist));
+        col*=1.0+waterGustLanes*.09*waterStreakVisibility;
+
+        // Broken caps belong to compressed wind crests, not the broad swell.
+        float foam=0.0,foamBillow=.5;
+        if(uFoamActivity>.001){
+          float foamPatch=fbm(windUV/vec2(1.1,2.8)+vec2(t*.025,-t*.065),3);
+          float lace=noise(windUV*1.3+vec2(t*.08,-t*.12));
+          float fragments=smoothstep(.35,.62,foamPatch)*(.4+.6*smoothstep(.3,.65,lace));
+          if(uFoamDetail>.001){
+            // Two advected phases crossfade at resets; no snapping or endless
+            // sliding texture. Existing crest energy still controls coverage.
+            float phase0=fract(t/3.5),phase1=fract(t/3.5+.5),blend=abs(phase0*2.-1.);
+            vec2 drift=waterWind*(.4+min(uWind,26.)*.09);
+            vec4 foam0=texture2D(tFoamDetail,(vWorld.xz-drift*phase0*3.5)*.36);
+            vec4 foam1=texture2D(tFoamDetail,(vWorld.xz-drift*phase1*3.5)*.36+.43);
+            vec4 foamField=mix(foam0,foam1,blend);
+            fragments*=mix(1.,mix(.60,1.2,smoothstep(.25,.80,foamField.r)),uFoamDetail);
+            foamBillow=mix(.5,foamField.g,uFoamDetail);
+          }
+          float breaking=smoothstep(.015,.15,crestCompression);
+          foam=(crestFresh*1.35+crestHistory*.35)*breaking*fragments*uFoamActivity;
+          foam*=1.-smoothstep(150.,2200.,dist);
         }
+        foam+=waterWakeFoam*rippleFade*1.55;
+        vec3 foamCol=(uHor*.8+uZen*.4+uSunCol*.24*lightAmt)*.98;
+        foamCol*=mix(1.,mix(.86,1.08,smoothstep(.10,.80,foamBillow)),uFoamDetail);
+        col=mix(col,foamCol,clamp(foam,0.,.65));
 
         // Lantern light on the water: a warm glitter path and a soft pool around the canoe
         if (uLantern.w > 0.001) {
@@ -320,16 +438,26 @@ export function createOcean(renderer, scene, skyUniforms) {
           col += warm * max(dot(N, Ln), 0.0) * fall * 0.05;
         }
 
-        // Bioluminescence: plankton flash where the water is disturbed
-        if (uBio > 0.01 && dist < 60.0) {
-          float stir = length(rg) * 9.0;
-          float band = smoothstep(0.03, 0.35, vMask) * (1.0 - smoothstep(0.55, 0.95, vMask));
-          stir += band * uHullSpeed * 0.5;
-          stir += smoothstep(0.45, 0.95, vH / max(uHsWind * 0.5, 0.05)) * uWhitecap * 1.5;
-          float grain = noise(vBase * 38.0 + vec2(uTime * 2.1, -uTime * 1.7)) * noise(vBase * 13.0 - uTime * 0.7);
-          float sparks = smoothstep(0.35, 0.8, grain) * 2.2 + 0.08;
-          float glow = uBio * stir * sparks * (1.0 - smoothstep(15.0, 45.0, dist));
-          col += vec3(0.1, 0.9, 0.8) * min(glow, 1.2) * 0.7;
+        // Plankton light traces individual disturbed filaments. It never
+        // supplies a uniform blue fill over the sea or an unbroken neon hull rim.
+        if (uBio > .01 && dist < 65.0) {
+          vec2 flow = vWorld.xz*.20+waterWind*uTime*.015;
+          float planktonPatch=smoothstep(.34,.71,fbm(flow,3));
+          vec2 hullRel=vWorld.xz-uHull.xy;
+          vec2 hullRight=vec2(-uHullAx.y,uHullAx.x);
+          float hullAlong=dot(hullRel,uHullAx.xy),hullAcross=dot(hullRel,hullRight);
+          float section=clamp(abs(hullAlong)/uHullSeg.x,.0,1.0);
+          float beam=uHullSeg.y*pow(max(.0,1.0-pow(section,2.3)),.72);
+          float edgeDistance=abs(hullAcross)-beam;
+          float contact=exp(-pow((edgeDistance-.06)/.15,2.0))*(1.0-smoothstep(2.35,2.9,abs(hullAlong)))*uHull.w;
+          float contactTravel=sin(hullAlong*3.1-uTime*2.2+hullAcross*1.8);
+          float contactPulse=smoothstep(-.15,.72,contactTravel)*smoothstep(.28,.72,noise(vec2(hullAlong*1.8-uTime*.23,hullAcross*1.4)));
+          float hullGlow=contact*contactPulse*(.12+uBoatMotion*.95+uHullSpeed*.25);
+          float breaking=smoothstep(.75,1.2,vH/max(uHsWind*.5,.05))*uWhitecap*.14*smoothstep(.6,.87,planktonPatch);
+          float luminous=(bioWake+hullGlow+breaking)*mix(.12,1.0,planktonPatch)*uBio;
+          float visible=1.0-exp(-luminous*2.1);
+          float core=pow(visible,2.5);
+          col+=vec3(.008,.38,1.0)*visible*1.25+vec3(.10,.60,1.0)*core*.65;
         }
 
         float fogF = 1.0 - exp(-dist / uVis);
@@ -368,8 +496,11 @@ export function createOcean(renderer, scene, skyUniforms) {
       waves[WIND_L.length + j].set(Math.sin(ang), -Math.cos(ang), L, ((swellHs / 2.83) * sw[j]) / sn);
     });
     uniforms.uWind.value = U;
+    uniforms.uWaterWindDir.value.set(Math.sin(windToRad),-Math.cos(windToRad));
     uniforms.uHsWind.value = hsWind;
     uniforms.uWhitecap.value = whitecap;
+    uniforms.uStormChop.value=THREE.MathUtils.smoothstep(U,10,24);
+    uniforms.uFoamActivity.value=THREE.MathUtils.clamp(whitecap/.7,0,1);
     uniforms.uRain.value = rain;
   }
 
@@ -405,8 +536,12 @@ export function createOcean(renderer, scene, skyUniforms) {
     return raw(px, pz, t, out);
   }
 
-  function addRipple(x, z, t, strength) {
+  function addRipple(x, z, t, strength, direction=null) {
     ripples[rippleNext].set(x, z, t, strength);
+    const axis=uniforms.uHullAx.value;
+    rippleAxes[rippleNext].set(direction?.x??axis.x,direction?.z??axis.y);
+    if(rippleAxes[rippleNext].lengthSq()<.001)rippleAxes[rippleNext].set(0,-1);
+    else rippleAxes[rippleNext].normalize();
     rippleNext = (rippleNext + 1) % ripples.length;
   }
 

@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {paddleDrive,createPaddleFeedback} from '../src/paddle-feedback.js';
+const calls={ripples:[],spray:[],catch:[],exit:[]};
+const feedback=createPaddleFeedback({ocean:{addRipple(...a){calls.ripples.push(a);}},spray:{emit(...a){calls.spray.push(a);}},audio:{splash(...a){calls.catch.push(a);},paddleExit(...a){calls.exit.push(a);}}});
+const event={strokeId:1,x:2,y:.1,z:3,vx:0,vz:-1,side:1,strength:.8,submerged:true};
+feedback.water({...event,phase:'catch'},0);feedback.water({...event,phase:'catch'},.01);
+assert.equal(calls.catch.length,1,'one actual catch has exactly one entry sound');
+assert.equal(calls.spray.length,1,'duplicate catch callbacks must not double the splash');
+for(let i=0;i<60;i++)feedback.water({...event,phase:'pull',z:3-i*.01},i/60);
+assert.ok(calls.ripples.length<16,'trailing disturbance is spaced by time/distance, not frame rate');
+const before=calls.ripples.length;feedback.water({...event,phase:'pull',submerged:false},2);assert.equal(calls.ripples.length,before,'air strokes must not create pull wakes');
+feedback.water({...event,phase:'exit'},2);feedback.water({...event,phase:'exit'},2.01);assert.equal(calls.exit.length,1);assert.equal(calls.spray.length,2);
+assert.equal(paddleDrive({active:true,submerged:false,drive:1}),0,'blade in air cannot propel the canoe');
+assert.equal(paddleDrive({active:true,submerged:true,drive:.7}),.7);
+assert.equal(paddleDrive({active:true,submerged:true,drive:1},false),0);
+assert.equal(paddleDrive({active:false,submerged:true,drive:1}),0);
+feedback.water({...event,strokeId:2,phase:'catch',x:NaN},3);assert.equal(calls.catch.length,1,'invalid contact cannot reach particle or audio systems');
+console.log('PASS contact-only paddle drive, one catch/exit response and bounded pull disturbance');

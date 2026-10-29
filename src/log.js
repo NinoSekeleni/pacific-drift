@@ -21,7 +21,7 @@ export function createLog() {
     if (!v.logMeta) v.logMeta = { day: dayOf(v.t), dist: v.dist, estDist: v.estDist || 0, windSum: 0, n: 0, maxPrecip: 0, fromSum: [0, 0] };
     if (!v.log.length) add(`Day 1. Set out alone from Point Nemo, ${fmtPos(v.lat, v.lng)}, the place in the ocean farthest from any land.`, 'day', v.start);
   }
-  const dayOf = (t) => Math.floor((t - v.start) / DAY) + 1;
+  const dayOf = (t) => Math.max(1, Math.floor((t - v.start) / DAY) + 1);
 
   function add(text, kind = 'note', t = v.t) {
     if (!v) return;

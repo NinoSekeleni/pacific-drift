@@ -1,0 +1,167 @@
+{
+  "updated": "2026-10-29",
+  "authorization": "User supplied downloads and requested useful assets be integrated. No new downloads or credits spent.",
+  "assets": [
+    {
+      "id": "W01",
+      "name": "Water 002",
+      "status": "active",
+      "sourceUrl": "https://3dtextures.me/2018/11/29/water-002/",
+      "license": "CC0; https://3dtextures.me/about/",
+      "usage": "1K normal + 512 roughness; linear data, repeat/mips. Normal blended with existing procedural detail, no geometry or physics replacement.",
+      "files": [
+        {
+          "file": "textures/marine/water-normal.png",
+          "sha256": "aa41065383132a71cb3f53e5972276d471221ccafaed9ffe3d5bb5141b0f0a3a"
+        },
+        {
+          "file": "textures/marine/water-roughness.png",
+          "sha256": "1d9d83e8736b6df14fb1ae9b8f89475ffff99a21985e426eebba57c54a3f20cd"
+        }
+      ]
+    },
+    {
+      "id": "M03",
+      "name": "Rough Linen",
+      "status": "active",
+      "sourceUrl": "https://polyhaven.com/a/rough_linen",
+      "license": "CC0; https://polyhaven.com/license",
+      "usage": "512 normal, rest-pose surface UVs; original white sail albedo retained. Linen roughness EXR incompatible with r169 decoder; neutral Fabric030 roughness used instead.",
+      "files": [
+        {
+          "file": "textures/marine/linen-normal.png",
+          "sha256": "311e9ad3de50c1b7d75b2e11b6e9e2006be41947fda4108ec8ef6cab3aa7b9ac"
+        }
+      ]
+    },
+    {
+      "id": "M04",
+      "name": "Fabric030",
+      "status": "active",
+      "sourceUrl": "https://ambientcg.com/view?id=Fabric030",
+      "license": "CC0; https://docs.ambientcg.com/license/",
+      "usage": "512 normal/roughness; alternate canvas weave and neutral roughness for linen.",
+      "files": [
+        {
+          "file": "textures/marine/canvas-normal.png",
+          "sha256": "24294612bb61f3fdd7f61805dea9709bcb9f66d43c87e0e1bf36b11e325097cc"
+        },
+        {
+          "file": "textures/marine/canvas-roughness.png",
+          "sha256": "b699fc1606e5a636262e036448b891f98bd0e204fe07aa17ea3da552867b30f6"
+        },
+        {
+          "file": "textures/marine/linen-roughness.png",
+          "sha256": "b699fc1606e5a636262e036448b891f98bd0e204fe07aa17ea3da552867b30f6"
+        }
+      ]
+    },
+    {
+      "id": "M05",
+      "name": "Rope001",
+      "status": "active",
+      "sourceUrl": "https://ambientcg.com/view?id=Rope001",
+      "license": "CC0; https://docs.ambientcg.com/license/",
+      "usage": "512 microdetail on original lacing; preserve rope atlas colour.",
+      "files": [
+        {
+          "file": "textures/marine/rope-normal.png",
+          "sha256": "d308450933c387a3e10e7663488f6304c59e7174f763c27df185fa3eead785ab"
+        },
+        {
+          "file": "textures/marine/rope-roughness.png",
+          "sha256": "ad890f5386da5938cc9071ffab17c052b2ab9e31fe327529185802c3cf36998c"
+        }
+      ]
+    },
+    {
+      "id": "M06",
+      "name": "Lacquered cherry wood",
+      "status": "active",
+      "sourceUrl": "https://polyhaven.com/a/lacquered_cherry_wood",
+      "license": "CC0; https://polyhaven.com/license",
+      "usage": "1K normal, 512 roughness; supplementary varnish detail only. No timber species or colour substitution.",
+      "files": [
+        {
+          "file": "textures/marine/wood-normal.png",
+          "sha256": "cfd9c2d754e1d3722c4972c0f875beb1720af7649b281115422ce56fb28c2297"
+        },
+        {
+          "file": "textures/marine/wood-roughness.png",
+          "sha256": "787ce53536a419f994dbe7d9840fce3c79d6d729dfd4e0f1d6c5ba53fe1472c6"
+        }
+      ]
+    },
+    {
+      "id": "M08",
+      "name": "Metal030",
+      "status": "prepared, inactive",
+      "sourceUrl": "https://ambientcg.com/view?id=Metal030",
+      "license": "CC0; https://docs.ambientcg.com/license/",
+      "usage": "Converted 512 maps retained for targeted hardware work; not applied to mixed wood/fittings geometry or loaded by runtime.",
+      "files": [
+        {
+          "file": "textures/marine/metal-normal.png",
+          "sha256": "ef60f350ebc9974d7d397a699408aa5001c814340e4055cb2547c5ce1a91cbe2"
+        },
+        {
+          "file": "textures/marine/metal-roughness.png",
+          "sha256": "4ff09119cc0b69aafb2400313b484bd575072c805a8eb3387267becb3c848014"
+        }
+      ]
+    },
+    {
+      "id": "N01",
+      "name": "NASA LROC moon colour map",
+      "status": "active",
+      "sourceUrl": "https://svs.gsfc.nasa.gov/4720/",
+      "license": "NASA media guidelines; https://www.nasa.gov/nasa-brand-center/images-and-media/; credit NASA\u2019s Scientific Visualization Studio",
+      "usage": "2K cylindrical runtime derivative; survey hemisphere/phase mapping. Fixed north-up, no libration. Original photograph retained as studio comparison/fallback.",
+      "files": [
+        {
+          "file": "textures/marine/moon-lroc-2k.png",
+          "sha256": "002142db78a32d2c26feb8fd699c7ac051052e1dfdff3586d476d015ff2df99f"
+        }
+      ]
+    },
+    {
+      "id": "U01",
+      "name": "Ultra-Water",
+      "status": "selected shader techniques ported",
+      "source": "Owner-supplied Ultra-Water-master.zip",
+      "license": "MIT Copyright (c) 2026 Humpalumps; original licence and third-party notices included under textures/licenses.",
+      "usage": "Standalone 512 foam bake and two-phase advection adapted; derivative variance idea adapted to existing highlight lobes. No FFT, island, terrain, caustics, underwater renderer or newer Three dependency imported."
+    }
+  ],
+  "notIntegrated": [
+    {
+      "file": "water-splash-vfx-00-free-game-resolution.zip",
+      "reason": "Inspected actual PNG: stylised blue crown and dark outline unsuitable for the realistic water. Existing physical droplets/ripples retained. Duplicate archive not used."
+    },
+    {
+      "file": "Terrain3D-main.zip",
+      "reason": "Godot terrain engine archive; requested discussion rain-normal atlas not present among image payloads. No engine installation or source import."
+    },
+    {
+      "file": "overcast_soil_puresky_4k.exr; kloofendal_48d_partly_cloudy_puresky_4k.exr",
+      "reason": "Static sky lighting references. Not substituted for changing weather/time. Current sky captured in a small decoded probe for boat reflections instead; large authoring files remain in Downloads."
+    },
+    {
+      "file": "weathered_planks_4k.blend.zip",
+      "reason": "Board layout/nails inappropriate for the supplied boat atlas. No stock wood colour replacement."
+    },
+    {
+      "file": "top-view-rope-texture-composition.jpg; gray-wet-background-raindrops-overlay-window-weather-background-drops-water-rain-glass-transparent.jpg",
+      "reason": "Photographic references, not seamless technical materials or animated lens-normal maps. Existing dynamic lens refraction retained."
+    },
+    {
+      "file": "magnific-studio-0.8.0.zip",
+      "reason": "Installer/tool package, not runtime asset. No install, execution or generation authorized/needed for this update."
+    }
+  ],
+  "validation": {
+    "tests": "All 16 test scripts passed after final code changes.",
+    "visual": "Daylight raised white sail, storm, clear night, calm rain, alternate weave and original/new studio controls reviewed. Moon inspector shows unobstructed survey surface. No browser shader warnings/errors observed.",
+    "limits": "Local desktop browser preview; real mobile GPU performance unmeasured. No claim of photorealism or full Ultra-Water renderer replacement."
+  }
+}

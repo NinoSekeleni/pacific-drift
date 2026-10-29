@@ -1,0 +1,14 @@
+{
+  "source": "User-supplied rowing-boat.zip",
+  "originalModel": "source/Rowing Boat.fbx",
+  "imported": "2026-10-28",
+  "authorization": "User asked to replace the boat and update the experience accordingly.",
+  "runtimeModel": "models/rowing-boat.glb",
+  "geometry": "14846 triangles, original proportions preserved; hull, fittings, sail, lacing and paired oars separated for animation",
+  "textures": "Supplied base colour and normal maps converted to 2048px WebP; supplied roughness and metallic maps packed into glTF channels. Height map is retained in the original archive and not used for displacement.",
+  "fit": "Hull centred on the boat axis; keel at -0.35 m; seated eye at (0,1.10,1.81) m; measured 65-point water exclusion profile.",
+  "motion": "Forward-facing push rowing with two supplied oars, fixed rowing pivots, contact-based entry/pull/exit, feathered recovery, stow/pickup and damped hull roll. Supplied cloth and lacing lower onto the boom while the mast stays fixed.",
+  "externalDownloads": false,
+  "textureMapping": "FBX V coordinates inverted during glTF conversion so base colour, normal and packed roughness/metallic all sample their original atlas regions. Sail uses the supplied white woven cloth.",
+  "materialResponse": "sRGB base-colour sampling and display encoding; separate non-metallic matte sailcloth with light transmission and restrained wet gloss. No emissive fabric lighting."
+}

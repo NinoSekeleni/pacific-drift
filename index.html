@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pacific Drift</title>
-  <meta name="description" content="Alone in an outrigger canoe at Point Nemo with a compass, a radio and the sky. Find land.">
+  <meta name="description" content="Alone in a wooden sailing rowboat at Point Nemo with a compass, a radio and the sky. Find land.">
   <meta name="theme-color" content="#0b0e10">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e10'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23efeae0' stroke-width='3'/%3E%3Cpath d='M32 14l5 18h-10z' fill='%23efeae0'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,8 +12,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Figtree:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="./src/style.css">
 </head>
-<body>
-  <canvas id="scene" aria-label="The view from the canoe"></canvas>
+<body class="at-home">
+  <canvas id="scene" tabindex="0" aria-label="The view from the boat"></canvas>
   <div id="skyLabels" class="sky-labels" hidden></div>
 
   <header class="hud-top">
@@ -32,8 +32,8 @@
     <div class="compass-readout" id="compassReadout">000°</div>
   </div>
 
-  <div class="map-wrap" id="mapWrap">
-    <canvas id="minimap" class="minimap" aria-label="Map of the canoe's position and trail"></canvas>
+  <div class="map-wrap" id="mapWrap" hidden>
+    <canvas id="minimap" class="minimap" aria-label="Map of the boat's position and trail"></canvas>
     <div class="map-tools">
       <span id="posOut" class="pos"></span>
       <button type="button" id="mapOut" aria-label="Zoom the map out">−</button>
@@ -41,10 +41,10 @@
     </div>
   </div>
 
-  <div class="controls-hud" id="controlsHud">
+  <div class="controls-hud" id="controlsHud" hidden>
     <div class="ch-status"><span id="sailOut">Sail down</span><span id="lampOut">Lantern out</span></div>
     <ul class="ch-keys">
-      <li><kbd>W</kbd> paddle</li>
+      <li><kbd>W</kbd> row</li>
       <li><kbd>A</kbd><kbd>D</kbd> steer</li>
       <li><kbd>E</kbd> sail</li>
       <li><kbd>L</kbd> lantern</li>
@@ -55,7 +55,11 @@
       <li><kbd>J</kbd> ship's log</li>
       <li><kbd>H</kbd> hide controls</li>
     </ul>
+    <a class="help-studio-link" href="?environment">Environment studio</a>
   </div>
+
+  <button type="button" id="helpToggle" class="help-toggle" aria-controls="controlsHud" aria-expanded="false">Controls <span aria-hidden="true">?</span></button>
+  <p id="playHint" class="play-hint" hidden>Drag to look · W to row · H for controls</p>
 
   <aside class="radio" id="radio" aria-hidden="true" aria-label="Radio">
     <div class="radio-head">
@@ -111,20 +115,21 @@
   </aside>
 
   <div class="touch" id="touch" hidden>
-    <div class="touch-tools" role="toolbar" aria-label="Canoe">
+    <div class="touch-tools" role="toolbar" aria-label="Boat">
       <button type="button" class="hud-btn" id="tSail">Sail</button>
       <button type="button" class="hud-btn" id="tLamp">Lantern</button>
       <button type="button" class="hud-btn" id="tRadio">Radio</button>
       <button type="button" class="hud-btn" id="tMap">Map</button>
       <button type="button" class="hud-btn" id="tStars">Stars</button>
       <button type="button" class="hud-btn" id="tLog">Log</button>
+      <button type="button" class="hud-btn" id="tSound" aria-pressed="true">Sound</button>
       <button type="button" class="hud-btn" id="tTilt" aria-pressed="false">Tilt to look</button>
     </div>
     <div class="touch-steer">
       <button type="button" class="steer-btn" data-hold="left" aria-label="Steer to port">◂</button>
       <button type="button" class="steer-btn" data-hold="right" aria-label="Steer to starboard">▸</button>
     </div>
-    <button type="button" class="paddle-btn" data-hold="paddle">Paddle</button>
+    <button type="button" class="paddle-btn" data-hold="paddle">Row</button>
   </div>
 
   <section class="overlay logbook" id="logbook" hidden>
@@ -140,31 +145,32 @@
     </div>
   </section>
 
-  <section class="overlay" id="intro">
+  <section class="overlay home" id="intro">
     <div class="panel">
-      <p class="eyebrow">48° 52′ S · 123° 23′ W</p>
+      <p class="eyebrow">South Pacific Ocean</p>
       <h1 id="introTitle">Pacific Drift</h1>
-      <p class="lede" id="introLede">You are alone in an outrigger canoe at Point Nemo, the place in the ocean farthest from any land. You have a compass, a radio and the sky, and somewhere out there is a shore.</p>
-      <p class="away" id="awayNote" hidden></p>
-      <ul class="keys">
-        <li><kbd>W</kbd> paddle</li>
-        <li><kbd>A</kbd><kbd>D</kbd> steer</li>
-        <li><kbd>E</kbd> raise or lower the sail</li>
-        <li><kbd>R</kbd> radio</li>
-        <li><kbd>L</kbd> lantern</li>
-        <li><kbd>C</kbd> star chart</li>
-        <li><kbd>N</kbd> map</li>
-        <li><kbd>Mouse</kbd> look around</li>
-        <li><kbd>M</kbd> sound</li>
-        <li><kbd>Esc</kbd> pause</li>
-      </ul>
-      <p class="fine">The sky follows your own clock, so it is day on the water when it is day where you are. The voyage runs in real time and continues while you are away. Leave the sail up and the canoe keeps sailing its heading, or lower it and the canoe drifts.</p>
-      <div class="mode-row">
-        <button id="navToggle" class="mode-toggle" type="button" aria-pressed="false">Navigator mode <span id="navState">Off</span></button>
-        <p class="fine">In navigator mode the map shows only where you reckon you are from your compass and paddling, and currents quietly carry you off it. Your true course is revealed at landfall.</p>
-      </div>
-      <button id="begin" class="begin" type="button" disabled>Begin the voyage</button>
-      <p class="fine" id="loadNote">Loading the ocean…</p>
+      <p class="lede" id="introLede">A small boat. An open ocean. Find a shore.</p>
+      <button id="begin" class="begin" type="button" disabled>Begin the voyage <span aria-hidden="true">↘</span></button>
+      <p class="fine" id="loadNote">Preparing your boat…</p>
+      <p class="fine" id="arrivalHint" hidden></p>
+      <details class="home-help" id="homeHelp">
+        <summary>How to play</summary>
+        <p>Drag to look around. Row, sail or drift toward land. Your compass, radio and the sky will help you find your bearings.</p>
+        <ul class="keys">
+          <li><kbd>W</kbd> row</li><li><kbd>A</kbd><kbd>D</kbd> steer</li>
+          <li><kbd>E</kbd> sail</li><li><kbd>R</kbd> radio</li>
+          <li><kbd>L</kbd> lantern</li><li><kbd>N</kbd> map</li>
+          <li><kbd>C</kbd> stars</li><li><kbd>J</kbd> logbook</li>
+          <li><kbd>M</kbd> sound</li><li><kbd>Esc</kbd> pause</li>
+        </ul>
+        <p class="fine">Your voyage continues while you are away. Leave the sail up to hold your heading, or lower it to drift. Your progress stays in this browser.</p>
+        <div class="mode-row">
+          <button id="navToggle" class="mode-toggle" type="button" aria-pressed="false">Navigator mode <span id="navState">Off</span></button>
+          <p class="fine">Use a dead-reckoned position. Your true course is revealed at landfall.</p>
+        </div>
+        <p class="away" id="awayNote" hidden></p>
+      </details>
+      <a id="homeStudioLink" class="home-studio-link" href="?environment">Environment studio</a>
     </div>
   </section>
 
