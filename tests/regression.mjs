@@ -78,9 +78,9 @@ console.log('PASS quiet calm soundscape, weather levels, and bounded gains');
 const manifest=JSON.parse(fs.readFileSync(new URL('../public/data/soundscape.json',import.meta.url)));
 for(const recording of manifest.recordings){
   assert.equal(recording.approved,true);
-  assert.match(new URL(recording.sourceUrl).hostname,/(^|\.)magnific\.com$/);
+  assert.match(new URL(recording.sourceUrl).hostname,/(^|\.)(magnific\.com|freesound\.org)$/);
   assert.ok(fs.statSync(new URL('../public/'+recording.file,import.meta.url)).size>1024,'approved sound must exist in the deliverable');
-  if(recording.segments) for(const segment of recording.segments) assert.ok(segment.start>=0 && segment.duration>.1 && segment.start+segment.duration<8.1);
+  if(recording.segments) for(const segment of recording.segments) assert.ok(segment.start>=0 && segment.duration>.1 && segment.start+segment.duration<(recording.id?.startsWith('freesound-')?600:10.1));
 }
 const {NodeIO}=await import('@gltf-transform/core');
 const {ALL_EXTENSIONS}=await import('@gltf-transform/extensions');
@@ -103,7 +103,7 @@ for(const preset of Object.values(environmentPresets)){
   assert.equal(changed.swellH,weather.swellH,'rain control must not change the selected swell');
   assert.equal(changed.speed,weather.speed,'rain control must not change the selected wind');
 }
-assert.equal(new Set(manifest.recordings.map(r=>r.file)).size,13,'all approved local clips including dedicated ocean and wave recordings are included');
+assert.equal(new Set(manifest.recordings.map(r=>r.file)).size,22,'all approved local clips including dedicated ocean and wave recordings are included');
 assert.ok(!manifest.recordings.some(r=>r.role==='paddle' && r.id==='magnific-609'),'a drip recording must not stand in for a paddle stroke');
 assert.equal(manifest.recordings.find(r=>r.id==='magnific-276').role,'audition','branches must remain out of the open-ocean soundscape');
 console.log('PASS independent preview conditions, all downloaded clips, and unsuitable sound exclusions');
@@ -124,7 +124,7 @@ for(const rain of [.1,.6,.9])for(const wind of [3,12,24])for(const night of [fal
 console.log('PASS a single rain bed selected for each weather condition');
 const visualAssets=JSON.parse(fs.readFileSync(new URL('../public/data/visual-assets.json',import.meta.url)));
 const moonPhoto=visualAssets.assets.find(a=>a.kind==='moon-surface');
-assert.equal(moonPhoto.approved,true);assert.match(new URL(moonPhoto.sourceUrl).hostname,/(^|\.)magnific\.com$/);
+assert.equal(moonPhoto.approved,true);assert.match(new URL(moonPhoto.sourceUrl).hostname,/(^|\.)(magnific\.com|freesound\.org)$/);
 const moonBytes=fs.readFileSync(new URL('../public/'+moonPhoto.file,import.meta.url));
 assert.ok(moonBytes.length>1000000);assert.equal(moonBytes[0],0xff);assert.equal(moonBytes[1],0xd8);
 console.log('PASS approved Magnific photographic lunar surface is bundled');

@@ -25,10 +25,12 @@ W row; A/D steer; E sail; L lantern; R radio; C constellation lines and names; N
 
 ## Equipment and close-up inspection
 
-The backpack now faces the opposite way. Owner-supplied binoculars and Sony Walkman sit at physical scale beside the radio and lantern. Click any item aboard, use **Equipment / I**, or press **F** on an item hint. Drag the model to turn it, scroll/pinch to zoom, and use Front / Back / Reset. **Put down / Escape** returns to the same voyage. The studio inspection light is independent of current weather; clones leave the boat's materials and placement intact.
+The backpack now faces the opposite way. Owner-supplied binoculars and Sony Walkman sit at physical scale beside the radio and lantern. Hovering highlights the exact item. Click to inspect; drag an item aboard to move it within the hull. Valid placements are saved with the voyage, and the GPS holder follows its tablet. Use **Inspect / I** or **F** on an item hint as alternatives. In inspection, drag to turn and scroll/pinch to zoom; secondary actions stay under Options. **Put down / Escape** returns to the same voyage. The studio inspection light is independent of current weather; clones leave the boat's materials and placement intact.
 
+- Radio and Spotify keep playing when an item is put down. A now-playing chip reopens the active device.
 - Radio: the existing live directory, tuning dial, search, country selection, volume and power. World radio and Spotify share one active audio source.
 - Walkman: the existing Spotify track/playlist/album embed, now shown with the supplied model. The original LCD surface displays connection, confirmed playback and elapsed time using Spotify IFrame API events. It never claims playback based only on a play request. Playback starts with Spotify’s own Play control after the player loads; opening an object does not force an early playback request. Spotify manages sign-in and preview/full playback; no OAuth token or new Spotify developer app is required.
+- Anbernic: Pocket Garden plus local `.gb`, `.gbc`, `.gba` and `.nes` files (64 MB limit). The selected file stays in the browser. EmulatorJS 4.2.3 loads from its official CDN only on file selection. Fullscreen and the 3D display share the same running session. Z/X, arrows, Enter and right Shift operate the fullscreen player, with touch buttons available. Reopening after putting it down retains the loaded session; refresh requires selecting the local file again.
 - Lantern: the inspection switch changes the actual saved onboard lantern state.
 - Backpack: pack or take out the small radio, binoculars and Walkman. Packed items leave the bench and remain available through the bag/equipment tray. This is saved with the voyage; the static source model does not have a working zipper animation.
 - Binoculars: **Look through** magnifies the actual world 3–8× using the camera projection, with round lens apertures. Drag/arrow keys scan the view; wheel or slider adjusts magnification. **Lower / Escape** restores the 68-degree camera and releases movement controls. No photographic placeholder view is used.
@@ -37,9 +39,13 @@ Asset conversion: `tools/prep-inspection-assets.mjs`, with a path to extracted `
 
 ## Voyage and navigation
 
+A plotted GPS passage is also shown on the HUD and mini chart, including destination, next waypoint, course, remaining distance, cross-track distance and ETA when making progress.
+
 Voyages use browser localStorage, with one-minute offline replay of the same weather and movement simulation. Sailing holds the heading; lowering the sail allows wind and current drift. Returning players see elapsed time and distance. Daily log entries are also written during replay. Navigator mode plots a dead-reckoned estimate; true and estimated tracks appear together at landfall.
 
-Live conditions is the default. The boat's coordinates request Open-Meteo atmospheric and marine model estimates every 15 minutes (or after 20 km of movement). Wind drives sailing and leeway as well as the scene and sound. Wind waves and swell use forecast significant heights, directions and periods; the same Gerstner bank drives rendering and buoyancy. These are model estimates, not observations from a sensor beside the boat. Currents remain simulated.
+Natural weather journey is the default for new settings; an existing saved mode is retained. Regional calm spells, building wind, rain, storms, clearing, fog and warmer-climate heat blend gradually over several minutes. Swell changes more slowly than wind. Journey weather is simulated and the sky follows real geographic time. The studio can preview this sequence at 20× speed, and has independent severe-storm, fog, visibility and heat/glare controls.
+
+Live conditions remains available. The boat's coordinates request Open-Meteo atmospheric and marine model estimates every 15 minutes (or after 20 km of movement). Wind drives sailing and leeway as well as the scene and sound. Wind waves and swell use forecast significant heights, directions and periods; the same Gerstner bank drives rendering and buoyancy. These are model estimates, not observations from a sensor beside the boat. Currents remain simulated.
 
 Sun, moon, phase and star orientation use actual UTC and the boat's location. The HUD clock is UTC. Clear dark skies show stars; daylight/twilight and clouds affect visibility. The moon appears only above the horizon. Cloud-free settings no longer leave residual volume/cirrus clouds.
 
@@ -291,3 +297,13 @@ Inspect opens the model with direct drag/zoom and invisible keyboard equivalents
 Startup loads the rowing boat and coastline data in parallel. Lossless native gzip packs reduce coastline transfer by 72%, the GPS catalogue by 73% and Anbernic transfer by 71% (see `public/data/startup-transfer.json`). The byte-identical originals remain as a fallback. The GPS catalogue, map paths and route worker initialize only when the tablet is selected; its unattended screen redraws more slowly. Equipment loads at most two assets at once, surface-detail downloads begin after entry, and the inspection lighting probe waits until the first item is opened. The build regenerates all transfer packs automatically. Lossless WebP copies of the lunar surface and ten material maps also remove 2.4 MB while retaining every decoded pixel. These are measured asset-byte reductions, not a claimed universal loading-time percentage.
 
 Depth and reef source/tiling options are recorded in `docs/gps-depth-and-reefs.md`; neither dataset has been downloaded or installed.
+
+## Connected water and sound update
+
+Bow-relative water height drives impacts and spray; hull wetness persists and produces runoff. Wake spacing follows distance travelled, and each oar owns its contact trail. A low-resolution planar capture adds the actual boat to water reflections (384 px at up to 24 Hz, 192 px / 12 Hz for coarse-pointer devices); Studio can disable it independently. Screen rain is stronger and gusts leave short wet films.
+
+Approved longer recordings include 9:06 sailing, 1:05 moving water, 3:00 wind, 5:12 rain/thunder and 2:56 cargo engine. Long layers use streamed media with overlapping seams and suspend when silent; they are not decoded as large startup buffers. Fabric, close water and orca breaths are separate events, and ship sound follows range and direction. The full orca recording is available only as a Studio audition; the live orca uses four isolated breathing excerpts.
+
+Sources, individual approvals and usage are in `public/data/soundscape.json`; see `ASSET-CREDITS.md` and the in-game Sound credits link. Public HQ Freesound previews retain their full recording lengths.
+
+Validation: `npm test` runs the complete suite, including journey continuity, dateline route guidance, contact-driven boat effects, streamed seams and reflection state restoration. `tools/generate-test-rom.py` creates an original NES letter-pattern ROM for browser QA; no third-party game content is included.

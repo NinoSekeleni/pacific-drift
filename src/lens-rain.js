@@ -12,12 +12,12 @@ export function createLensRain(renderer){
   const target=new THREE.WebGLRenderTarget(1,1,{depthBuffer:true,stencilBuffer:false});
   target.texture.minFilter=target.texture.magFilter=THREE.LinearFilter;
   target.texture.generateMipmaps=false;
-  const uniforms={tScene:{value:target.texture},uDrops:{value:packed},uTrails:{value:trails},uPixel:{value:new THREE.Vector2(1/1280,1/720)},uFilms:{value:filmPacked},uAspect:{value:1},uLight:{value:0},uSheet:{value:0},uTime:{value:0}};
+  const uniforms={tScene:{value:target.texture},uDrops:{value:packed},uTrails:{value:trails},uPixel:{value:new THREE.Vector2(1/1280,1/720)},uFilms:{value:filmPacked},uAspect:{value:1},uLight:{value:0},uSheet:{value:0},uTime:{value:0},uHeat:{value:0},uSun:{value:new THREE.Vector2(-10,-10)}};
   const material=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms,
     vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
     fragmentShader:`precision highp float;
-      uniform sampler2D tScene;uniform vec4 uDrops[32],uFilms[4],uTrails[32];uniform vec2 uPixel;
-      uniform float uAspect,uLight,uSheet,uTime;varying vec2 vUv;
+      uniform sampler2D tScene;uniform vec4 uDrops[32],uFilms[4],uTrails[32];uniform vec2 uPixel,uSun;
+      uniform float uAspect,uLight,uSheet,uTime,uHeat;varying vec2 vUv;
       void main(){
         vec2 bend=vec2(0.);float wet=0.,glint=0.;
         for(int i=0;i<4;i++){
@@ -52,6 +52,8 @@ export function createLensRain(renderer){
           glint+=cap*pow(max(0.,q.y*.8-q.x*.3),3.)*.14;
           glint+=cap*exp(-pow((q.y-.32)/.12,2.))*exp(-pow((q.x+.20)/.22,2.))*.10;
         }
+        float horizon=exp(-pow((vUv.y-.49)/.16,2.));
+        bend+=vec2(sin(vUv.y*220.+uTime*2.4)*.00025, sin(vUv.x*130.+uTime*1.7)*.00035)*horizon*uHeat;
         vec2 uv=clamp(vUv+bend,vec2(.002),vec2(.998));
         vec3 source=texture2D(tScene,uv).rgb;
         // Defocus within wet patches, without bending the entire scene.
@@ -62,6 +64,8 @@ export function createLensRain(renderer){
                    texture2D(tScene,clamp(uv-vec2(0.,stepUv.y),.001,.999)).rgb)*.12+source*.28;
         soft+=(texture2D(tScene,clamp(uv+stepUv,.001,.999)).rgb+texture2D(tScene,clamp(uv-stepUv,.001,.999)).rgb+texture2D(tScene,clamp(uv+vec2(stepUv.x,-stepUv.y),.001,.999)).rgb+texture2D(tScene,clamp(uv+vec2(-stepUv.x,stepUv.y),.001,.999)).rgb)*.06;
         vec3 col=mix(source,soft,clamp(wet,0.,.85));
+        col=mix(col,col*vec3(1.07,1.025,.96)+vec3(.018,.014,.006)*horizon,clamp(uHeat,0.,1.));
+        float glare=exp(-length((vUv-uSun)*vec2(uAspect,1.))*4.)*uHeat;col=mix(col,vec3(1.,.965,.85),min(.26,glare*.26));
         col+=vec3(.72,.82,.9)*min(.035,glint)*(.22+.78*uLight);
         gl_FragColor=vec4(col,1.);
       }`});
@@ -82,8 +86,9 @@ export function createLensRain(renderer){
   }
   function update(dt,rain,wind,light,time,enabled=true,options={}){
     dt=Math.max(0,Math.min(.1,dt||0));const visible=enabled;
-    uniforms.uTime.value=time;uniforms.uLight.value=light;
-    if(enabled&&options.drops!==false){budget+=Math.max(0,rain)*rainStrength*dt*(5+Math.min(12,wind*.45));while(budget>=1){const large=Math.random()<.10;add(.04+Math.random()*.92,.1+Math.random()*.85,large?.0055+Math.random()*.0025:.0018+Math.random()*.0035);budget--;}}else budget=0;
+    uniforms.uTime.value=time;uniforms.uLight.value=light;uniforms.uHeat.value=enabled?Math.max(0,options.heat||0):0;uniforms.uSun.value.set(options.sun?.x??-10,options.sun?.y??-10);
+    if(enabled&&options.drops!==false){budget+=Math.max(0,rain)*rainStrength*dt*(10+Math.min(24,wind*.8));while(budget>=1){const large=Math.random()<.25;add(.04+Math.random()*.92,.1+Math.random()*.85,large?.0055+Math.random()*.0025:.0018+Math.random()*.0035);budget--;}}else budget=0;
+    if(enabled&&options.drops!==false&&rain>.7&&wind>16&&Math.random()<dt*rain*.8)splash(.22+rain*.22);
     sheet*=Math.exp(-dt*2.2);uniforms.uSheet.value=sheet;active=false;
     for(let i=0;i<FILMS;i++){
       const f=films[i];f.age+=dt;
@@ -107,7 +112,7 @@ export function createLensRain(renderer){
       const fade=Math.min(1,d.age*15)*Math.min(1,(d.ttl-d.age)*1.5);
       packed[i].set(d.x,d.y,d.r,fade);trails[i].set(d.vx,d.v,Math.min(.065,d.v*.35),d.sliding?1:0);active=true;
     }
-    active=active&&visible;
+    active=(active||uniforms.uHeat.value>.001)&&visible;
   }
   return {resize,update,splash,clear(){for(const d of drops){d.r=0;d.ttl=0;}for(const f of films){f.r=0;f.ttl=0;}sheet=0;budget=0;active=false;},setRainStrength(v){rainStrength=Math.max(0,Math.min(2,v));},setIntensity(v){intensity=Math.max(.4,Math.min(3,v));},begin(){renderer.setRenderTarget(active?target:null);},render(){if(!active)return;renderer.setRenderTarget(null);renderer.render(scene,camera);},get active(){return active;},get dropCount(){return drops.filter(d=>d.r>0).length;}};
 }

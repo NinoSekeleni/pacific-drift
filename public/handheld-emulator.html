@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Local game player</title><style>html,body,#game{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head><body><div id="game"></div><script>
+const tell=(action,data={})=>parent.postMessage({channel:'pacific-handheld',action,...data},location.origin);
+let started=false,initialized=false;
+// The parent owns remapped controllers; prevent the embedded emulator from
+// also applying its fixed controller bindings to the same physical button.
+try{Object.defineProperty(navigator,'getGamepads',{value:()=>[],configurable:true});}catch{}
+// Retain rendered frames so they can become the handheld's live 3D texture.
+const originalContext=HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext=function(type,options){if(type==='webgl'||type==='webgl2'||type==='experimental-webgl')options={...options,preserveDrawingBuffer:true};return originalContext.call(this,type,options);};
+window.addEventListener('error',e=>{if(!started)tell('error',{message:'The emulator could not load. Check your connection or return to Demo.'});});
+window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==parent||e.data?.channel!=='pacific-handheld')return;const d=e.data,emu=window.EJS_emulator;
+  if(d.action==='load'&&!initialized){initialized=true;window.EJS_player='#game';window.EJS_core=d.core;window.EJS_gameUrl=d.url;window.EJS_gameName=d.name;window.EJS_pathtodata='https://cdn.emulatorjs.org/4.2.3/data/';window.EJS_startOnLoaded=true;window.EJS_volume=d.sound?.5:0;window.EJS_VirtualGamepadSettings=[];window.EJS_Buttons={playPause:false,restart:false,mute:false,settings:false,fullscreen:false,saveState:false,loadState:false,screenRecord:false,gamepad:false,cheat:false,volume:false,saveSavFiles:false,loadSavFiles:false,quickSave:false,quickLoad:false,screenshot:false,cacheManager:false,exitEmulation:false};
+    window.EJS_onGameStart=()=>{started=true;document.querySelector('canvas')?.focus();tell('ready');};
+    const script=document.createElement('script');script.src=window.EJS_pathtodata+'loader.js';script.onerror=()=>tell('error',{message:'The emulator download failed. Check your connection and reload your game.'});document.body.append(script);return;
+  }
+  if(!started||!emu)return;
+  try{
+    if(d.action==='input'){if(emu.paused)emu.play();emu.gameManager.simulateInput(0,d.index,d.value);}
+    if(d.action==='pause')emu.pause();
+    if(d.action==='resume')emu.play();
+    if(d.action==='reset')emu.gameManager.restart();
+    if(d.action==='volume')emu.setVolume(d.sound?.5:0);
+    if(d.action==='save')tell('saved',{state:emu.gameManager.getState()});
+    if(d.action==='restore'){emu.gameManager.loadState(d.state);tell('restored');}
+  }catch(error){tell('error',{message:'This emulator action failed. Try reloading the game file.'});}
+});
+</script></body></html>

@@ -1,19 +1,20 @@
 // Mini chart: where on Earth the canoe is, with its trail, drawn over real coastlines.
-const ZOOMS = [400, 1500, 5000, 14000]; // km across
+import {routeSamples} from './voyage-guidance.js';
+const ZOOMS = [5,25,100,400,1500,5000,14000]; // km across
 
 export function createMinimap(canvas, land) {
   const ctx = canvas.getContext('2d');
-  let zoom = 2;
+  let zoom = 5;
   let last = 0;
 
-  function draw(voyage) {
+  function draw(voyage,gps) {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = canvas.clientWidth, H = canvas.clientHeight;
     if (!W) return;
     if (canvas.width !== Math.round(W * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // Navigator mode plots only the dead-reckoning estimate; the true position stays hidden
-    const nav = voyage.nav && voyage.est;
+    const route=gps?.route||voyage.gps?.route;const nav = voyage.nav && voyage.est&&!route;
     const lat0 = nav ? voyage.est.lat : voyage.lat, lng0 = nav ? voyage.est.lng : voyage.lng;
     const kmAcross = ZOOMS[zoom];
     const kx = Math.cos((lat0 * Math.PI) / 180);
@@ -75,6 +76,9 @@ export function createMinimap(canvas, land) {
       ctx.strokeStyle = 'rgba(239,234,224,0.9)';
       ctx.strokeRect(sx - 3, sy - 3, 6, 6);
     }
+    if(route?.points?.length){
+      const leg=gps?.state?.leg||route.leg||1,points=routeSamples([{lat:lat0,lng:lng0},...route.points.slice(leg)]);ctx.strokeStyle='#efce8c';ctx.lineWidth=2;ctx.beginPath();let prev=null;for(const p of points){const [x,y]=P(p.lat,p.lng);if(!prev||Math.abs(x-prev[0])>W)ctx.moveTo(x,y);else ctx.lineTo(x,y);prev=[x,y];}ctx.stroke();for(let i=leg;i<route.points.length;i++){const [x,y]=P(route.points[i].lat,route.points[i].lng);ctx.fillStyle='#f1d18f';ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fill();ctx.font='10px sans-serif';ctx.fillText(String(i),x+6,y-5);}
+    }
     // Canoe with heading
     const h = (voyage.heading * Math.PI) / 180;
     ctx.save();
@@ -95,11 +99,11 @@ export function createMinimap(canvas, land) {
   }
 
   return {
-    update(voyage, force) {
+    update(voyage, force, gps) {
       const now = performance.now();
       if (!force && now - last < 1000) return;
       last = now;
-      draw(voyage);
+      draw(voyage,gps);
     },
     zoom(dir) { zoom = Math.max(0, Math.min(ZOOMS.length - 1, zoom + dir)); last = 0; }
   };

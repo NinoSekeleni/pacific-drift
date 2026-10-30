@@ -22,6 +22,8 @@ import { createRadio } from './radio.js';
 import { createCompass } from './compass.js';
 import { drawVoyageChart } from './landfall.js';
 import { createMinimap } from './minimap.js';
+import {createBoatReflections} from './boat-reflections.js';
+import {createBoatWater} from './boat-water.js';
 import { createSpray } from './spray.js';
 import { createLog } from './log.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -35,6 +37,8 @@ import {skyTime,skyDescription} from './world-clock.js';
 import {createEquipmentInspection,EQUIPMENT} from './equipment-inspection.js';
 import {createGPS} from './gps.js';
 import {createAnbernic} from './anbernic.js';
+import {journeyWeather} from './weather-journey.js';
+import {createVoyageGuidance} from './voyage-guidance.js';
 import {onceLoader,loadPackedJSON,loadPackedModel} from './asset-loading.js';
 import {createBinoculars} from './binoculars.js';
 
@@ -120,7 +124,7 @@ const meteors=createMeteors(scene);
 meteors.setCloudTexture(sky.uniforms.tClouds.value);
 const fronts=createWeatherFronts(scene);
 const wildlife = createWildlife(scene,ocean,{base:BASE});
-const whales = createMarineEncounters(scene,ocean,{base:BASE,register:root=>marineLighting.register(root),isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
+const whales = createMarineEncounters(scene,ocean,{base:BASE,register:root=>marineLighting.register(root),onShip(position){if(!position){audio.ship();return;}const d=position.clone().sub(camNear.position),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),range=d.length();audio.ship(range,d.dot(right)/Math.max(1,range));},onSound(event){if(event.type==='surface'&&event.kind==='orca')return;const d=new THREE.Vector3(event.x,event.y,event.z).sub(camNear.position),range=d.length(),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),strength=Math.min(.75,event.size/12)*Math.pow(25/Math.max(25,range),1.3);if(strength>.015)audio.marine(event.type==='breath'?'orca':event.kind,strength,d.dot(right)/Math.max(1,range));},isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
 const canoe = createCanoe(scene);
 const paddlerHands=createPaddlerHands(canoe.group);
 const hullRain = createHullRain(canoe);
@@ -172,10 +176,11 @@ let returningVoyage=false,playHintShown=false;
 let landfallShown = false;
 const simCache = {};
 const liveWeather=createLiveWeather();
-let conditionsMode='live';
-try{if(localStorage.getItem('pacific-drift-conditions-mode')==='experience')conditionsMode='experience';}catch{}
+let conditionsMode='journey';
+try{const saved=localStorage.getItem('pacific-drift-conditions-mode');if(['live','experience','journey'].includes(saved))conditionsMode=saved;}catch{}
 const liveEnabled=()=>!PREVIEW&&conditionsMode==='live'&&!(DEBUG&&params.has('time'));
 simCache.resolveWeather=(fallback,lat,lng,t)=>{
+  if(!PREVIEW&&conditionsMode==='journey')return journeyWeather(fallback,lat,lng,t,voyage?.start??t,(voyage?.start??1)|0,voyage.weatherClimateLat??(voyage.weatherClimateLat=lat));
   if(!liveEnabled())return fallback;
   const data=liveWeather.sample(lat,lng,t);
   return {...fallback,...data.atmosphere,...data.marine};
@@ -183,11 +188,11 @@ simCache.resolveWeather=(fallback,lat,lng,t)=>{
 for(const id of ['conditionsMode','homeConditionsMode']){
   $(id).value=conditionsMode;
   $(id).addEventListener('change',event=>{
-    conditionsMode=event.target.value==='experience'?'experience':'live';
+    conditionsMode=['experience','journey'].includes(event.target.value)?event.target.value:'live';
     for(const other of ['conditionsMode','homeConditionsMode'])$(other).value=conditionsMode;
     try{localStorage.setItem('pacific-drift-conditions-mode',conditionsMode);}catch{}
     if(voyage&&liveEnabled())liveWeather.refresh(voyage.lat,voyage.lng);
-    toast(conditionsMode==='live'?'Real-world time and regional forecasts.':'Experience mode: your local time and simulated weather.');
+    toast(conditionsMode==='live'?'Real-world time and regional forecasts.':conditionsMode==='journey'?'A regional weather journey, with gradual changes.':'Experience mode: your local time and simulated weather.');
   });
 }
 if(PREVIEW){$('conditions').hidden=true;}
@@ -204,7 +209,7 @@ const radio = createRadio({
 });
 
 /* ---------- Equipment: one model, a close-up view, and real controls ---------- */
-const anbernic=createAnbernic({getVoyage:()=>voyage,save:saveVoyage});
+const anbernic=createAnbernic({base:BASE,getVoyage:()=>voyage,save:saveVoyage});
 const gps=createGPS({base:BASE,getVoyage:()=>voyage,getConditions:()=>cond,save:saveVoyage,toast});
 const prepareGPS=onceLoader(async()=>{gps.loading();const chart=await loadPackedJSON(BASE+'data/navigation-world.json');gps.setup(land,chart,gpsLandData);});let gpsLandData=null;
 inspection=createEquipmentInspection({renderer,radio,gps,anbernic,onSelect:id=>{if(id==='gps')prepareGPS().catch(()=>toast('Chart could not load. Open the GPS to retry.'));},getTapeState:()=>boatProps?.tapeState??{phase:0},
@@ -219,6 +224,9 @@ binoculars=createBinoculars({
   onLower(){const root=boatProps?.getRoot('binoculars');if(root)root.visible=!boatProps.isStowed('binoculars');camNear.fov=camFar.fov=68;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();},
   onAim(dx,dy,zoom){look(dx,dy,.004/zoom);}
 });
+const guidance=createVoyageGuidance({onChart(){ $('mapWrap').hidden=!$('mapWrap').hidden;},onInspect:()=>inspectEquipment('gps')});
+const playingChip=document.createElement('button');playingChip.className='now-playing';playingChip.hidden=true;playingChip.onclick=()=>inspectEquipment(radio.mediaState().mode==='TAPE'?'walkman':'radio');document.body.append(playingChip);
+let previousRoute=null;
 function inspectEquipment(name='backpack'){if(!started||paused||worldArrival?.active)return;binoculars.close();inspection.open(name);}
 $('equipmentToggle').addEventListener('click',()=>inspectEquipment());
 
@@ -255,20 +263,27 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('pointerlockerror', () => { dragMode = true; });
 document.addEventListener('mousemove', (e) => {
-  if(inspection.active||binoculars.active)return;
+  if(inspection.active||binoculars.active||heldItem)return;
   if (locked) look(e.movementX, e.movementY, 0.0021);
   else if (dragging) { look(e.clientX - lastX, e.clientY - lastY, 0.0042); lastX = e.clientX; lastY = e.clientY; }
 });
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();pointerPosition={x:e.clientX-r.left,y:e.clientY-r.top};});
 canvas.addEventListener('pointerleave',()=>{pointerPosition=null;itemUnderPointer=null;});
-let itemTap=null;
-canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')itemTap={x:e.clientX,y:e.clientY};});
-canvas.addEventListener('pointerup',e=>{if(e.pointerType==='touch'&&itemTap&&Math.hypot(e.clientX-itemTap.x,e.clientY-itemTap.y)<9&&started&&!paused&&!inspection.active&&!binoculars.active){const r=canvas.getBoundingClientRect();boatProps?.interact(camNear,e.clientX-r.left,e.clientY-r.top,r.width,r.height);}itemTap=null;});
+let heldItem=null;
+canvas.addEventListener('pointerdown',e=>{
+ if(e.button!==0||!started||paused||inspection.active||binoculars.active)return;
+ const r=canvas.getBoundingClientRect(),name=boatProps?.pick(camNear,locked?r.width/2:e.clientX-r.left,locked?r.height/2:e.clientY-r.top,r.width,r.height);if(!name)return;
+ heldItem={name,x:e.clientX,y:e.clientY,moved:false,yaw:boatProps.getRoot(name)?.rotation.y||0};dragging=false;keys.clear();
+ if(locked){dragMode=true;document.exitPointerLock();}canvas.setPointerCapture(e.pointerId);e.preventDefault();
+});
+canvas.addEventListener('pointermove',e=>{if(!heldItem)return;const r=canvas.getBoundingClientRect();if(Math.hypot(e.clientX-heldItem.x,e.clientY-heldItem.y)>6)heldItem.moved=true;if(heldItem.moved){const p=boatProps.dragPoint(camNear,e.clientX-r.left,e.clientY-r.top,r.width,r.height);if(p)boatProps.move(heldItem.name,p.x,p.z,heldItem.yaw);}});
+canvas.addEventListener('pointerup',e=>{if(!heldItem)return;const held=heldItem;heldItem=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(!held.moved)inspectEquipment(held.name);else saveVoyage(voyage);});
+canvas.addEventListener('pointercancel',()=>{heldItem=null;dragging=false;});
 canvas.addEventListener('mousedown', (e) => {
-  if (!started || paused || inspection.active || binoculars.active) return;
+  if (!started || paused || inspection.active || binoculars.active || heldItem) return;
   if (radio.open) { radio.setOpen(false); }
   const rect=canvas.getBoundingClientRect();
-  if(boatProps?.interact(camNear,locked?rect.width/2:e.clientX-rect.left,locked?rect.height/2:e.clientY-rect.top,rect.width,rect.height))return;
+
   if (!locked && !dragMode) { requestLock(); return; }
   if (dragMode) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
 });
@@ -298,7 +313,7 @@ function toggleRadio() {
 }
 
 window.addEventListener('keydown', (e) => {
-  if(inspection.active||binoculars.active)return;
+  if(inspection.active||binoculars.active||heldItem)return;
   if (e.target?.closest('input,textarea,select,button,.environment-panel')) return;
   if (!$('logbook').hidden && (e.code === 'Escape' || e.code === 'KeyJ')) { openLog(false); return; }
   if (!started || paused) {
@@ -328,13 +343,14 @@ window.addEventListener('blur', () => keys.clear());
 // Touch: on-screen controls plus drag to look
 const lookTouch = { id: null, x: 0, y: 0 };
 window.addEventListener('touchstart', (e) => {
-  if (!started || paused) return;
+  if (!started || paused || heldItem) return;
   for (const t of e.changedTouches) {
     if (t.target.closest && t.target.closest('.touch, .radio, .hud-btn')) continue;
     if (lookTouch.id === null) { lookTouch.id = t.identifier; lookTouch.x = t.clientX; lookTouch.y = t.clientY; }
   }
 }, { passive: true });
 window.addEventListener('touchmove', (e) => {
+  if(heldItem)return;
   for (const t of e.changedTouches) {
     if (t.identifier === lookTouch.id) {
       if (tilt && tilt.yaw0 !== null) tilt.yaw0 += (t.clientX - lookTouch.x) * 0.005;
@@ -517,13 +533,15 @@ $('newVoyage').addEventListener('click', () => {
 let origin = null;
 let islands = null;
 const sm = {};
-const SMOOTH_KEYS = ['cover', 'precip', 'dark', 'cirrus', 'cloudBase', 'cloudTop', 'visibility', 'gradE', 'gradN', 'speed', 'u', 'v', 'swellH'];
+const SMOOTH_KEYS = ['cover', 'precip', 'dark', 'cirrus', 'cloudBase', 'cloudTop', 'visibility', 'gradE', 'gradN', 'speed', 'u', 'v', 'swellH','heat','temperature'];
 const tmpLocal = {};
 const eyePos = new THREE.Vector3(), paddlerLocalEye=new THREE.Vector3(), eyeQuat = new THREE.Quaternion(), lookQuat = new THREE.Quaternion(), lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const fwd = new THREE.Vector3();
 const lampPos = new THREE.Vector3();
 let lanternOn = false;
-let flash = 0, lastHeaveSign = 0, lapCool = 0, wakeDist = 0;
+const boatWater=createBoatWater({canoe,ocean,spray,lensRain,audio});
+const boatReflections=createBoatReflections(renderer,scene,canoe,ocean,{mobile:isTouch});
+let flash = 0;
 let minimap = null;
 const sunV = new THREE.Vector3(), moonV = new THREE.Vector3();
 
@@ -594,13 +612,14 @@ function frame() {
   }
   if (voyage.landfall && !landfallShown && land) showLandfall();
 
-  let w = environment ? {...cond.w,...previewWeather(environment)} : DEBUG && window.__sea ? { ...cond.w, ...window.__sea } : cond.w;
+  let w = environment ? (environment.journey?journeyWeather(cond.w,voyage.lat,voyage.lng,environment.journeyStart+(tNow-environment.journeyStart)*20,environment.journeyStart,12345):{...cond.w,...previewWeather(environment)}) : DEBUG && window.__sea ? { ...cond.w, ...window.__sea } : cond.w;
   if(environment?.fronts && fronts.previewing){
     const influence=fronts.influence,dir=fronts.windDirection;
     w={...w,cover:Math.max(w.cover,influence.cover),precip:Math.max(w.precip,influence.rain),dark:Math.max(w.dark,influence.darkness),u:w.u+dir.u*influence.windBoost,v:w.v+dir.v*influence.windBoost};
     w.speed=Math.hypot(w.u,w.v);w.from=(Math.atan2(-w.u,-w.v)/DEG+360)%360;
   }
   const kS = firstFrame ? 1 : 1 - Math.exp(-dt / 3);
+  w.heat=Number.isFinite(w.heat)?w.heat:0;w.temperature=Number.isFinite(w.temperature)?w.temperature:20;
   for (const k of SMOOTH_KEYS) sm[k] = sm[k] === undefined ? w[k] : sm[k] + (w[k] - sm[k]) * kS;
   // Interpolate bearings across north; marine height/period stay optional when offline.
   for(const key of ['from','swellFrom','windWaveFrom']){
@@ -645,11 +664,11 @@ function frame() {
   su.uHor.value.set(...hor);
   su.uGlow.value.set(...p.glow.map((v) => v * (1 - greyMix)));
   su.uSunCol.value.set(...p.sun.map((v) => v * (1 - 0.55 * dark)));
-  su.uStars.value = p.star * (1 - moonLight * 0.35) * (environment?.starStrength ?? 1);
+  su.uStars.value = p.star * smoothstep(250,2400,sm.visibility) * (1 - moonLight * 0.35) * (environment?.starStrength ?? 1);
   su.uMoonLight.value = moonLight;
   su.uMoonRadius.value=.0085*(environment?.moonScale ?? 1.5);
   su.uUseLunarMap.value=environment?.lunarSurvey===false?0:1;
-  su.uDarkness.value = dark;
+  su.uDarkness.value = dark;su.uSeaFog.value=1-smoothstep(350,2400,sm.visibility);
 
   /* ----- Lightning in heavy squalls ----- */
   const stormy = Math.max(0, Math.min(1, (sm.precip - 0.35) * 1.6)) * Math.max(0, Math.min(1, (dark - 0.25) * 2));
@@ -710,7 +729,7 @@ function frame() {
   /* ----- Canoe and paddler ----- */
   const relWind = ((((w.from - voyage.heading) % 360) + 540) % 360) - 180;
   canoe.update({
-    x: bx, z: bz, headingDeg: voyage.heading, rain: sm.precip,
+    x: bx, z: bz, headingDeg: voyage.heading, rain: Math.max(sm.precip,boatWater.wetness),
     paddling: !!cond.input.paddleRequested,paddleTimeScale:(environment?.paddleSlow ? .3 : 1), sailUp: voyage.sail,
     apparentFromRel: relWind, windSpeed: sm.speed, lantern: lanternOn,
     t: elapsed, dt, rawDt, waveT: waveTime, ocean,
@@ -720,36 +739,15 @@ function frame() {
   canoe.eye(eyePos, eyeQuat);
   paddlerHands.update(dt,canoe.getPaddlePose(),{seat:canoe.seat,eye:canoe.group.worldToLocal(paddlerLocalEye.copy(eyePos)),visible:started&&!paused&&!window.__cam&&!window.__moonCam&&!window.__birdCam&&(!environment||environment.hands)});
   hullRain.update(dt,Math.min(1,sm.precip),hor,{enabled:environment?.boatImpacts!==false,strength:environment?.rainImpactStrength??1});
-  boatProps?.update(dt,Math.min(1,sm.precip),radio.mediaState());gps.update(dt,elapsed);anbernic.update(dt,elapsed);
+  boatProps?.update(dt,Math.min(1,Math.max(sm.precip,boatWater.wetness)),radio.mediaState());gps.update(dt,elapsed);anbernic.update(dt,elapsed);guidance.update(voyage,gps.route,gps.state,started&&!paused&&!inspection.active&&!binoculars.active&&!worldArrival?.active);if(gps.route!==previousRoute){previousRoute=gps.route;if(gps.route)$('mapWrap').hidden=false;}const music=radio.mediaState(),audible=music.on&&(music.mode==='TAPE'?music.spotify.playing:music.status.toLowerCase().includes('on air'));playingChip.hidden=!audible||!started||paused||inspection.active;playingChip.textContent=music.mode==='TAPE'?'♫ Spotify':'♫ '+(music.station||'Radio');
 
   /* ----- Glowing water, wake, spray and hull sounds ----- */
   const bio = (environment && !environment.bio ? 0 : 1) * smoothstep(0.02, -0.12, sunV.y) * (1 - 0.35 * moonLight) * (environment?.bioStrength ?? 1.8);
   ou.uBio.value = environment && !environment.bio ? 0 : bio;
   ou.uHullSpeed.value = voyage.speed;
-  const hq = voyage.heading * DEG;
-  const fX = Math.sin(hq), fZ = -Math.cos(hq), rX = Math.cos(hq), rZ = Math.sin(hq);
-  wakeDist += voyage.speed * dt;
-  if (wakeDist > 0.7) {
-    // Bow wave peeling off both sides, which lights up at night
-    wakeDist = 0;
-    for (const side of [-1, 1]) ocean.addRipple(bx + fX * 2.2 + rX * 0.5 * side, bz + fZ * 2.2 + rZ * 0.5 * side, elapsed, 0.025 + voyage.speed * 0.012);
-  }
   const heaveRateNow = (canoe.heave - prevHeave) / Math.max(dt, 1e-3);
   ou.uBoatMotion.value = Math.min(1.5, Math.abs(heaveRateNow)*.65);
-  const sign = Math.sign(heaveRateNow);
-  lapCool -= dt;
-  if (sign !== lastHeaveSign && Math.abs(heaveRateNow) > 0.12 && lapCool <= 0) {
-    audio.lap(Math.min(1.4, Math.abs(heaveRateNow) * 1.5));
-    lapCool = 0.5;
-    // Bow slams into a sea: spray
-    if (heaveRateNow < -0.35 || voyage.speed > 1.8) {
-      const n = Math.round(10 + Math.abs(heaveRateNow) * 25 + voyage.speed * 6);
-      hullRain.splash(Math.min(1.8,Math.abs(heaveRateNow)*.25));
-      if (started && !window.__cam && Math.random() < .35) lensRain.splash(Math.min(1.4, Math.abs(heaveRateNow)*.22));
-      spray.emit(bx + fX * 2.5, canoe.heave + 0.25, bz + fZ * 2.5, fX * voyage.speed * 0.6 + rX * 0.8, 1.8 + Math.abs(heaveRateNow), fZ * voyage.speed * 0.6 + rZ * 0.8, n, 1.2);
-    }
-  }
-  lastHeaveSign = sign;
+  boatWater.update(dt,waveTime,voyage.speed,sm.precip,{view:started&&!paused&&!window.__cam&&!window.__birdCam});
   if (Math.random() < dt * Math.max(0,sm.speed-5)*.002) audio.creak(0.4 + Math.random() * 0.4);
   audio.setLantern(lanternOn ? 1 : 0);
   spray.update(dt, hor, bio,waveTime);
@@ -822,7 +820,7 @@ function frame() {
   seaRain.update(dt,camNear.position,Math.min(1,sm.precip),hor,waveTime,{enabled:environment?.seaImpacts!==false,strength:environment?.rainImpactStrength??1});
   const heaveRate = (canoe.heave - prevHeave) / Math.max(dt, 1e-3);
   prevHeave = canoe.heave;
-  audio.update(sm.speed, Math.hypot(sm.swellH,ocean.hsWind), Math.min(1, sm.precip), heaveRate, nightNow);
+  audio.update(sm.speed, Math.hypot(sm.swellH,ocean.hsWind), Math.min(1, sm.precip), heaveRate, nightNow,{sail:voyage.sail});
   radio.update(dt);
 
   fwd.set(0, 0, -1).applyQuaternion(camNear.quaternion);
@@ -842,15 +840,15 @@ function frame() {
     }
     updateLandDistance(elapsed);
     const d = new Date(environment||conditionsMode==='experience'?skyT+voyage.lng/15*3600e3:tNow);
-    $('clockOut').textContent = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}${!environment&&conditionsMode==='live'?' UTC':''}`;
+    $('clockOut').textContent = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}${!environment&&conditionsMode!=='experience'?' UTC':''}`;
     if(!environment){
       const status=liveWeather.status(voyage.lat,voyage.lng,tNow);
       const simulated=!liveEnabled();
-      $('conditionsSummary').textContent=simulated?'Experience · simulated':status.weather==='live'&&status.marine==='live'?'Live conditions':status.weather==='cached'||status.marine==='cached'?'Cached forecast':status.pending?'Connecting to weather…':status.weather==='live'?'Live weather · simulated sea':'Simulated conditions';
+      $('conditionsSummary').textContent=conditionsMode==='journey'?(w.journeyName||'Natural weather journey'):simulated?'Experience · simulated':status.weather==='live'&&status.marine==='live'?'Live conditions':status.weather==='cached'||status.marine==='cached'?'Cached forecast':status.pending?'Connecting to weather…':status.weather==='live'?'Live weather · simulated sea':'Simulated conditions';
       $('conditionsValues').textContent=`Cloud ${Math.round(sm.cover*100)}% · wind ${(sm.speed*1.944).toFixed(0)} kn · ${Number.isFinite(w.waveH)?'combined sea '+w.waveH.toFixed(1):'swell '+sm.swellH.toFixed(1)} m`;
       $('conditionsSky').textContent=skyDescription(e,bodies.moon.alt/DEG,bodies.illum);
       const stamp=time=>time?new Date(time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC':'unavailable';
-      $('conditionsSource').textContent=simulated?'Simulated weather. The sky follows your local clock.':`Atmosphere: ${status.weather==='live'?'regional forecast':status.weather==='cached'?'cached forecast':'simulated'} (checked ${stamp(status.weatherTime)}). Sea: ${status.marine==='live'?'marine forecast':status.marine==='cached'?'cached forecast':'simulated'} (checked ${stamp(status.marineTime)}). Ocean currents are simulated.`;
+      $('conditionsSource').textContent=conditionsMode==='journey'?'Simulated regional weather journey. The sky follows real geographic time.':simulated?'Simulated weather. The sky follows your local clock.':`Atmosphere: ${status.weather==='live'?'regional forecast':status.weather==='cached'?'cached forecast':'simulated'} (checked ${stamp(status.weatherTime)}). Sea: ${status.marine==='live'?'marine forecast':status.marine==='cached'?'cached forecast':'simulated'} (checked ${stamp(status.marineTime)}). Ocean currents are simulated.`;
     }
     $('dayOut').textContent = `Day ${Math.max(1,Math.floor((tNow - voyage.start) / 864e5) + 1)}`;
     $('sailOut').textContent = voyage.sail ? 'Sail up' : 'Sail down';
@@ -860,9 +858,10 @@ function frame() {
     const shown = voyage.nav && voyage.est ? voyage.est : voyage;
     $('posOut').textContent = `${voyage.nav ? 'Est. ' : ''}${Math.abs(shown.lat).toFixed(2)}° ${shown.lat < 0 ? 'S' : 'N'}  ${Math.abs(shown.lng).toFixed(2)}° ${shown.lng < 0 ? 'W' : 'E'}`;
   }
+  if(environment?.journey){const status=document.getElementById('journeyStatus');if(status)status.textContent=w.journeyName||'Weather journey';}
   sky.updateLabels(camNear, window.innerWidth, window.innerHeight);
 
-  if (minimap && !$('mapWrap').hidden) minimap.update(voyage);
+  if (minimap && !$('mapWrap').hidden) minimap.update(voyage,false,gps);
   if (elapsed - lastSave > 15) { lastSave = elapsed; saveVoyage(voyage); }
 
   // Item selection shares the moving boat transform; locked view uses its centre.
@@ -872,15 +871,18 @@ function frame() {
     itemUnderPointer=boatProps?.pick(camNear,p.x,p.y,r.width,r.height)??null;
   }
   $('itemHint').hidden=!itemUnderPointer||inspection.active||binoculars.active;
-  if(itemUnderPointer)$('itemHint').textContent='Inspect';
+  boatProps?.highlight(heldItem?.name||itemUnderPointer);
+  if(itemUnderPointer)$('itemHint').textContent='Inspect '+({gps:'GPS',anbernic:'Anbernic',walkman:'Walkman'}[itemUnderPointer]||itemUnderPointer);
   if(inspection.active){inspection.render(dt);firstFrame=false;return;}
 
   /* ----- Render ----- */
   sky.renderClouds(firstFrame);
   marineLighting.update(elapsed,environment?.skyReflections!==false);
-  lensRain.setIntensity(environment?.screenWaterStrength ?? 1.7);
-  lensRain.setRainStrength(environment?.rainDropStrength??1);
-  lensRain.update(dt, Math.min(1,sm.precip),sm.speed,Math.max(.02,sunUp),elapsed,started && !paused && !window.__cam && !window.__birdCam,{drops:environment?.screenDrops!==false});
+  const glareSun=new THREE.Vector3().copy(sunV).multiplyScalar(1000).add(camNear.position).project(camNear),sunForward=new THREE.Vector3(0,0,-1).applyQuaternion(camNear.quaternion).dot(sunV);if(sunForward<=0||sunV.y<0)glareSun.set(-10,-10,0);else glareSun.set(glareSun.x*.5+.5,glareSun.y*.5+.5,0);
+  lensRain.setIntensity(environment?.screenWaterStrength ?? 2.2);
+  lensRain.setRainStrength(environment?.rainDropStrength??1.5);
+  lensRain.update(dt, Math.min(1,sm.precip),sm.speed,Math.max(.02,sunUp),elapsed,started && !paused && !window.__cam && !window.__birdCam,{drops:environment?.screenDrops!==false,heat:sm.heat||0,sun:glareSun});
+  boatReflections.update(camNear,elapsed,{enabled:started&&!paused&&environment?.hullReflections!==false});
   lensRain.begin();
   renderer.clear();
   renderer.render(scene, camFar);
@@ -928,7 +930,7 @@ async function boot() {
     try {
       const r = canoe.applyRowingBoat(g.scene);
       marineBoat=g.scene;
-      boatProps=createBoatProps(canoe,{base:BASE,gps,anbernic,onInspect:inspectEquipment,onAsset:(id,root)=>inspection.register(id,root),register:root=>marineLighting.register(root)});
+      boatProps=createBoatProps(canoe,{base:BASE,gps,anbernic,layout:voyage.equipmentLayout||{},onMove:(name,pose)=>{(voyage.equipmentLayout??={})[name]=pose;},onInspect:inspectEquipment,onAsset:(id,root)=>inspection.register(id,root),register:root=>marineLighting.register(root)});
       for(const id of voyage.stowedEquipment||[])boatProps.setStowed(id,true);
       marineLighting.register(marineBoat);
       if(marineAssets)marineReview.materials=applyMarineDetails(marineBoat,marineAssets);

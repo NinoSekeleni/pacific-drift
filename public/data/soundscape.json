@@ -96,13 +96,13 @@
     },
     {
       "id": "magnific-211",
-      "role": "wind",
+      "role": "audition",
       "file": "audio/magnific/strong-winds-211.mp3",
       "sourceUrl": "https://www.magnific.com/audio/sound-effects/strong-winds/211",
       "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
       "approved": true,
       "approval": "User explicitly approved Download this clip in this chat on 2026-10-28.",
-      "loop": true,
+      "loop": false,
       "gain": 0.7,
       "name": "Strong Winds"
     },
@@ -209,7 +209,7 @@
     },
     {
       "id": "magnific-142",
-      "role": "ocean",
+      "role": "audition",
       "file": "audio/magnific/tiny-aqua-slaps-142.mp3",
       "sourceUrl": "https://www.magnific.com/audio/sound-effects/tiny-aqua-slaps/142",
       "license": "Magnific stock audio; see https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
@@ -233,14 +233,14 @@
     {
       "id": "magnific-3643",
       "name": "Small Fishing Boat Rocking",
-      "role": "ocean",
+      "role": "creak",
       "file": "audio/magnific/small-fishing-boat-rocking-3643.mp3",
       "sourceUrl": "https://www.magnific.com/audio/sound-effects/small-fishing-boat-rocking/3643",
       "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
       "approved": true,
       "approval": "User separately approved Download and try this clip in this chat on 2026-10-28.",
-      "loop": true,
-      "gain": 0.85,
+      "loop": false,
+      "gain": 0.45,
       "usage": "Approved boat-rocking water movement with light creaks; broad quiet ocean ambience. Field-recording provenance is not claimed."
     },
     {
@@ -256,6 +256,184 @@
       "gain": 0.85,
       "usage": "Rough-sea layer only, silent below approximately 1.3 m wave height and fully developed by 3 m (or sooner with strong wind).",
       "minWaveHeight": 1.3
+    },
+    {
+      "id": "freesound-371169",
+      "name": "Sailboat, mic at the side of the boat",
+      "author": "borralbi",
+      "role": "ocean",
+      "file": "audio/field/freesound-371169.mp3",
+      "sourceUrl": "https://freesound.org/people/borralbi/sounds/371169/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": true,
+      "loop": true,
+      "gain": 0.9,
+      "usage": "Public high-quality full-length preview; credit preserved in asset credits.",
+      "streamLevel": 1.8106,
+      "duration": 65.16283333333334
+    },
+    {
+      "id": "freesound-645974",
+      "name": "Sailing Ambience \u2013 Low Wind",
+      "author": "iainmccurdy",
+      "role": "sailing",
+      "file": "audio/field/freesound-645974.mp3",
+      "sourceUrl": "https://freesound.org/people/iainmccurdy/sounds/645974/",
+      "license": "CC BY 4.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": true,
+      "loop": true,
+      "gain": 0.14,
+      "usage": "Public high-quality full-length preview; credit preserved in asset credits.",
+      "streamLevel": 0.8819,
+      "duration": 545.9868333333334
+    },
+    {
+      "id": "freesound-448975",
+      "name": "flag.wav",
+      "author": "GeorgeHopkins",
+      "role": "sail",
+      "file": "audio/field/freesound-448975.mp3",
+      "sourceUrl": "https://freesound.org/people/GeorgeHopkins/sounds/448975/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": false,
+      "loop": false,
+      "gain": 0.22,
+      "usage": "Public high-quality full-length preview; credit preserved in asset credits.",
+      "segments": [
+        {
+          "start": 1,
+          "duration": 1.7
+        },
+        {
+          "start": 5,
+          "duration": 1.7
+        },
+        {
+          "start": 9,
+          "duration": 1.7
+        },
+        {
+          "start": 13,
+          "duration": 1.7
+        },
+        {
+          "start": 17,
+          "duration": 1.7
+        }
+      ]
+    },
+    {
+      "id": "magnific-3626",
+      "name": "Ocean Waves Rolling 1",
+      "role": "passingWave",
+      "file": "audio/magnific/ocean-waves-rolling-3626.mp3",
+      "sourceUrl": "https://www.magnific.com/audio/sound-effects/ocean-waves-rolling-1/3626",
+      "license": "Magnific stock audio; https://www.magnific.com/legal/terms-of-use#nav-freepik-agreement",
+      "approved": true,
+      "approval": "User explicitly approved Download this clip in this chat on 2026-10-30.",
+      "loop": false,
+      "gain": 0.32
+    },
+    {
+      "id": "freesound-202961",
+      "name": "Strong wind in a field",
+      "author": "felix.blume",
+      "role": "wind",
+      "file": "audio/field/freesound-202961.mp3",
+      "sourceUrl": "https://freesound.org/people/felix.blume/sounds/202961/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": true,
+      "loop": true,
+      "gain": 0.6,
+      "streamLevel": 0.916,
+      "duration": 180.36647916666666
+    },
+    {
+      "id": "freesound-121533",
+      "name": "Light rain thunderstorm",
+      "author": "thaighaudio",
+      "role": "rain",
+      "file": "audio/field/freesound-121533.mp3",
+      "sourceUrl": "https://freesound.org/people/thaighaudio/sounds/121533/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": true,
+      "loop": true,
+      "gain": 0.6,
+      "streamLevel": 2.0081,
+      "duration": 311.89145833333333
+    },
+    {
+      "id": "freesound-198937",
+      "name": "ORCA.wav \u2013 source audition",
+      "author": "mikewest",
+      "role": "audition",
+      "file": "audio/field/freesound-198937.mp3",
+      "sourceUrl": "https://freesound.org/people/mikewest/sounds/198937/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": true,
+      "loop": false,
+      "gain": 0.5
+    },
+    {
+      "id": "freesound-198937-breaths",
+      "name": "Orca breaths \u2013 isolated excerpts",
+      "role": "orcaBreath",
+      "file": "audio/field/orca-breaths-198937.wav",
+      "author": "mikewest",
+      "sourceUrl": "https://freesound.org/people/mikewest/sounds/198937/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "loop": false,
+      "gain": 0.7,
+      "segments": [
+        {
+          "start": 0,
+          "duration": 3
+        },
+        {
+          "start": 3,
+          "duration": 3
+        },
+        {
+          "start": 6,
+          "duration": 3
+        },
+        {
+          "start": 9,
+          "duration": 3
+        }
+      ],
+      "usage": "Four isolated 3-second excerpts, original source offsets 14, 63.5, 108 and 140 seconds. Only played with visible orca breaths."
+    },
+    {
+      "id": "freesound-659922",
+      "name": "Cargo boat engine",
+      "role": "ship",
+      "file": "audio/field/freesound-659922.mp3",
+      "author": "DBlover",
+      "sourceUrl": "https://freesound.org/people/DBlover/sounds/659922/",
+      "license": "CC0 1.0",
+      "approved": true,
+      "approval": "User individually approved download and audition in this chat on 2026-10-30.",
+      "stream": true,
+      "loop": true,
+      "gain": 0.5,
+      "lowpass": 900,
+      "streamLevel": 1.2323,
+      "duration": 176.50895833333334
     }
   ],
   "note": "All thirteen distinct downloaded Magnific clips remain available for audition. Ocean ambience uses approved boat-rocking clip 3643; rough-wave layer uses approved clip 2995 only in rough conditions. Clip 142 supplies spaced close-water detail. Provisional ocean/wave events from clip 142 are disabled when the dedicated loops are installed. Clip 276 contains branches and is audition-only. No drip recording is assigned to paddle strokes. Field-recording provenance is not claimed."

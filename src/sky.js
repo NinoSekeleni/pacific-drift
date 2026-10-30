@@ -48,7 +48,7 @@ export const SKY_UNIFORMS_GLSL = /* glsl */`
   uniform float uMoonPhotoReady;
   uniform sampler2D tLunarMap;
   uniform float uLunarMapReady,uUseLunarMap;
-  uniform float uDarkness;
+  uniform float uDarkness,uSeaFog;
 `;
 
 export const CLOUD_LOOKUP_GLSL = /* glsl */`
@@ -183,7 +183,7 @@ export const SKY_GLSL = NOISE_GLSL + SKY_UNIFORMS_GLSL + CLOUD_LOOKUP_GLSL + /* 
     col = mix(col, uHor * 1.04, exp(-up * 18.0) * 0.6);
     float s = max(dot(d, uSunDir), 0.0);
     col += uSunCol * pow(s, 10.0) * 0.3 * smoothstep(-0.06, 0.02, uSunDir.y) * (1.0 - uDarkness * 0.7);
-    return col;
+    return mix(col,uHor*1.04,uSeaFog);
   }
 `;
 
@@ -306,6 +306,7 @@ export function createSky(renderer, scene, isTouch) {
   const uniforms = {
     uSunDir: { value: new THREE.Vector3(0, 0.2, -1).normalize() },
     uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
+    uSeaFog:{value:0},
     uZen: { value: new THREE.Vector3() },
     uHor: { value: new THREE.Vector3() },
     uGlow: { value: new THREE.Vector3() },

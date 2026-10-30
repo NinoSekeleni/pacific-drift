@@ -4,7 +4,7 @@ import {LAYER_NEAR} from './sky.js';
 const clamp=THREE.MathUtils.clamp;
 export function createRain(scene,renderer){
  const resolution=new THREE.Vector2(1280,720),previous=new THREE.Vector3();let initialized=false,time=0;
- const layers=[],configs=[{name:'Close rain',count:260,radius:7,height:13,width:1.55,exposure:.012,opacity:.42},{name:'Middle rain',count:1750,radius:42,height:29,width:.85,exposure:.015,opacity:.30},{name:'Distant rain',count:1800,radius:110,height:47,width:.52,exposure:.012,opacity:.14}];
+ const layers=[],configs=[{name:'Close rain',count:520,radius:7,height:13,width:1.8,exposure:.016,opacity:.55},{name:'Middle rain',count:2625,radius:42,height:29,width:1.0,exposure:.018,opacity:.38},{name:'Distant rain',count:2700,radius:110,height:47,width:.6,exposure:.015,opacity:.19}];
  for(const config of configs){
   const g=new THREE.InstancedBufferGeometry();g.setIndex([0,1,2,2,1,3]);g.setAttribute('position',new THREE.Float32BufferAttribute([-1,0,0,1,0,0,-1,1,0,1,1,0],3));
   const positions=new Float32Array(config.count*3),styles=new Float32Array(config.count*4);for(let i=0;i<config.count;i++){styles.set([.72+Math.random()*.56,.7+Math.random()*.6,Math.random()*6.28,Math.random()],i*4);}
@@ -34,7 +34,7 @@ export function createRain(scene,renderer){
   for(const layer of layers){const {config,mesh,positions,styles}=layer;
 
    const uniforms=mesh.material.uniforms;uniforms.uVelocity.value.set(windE*.48,-9.5,-windN*.48);uniforms.uTime.value=time;
-   uniforms.uTint.value.setRGB(...tint.map(v=>clamp(v*.75+.25,.07,.85)));uniforms.uOpacity.value=config.opacity*(.65+.35*Math.sqrt(amount))*(.8+strength*.2);
+   uniforms.uTint.value.setRGB(...tint.map(v=>clamp(v*.75+.25,.07,.85)));uniforms.uOpacity.value=config.opacity*(.65+.35*Math.sqrt(amount))*(.8+strength*.2)*(1+THREE.MathUtils.smoothstep(amount,.65,1)*.35);
    mesh.visible=enabled&&amount>.003&&strength>0;mesh.geometry.instanceCount=mesh.visible?Math.min(config.count,Math.round(config.count*amount*strength)):0;
    if(!mesh.visible){layer.ready=false;continue;}if(reset||!layer.ready)for(let i=0;i<config.count;i++)seed(layer,i,cam);layer.ready=true;
    for(let i=0;i<config.count;i++){const k=i*3,s=i*4;positions[k]+=(windE*.48+Math.sin(time*.8+styles[s+2])*.25)*dt;positions[k+1]-=9.5*styles[s]*dt;positions[k+2]+=(-windN*.48+Math.cos(time*.63+styles[s+2])*.25)*dt;
@@ -42,7 +42,7 @@ export function createRain(scene,renderer){
     if(positions[k+1]<cam.y-7||Math.hypot(x,z)>config.radius*1.3){seed(layer,i,cam);positions[k+1]=cam.y+config.height-5;}
    }mesh.geometry.attributes.aDrop.needsUpdate=true;
   }
-  veil.visible=options.veil!==false&&amount>.01;veil.position.set(cam.x,cam.y+275,cam.z);veilUniforms.uAmount.value=Math.pow(amount,1.35)*.16;veilUniforms.uTint.value.setRGB(...tint.map(v=>clamp(v*.8+.04,.03,.75)));veilUniforms.uTime.value=time;veilUniforms.uWind.value.set(windE,-windN);
+  veil.visible=options.veil!==false&&amount>.01;veil.position.set(cam.x,cam.y+275,cam.z);veilUniforms.uAmount.value=Math.pow(amount,1.35)*.23;veilUniforms.uTint.value.setRGB(...tint.map(v=>clamp(v*.8+.04,.03,.75)));veilUniforms.uTime.value=time;veilUniforms.uWind.value.set(windE,-windN);
   previous.copy(cam);initialized=true;
  }
  function resize(){if(renderer)renderer.getDrawingBufferSize(resolution);}

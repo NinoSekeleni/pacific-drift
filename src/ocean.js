@@ -136,6 +136,7 @@ export function createOcean(renderer, scene, skyUniforms) {
     uBody: { value: new THREE.Vector3(0.03, 0.08, 0.1) },
     uFog: { value: new THREE.Vector3() },
     uVis: { value: 30000 },
+    tBoatReflection:{value:null},uBoatReflectionMatrix:{value:new THREE.Matrix4()},uBoatReflection:{value:0},
     uWind: { value: 5 },
     uWhitecap: { value: 0 },
     uStormChop:{value:0},uFoamActivity:{value:0},
@@ -205,7 +206,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform vec2 uWaterWindDir;
       uniform vec3 uBody;
       uniform vec3 uFog;
-      uniform float uVis;
+      uniform float uVis,uBoatReflection;uniform sampler2D tBoatReflection;uniform mat4 uBoatReflectionMatrix;
       uniform float uWind;
       uniform float uWhitecap;
       uniform float uStormChop,uFoamActivity;
@@ -397,6 +398,14 @@ export function createOcean(renderer, scene, skyUniforms) {
         body += vec3(0.04, 0.19, 0.18) * sss * 0.7 * (1.0 - smoothstep(100.0, 1500.0, dist));
 
         vec3 col = mix(body, refl, F);
+        if(uBoatReflection>.5&&dist<45.){
+          vec4 projected=uBoatReflectionMatrix*vec4(vWorld,1.);vec2 uv=projected.xy/max(.001,projected.w);
+          uv+=N.xz*.009*(.3+uWind*.025);
+          if(projected.w>0.&&all(greaterThan(uv,vec2(0.)))&&all(lessThan(uv,vec2(1.)))){
+            vec4 localReflection=texture2D(tBoatReflection,uv);float weight=localReflection.a*(.10+.64*pow(1.-NdV,3.))*(1.-smoothstep(28.,45.,dist));
+            col=mix(col,localReflection.rgb,weight);
+          }
+        }
 
         // Wind-aligned streaks break reflected highlights into long moving
         // lanes. They emerge only in a breeze and remain broad enough to resolve.

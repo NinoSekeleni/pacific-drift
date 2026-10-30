@@ -18,6 +18,7 @@ export function newVoyage(now = Date.now()) {
     speed: 0,
     t: now,
     start: now,
+    weatherClimateLat: POINT_NEMO.lat,
     dist: 0,
     track: [[now, POINT_NEMO.lat, POINT_NEMO.lng]],
     playlist: '',

@@ -57,7 +57,7 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
  const lampUniform={value:0};
  const useButton=document.createElement('button');useButton.id='gpsUse';useButton.textContent='Use';useButton.hidden=true;$('equipmentClose').before(useButton);
  const assets=new Map();let active=false,current=null,object=null,lastFocus=null,lastStatus='',distance=4;
- const mediaPanel=document.getElementById('radio'),mediaAnchor=document.createComment('radio original location');mediaPanel.before(mediaAnchor);
+ const mediaPanel=document.getElementById('radio'),mediaAnchor=document.createComment('radio original location');mediaPanel.before(mediaAnchor); // The live iframe stays here throughout its lifetime.
  function disposeObject(){if(!object)return;object.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const k of ['map','emissiveMap'])if(m[k]&& !o.userData.liveScreen)m[k].dispose();m.dispose();}});scene.remove(object);object=null;}
  function frame(front=true){
   const rect=stage.getBoundingClientRect();camera.aspect=Math.max(.1,rect.width/Math.max(1,rect.height));camera.updateProjectionMatrix();
@@ -75,6 +75,8 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
   $('equipmentActions').replaceChildren();options=null;wrap.classList.toggle('equipment-playing',current==='anbernic'&&anbernic.playing);
   if(current==='anbernic'){
    action(anbernic.playing?'Inspect':'Play',()=>{anbernic.playing=!anbernic.playing;actions();if(anbernic.playing){camera.position.set(0,0,3.05);controls.target.set(0,0,0);controls.update();stage.focus();}});
+   action('Load ROM',()=>{const input=document.createElement('input');input.type='file';input.accept='.gb,.gbc,.gba,.nes';input.hidden=true;document.body.append(input);input.oncancel=()=>input.remove();input.onchange=async()=>{const file=input.files[0];input.remove();if(!file)return;try{await anbernic.rom.load(file);anbernic.playing=true;actions();}catch(error){$('equipmentLoading').hidden=false;$('equipmentLoading').textContent=error.message;}};input.click();},true);
+   if(anbernic.rom.loaded){const b=action('Fullscreen game',()=>anbernic.rom.fullscreen());b.dataset.romFullscreen='true';const status=document.createElement('p');status.dataset.romStatus='true';$('equipmentActions').append(status);}
    action(anbernic.finish==='atomic'?'Finish: Atomic purple → Classic grey':'Finish: Classic grey → Atomic purple',()=>{anbernic.setFinish(anbernic.finish==='atomic'?'classic':'atomic');actions();},true);
    action(anbernic.power?'Power off':'Power on',()=>{anbernic.input('Power');actions();},true);
    const pad=document.createElement('div');pad.className='handheld-controls';pad.hidden=!anbernic.playing;for(const [k,label]of [['Up','↑'],['Left','←'],['Down','↓'],['Right','→'],['A','A'],['B','B'],['Start','Start']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label','Handheld '+k);b.onclick=()=>anbernic.input(k);pad.append(b);}$('equipmentActions').append(pad);
@@ -97,12 +99,12 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
   $('equipmentTitle').textContent=item.title;$('equipmentPicker').value=id;onSelect(id);
   wrap.querySelectorAll('[data-equipment]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.equipment===id)));
   const media=id==='radio'||id==='walkman';wrap.classList.toggle('equipment-has-media',media);
-  if(media){$('equipmentMedia').append(mediaPanel);radio.openSource(id==='walkman'?'TAPE':'WORLD');}
-  else{radio.setOpen(false);mediaAnchor.after(mediaPanel);}
+  if(media){document.body.classList.add('equipment-media-active');radio.openSource(id==='walkman'?'TAPE':'WORLD');}
+  else{document.body.classList.remove('equipment-media-active');radio.setOpen(false);}
   actions();showModel();
  }
  function open(id='backpack'){if(!active){lastFocus=document.activeElement;active=true;wrap.hidden=false;document.body.classList.add('inspecting-equipment');controls.enabled=true;onOpen();}$('equipmentClose').focus();select(id);}
- function close(){if(!active)return;if(anbernic)anbernic.playing=false;gps?.hide();wrap.classList.remove('equipment-using-gps');active=false;controls.enabled=false;wrap.hidden=true;document.body.classList.remove('inspecting-equipment');radio.setOpen(false);mediaAnchor.after(mediaPanel);disposeObject();onClose();lastFocus?.focus?.({preventScroll:true});}
+ function close(){if(!active)return;if(anbernic)anbernic.playing=false;gps?.hide();wrap.classList.remove('equipment-using-gps');active=false;controls.enabled=false;wrap.hidden=true;document.body.classList.remove('inspecting-equipment');document.body.classList.remove('equipment-media-active');radio.setOpen(false);disposeObject();onClose();lastFocus?.focus?.({preventScroll:true});}
  $('equipmentClose').onclick=close;$('equipmentPicker').onchange=e=>select(e.target.value);
  wrap.querySelectorAll('[data-equipment]').forEach(button=>button.onclick=()=>select(button.dataset.equipment));
  document.getElementById('radioClose').addEventListener('click',()=>{if(active&&['radio','walkman'].includes(current))close();});
@@ -113,11 +115,11 @@ export function createEquipmentInspection({renderer,radio,onOpen=()=>{},onClose=
   if(delta){e.preventDefault();const spherical=new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));spherical.theta+=delta[0];spherical.phi=THREE.MathUtils.clamp(spherical.phi+delta[1],.02,Math.PI-.02);camera.position.setFromSpherical(spherical).add(controls.target);controls.update();}
   if(['+','=','-'].includes(e.key)){e.preventDefault();const offset=camera.position.clone().sub(controls.target),next=THREE.MathUtils.clamp(offset.length()*(e.key==='-'?1.1:.9),controls.minDistance,controls.maxDistance);camera.position.copy(controls.target).add(offset.setLength(next));controls.update();}
  });
- wrap.addEventListener('keydown',e=>{if(current==='anbernic'&&anbernic.playing){const key={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',a:'A',z:'A',b:'B',x:'B',Enter:'Start'}[e.key];if(key&&e.target===stage){e.preventDefault();e.stopPropagation();anbernic.input(key);return;}if(key&&e.key!=='Enter'&&!e.target.closest('input,select,textarea')){e.preventDefault();anbernic.input(key);return;}}if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}if(e.key==='Tab'){
-  const nodes=[...wrap.querySelectorAll('button,select,input,a,[tabindex="0"]')].filter(el=>!el.disabled&&el.getClientRects().length);const first=nodes[0],last=nodes.at(-1);
+ document.addEventListener('keydown',e=>{if(!active||(!wrap.contains(e.target)&&!mediaPanel.contains(e.target)))return;if(current==='anbernic'&&anbernic.playing){const key={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',a:'A',z:'A',b:'B',x:'B',Enter:'Start'}[e.key];if(key&&e.target===stage){e.preventDefault();e.stopPropagation();anbernic.input(key);return;}if(key&&e.key!=='Enter'&&!e.target.closest('input,select,textarea')){e.preventDefault();anbernic.input(key);return;}}if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}if(e.key==='Tab'){
+  const nodes=[...wrap.querySelectorAll('button,select,input,a,[tabindex="0"]'),...(['radio','walkman'].includes(current)?mediaPanel.querySelectorAll('button,input,select,a,iframe'):[])].filter(el=>!el.disabled&&el.getClientRects().length);const first=nodes[0],last=nodes.at(-1);
   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
  }});
- function render(dt){if(!active)return;if(!gps?.using)controls.update();else gpsView();if(current==='walkman')applyTapePose(object,getTapeState());if(current==='anbernic')anbernic.applyFinish(object);const r=stage.getBoundingClientRect(),w=window.innerWidth,h=window.innerHeight;
+ function render(dt){if(!active)return;if(current==='anbernic'&&anbernic.rom.loaded){const status=wrap.querySelector('[data-rom-status]');if(status)status.textContent=anbernic.rom.ready?anbernic.rom.name:anbernic.rom.error||'Loading your game…';}if(current==='anbernic'&&anbernic.rom.loaded&&!wrap.querySelector('[data-rom-fullscreen]')){const b=action('Fullscreen game',()=>anbernic.rom.fullscreen());b.dataset.romFullscreen='true';}if(['radio','walkman'].includes(current)){const r=$('equipmentMedia').getBoundingClientRect(),parent=wrap.querySelector('.equipment-details').getBoundingClientRect();mediaPanel.style.setProperty('--media-left',r.left+'px');mediaPanel.style.setProperty('--media-top',r.top+'px');mediaPanel.style.setProperty('--media-width',r.width+'px');mediaPanel.style.setProperty('--media-height',Math.max(120,parent.bottom-r.top-12)+'px');}if(!gps?.using)controls.update();else gpsView();if(current==='walkman')applyTapePose(object,getTapeState());if(current==='anbernic')anbernic.applyFinish(object);const r=stage.getBoundingClientRect(),w=window.innerWidth,h=window.innerHeight;
   camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();gps?.align(object,camera,stage);
   lampUniform.value=current==='lantern'&&lanternOn()?1:0;
   glow.intensity=lampUniform.value*2.5;

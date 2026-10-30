@@ -502,7 +502,7 @@ export function createRadio({ audio, getState, onPlaylist, onStation }) {
   setMode('WORLD');
   setStateText('Off');
   return {
-    update, key, setOpen,
+    update, key, setOpen, setPower,
     openSource(mode){setMode(mode==='TAPE'?'TAPE':'WORLD');setOpen(true);},
     mediaState(){return {mode:state.mode,on:state.on,station:state.list[state.index]?.name||'',status:stateOut.textContent,spotify:{...tapeState,playing:state.mode==='TAPE'&&state.on&&!tapeState.isPaused}};},
     toggle() { setOpen(!state.open); },

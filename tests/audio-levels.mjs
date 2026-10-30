@@ -26,7 +26,9 @@ assert.ok(soundMix(6,3,0,.3,100).waves>soundMix(6,1.5,0,.3,100).waves,'rough-wav
 assert.ok(soundMix(26,1.8,0,.3,100).waves>soundMix(6,1.8,0,.3,100).waves,'strong wind develops the wave layer sooner above the threshold');
 const fs=await import('node:fs');
 const manifest=JSON.parse(fs.readFileSync(new URL('../public/data/soundscape.json',import.meta.url)));
-for(const [id,role] of [['magnific-3643','ocean'],['magnific-2995','waves']]){
+for(const [id,role] of [['freesound-371169','ocean'],['magnific-2995','waves']]){
  const entry=manifest.recordings.find(r=>r.id===id);assert.equal(entry.role,role);assert.equal(entry.loop,true);assert.equal(entry.approved,true);assert.ok(fs.statSync(new URL('../public/'+entry.file,import.meta.url)).size>10000);
 }
 console.log('PASS approved dedicated ocean/wave files and rough-water-only wave activation');
+
+const longBed=manifest.recordings.find(r=>r.id==='freesound-645974');assert.equal(longBed.stream,true);assert.equal(longBed.license,'CC BY 4.0');assert.ok(fs.readFileSync(new URL('../ASSET-CREDITS.md',import.meta.url),'utf8').includes('iainmccurdy'));
