@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {LAYER_NEAR} from './sky.js';
 import {createBoatMaterial} from './boat-materials.js';
+import {createBoatGrounding} from './boat-grounding.js';
 import {mapLimit,loadPackedModel} from './asset-loading.js';
 import {createWalkmanDisplay} from './walkman-display.js';
 import {prepareTapeTransport,advanceTape,applyTapePose} from './tape-transport.js';
 export const PROP_LAYOUT={
- backpack:{file:'backpack.glb',height:.56,x:-.39,z:-.18,rotation:[0,0,0]},
+ backpack:{file:'backpack.glb',height:.56,x:-.36,z:-.65,rotation:[0,0,0]},
  radio:{file:'handheld-radio.glb',height:.28,x:.44,z:.76,rotation:[-Math.PI/2,-.24,0]},
  walkman:{file:'walkman.glb',height:.13,x:.21,z:.76,rotation:[-Math.PI/2,.25,0]},
- anbernic:{file:'anbernic.glb',height:.117,x:-.19,z:-.66,rotation:[-Math.PI/2,0,0]},
+ anbernic:{file:'anbernic.glb',height:.117,x:.20,z:-.66,rotation:[-Math.PI/2,0,0]},
  gps:{file:'gps-tablet.glb',height:.29,x:-.10,z:.76,rotation:[-Math.PI/6,0,0],mountHeight:.018},
  binoculars:{file:'binoculars.glb',height:.06,x:-.40,z:.74,rotation:[0,.24,0]}
 };
@@ -40,6 +41,7 @@ export function visibleItemBounds(root,out=new THREE.Box3()){
 export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{},register=()=>{},gps=null,anbernic=null,layout={},onMove=()=>{}}={}){
  const loader=new GLTFLoader(),ray=new THREE.Raycaster();ray.layers.enableAll();
  const group=new THREE.Group();group.name='Onboard equipment';canoe.group.add(group);
+ const grounding=createBoatGrounding(canoe.group),heldMeshes=new Map();
  const roots={},cradles={},surfaces=[],state={ready:0,failed:[],dimensions:{},contacts:{}};const stowed=new Set();let wet=0,display=null;const tapeState={phase:0};
  function supportY(x,z){
   canoe.group.updateMatrixWorld(true);
@@ -54,7 +56,7 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   if(name==='anbernic')anbernic?.attachScreen(root);
   onAsset(name,root.clone(true));const placement=placeBoatProp(root,spec,supportY);
   root.traverse(o=>{
-   o.layers.set(LAYER_NEAR);if(!o.isMesh)return;
+   o.layers.set(LAYER_NEAR);if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;
    const prepare=source=>{
     if(!materials.has(source.uuid)){
      const material=createBoatMaterial(source);material.name=name+' — '+source.name;material.normalScale?.set(.45,.45);
@@ -65,7 +67,7 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   });
   if(name==='gps'){const cradle=createGPSCradle(spec,placement.contact);group.add(cradle);cradles[name]=cradle;register(cradle);}
   root.visible=!stowed.has(name);group.add(root);roots[name]=root;register(root);state.ready++;
-  state.dimensions[name]=placement.size;state.contacts[name]=placement.contact;
+  state.dimensions[name]=placement.size;state.contacts[name]=placement.contact;grounding.fit(name,root,placement.contact);
   if(layout[name])move(name,layout[name].x,layout[name].z,layout[name].yaw,false);
  }
  const order=['gps','radio','walkman','binoculars','backpack','anbernic'];
@@ -102,12 +104,13 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   for(const [id,other]of Object.entries({...roots,lantern:canoe.lantern})){if(id===name||!other.visible)continue;if(moved.intersectsBox(visibleItemBounds(other)))valid=false;}
   if(!valid){root.position.copy(oldPosition);root.rotation.copy(oldRotation);root.updateWorldMatrix(true,true);return false;}
   if(cradles[name])cradles[name].position.set(x,deck,z);
-  state.contacts[name]={deckY:deck,x,z};if(notify)onMove(name,{x,z,yaw});return true;
+  state.contacts[name]={deckY:deck,x,z};grounding.fit(name,root,state.contacts[name]);if(notify)onMove(name,{x,z,yaw});return true;
  }
  function dragPoint(camera,x,y,width,height){pointer.set(x/width*2-1,1-y/height*2);ray.setFromCamera(pointer,camera);const localRay=ray.ray.clone().applyMatrix4(canoe.group.matrixWorld.clone().invert());return localRay.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-.3),new THREE.Vector3());}
  function interact(camera,x,y,width,height){const name=pick(camera,x,y,width,height);if(!name)return false;onInspect(name);return true;}
  return {group,loading,state,interact,pick,highlight,move,dragPoint,tapeState,getRoot:name=>name==='lantern'?canoe.lantern:roots[name],
-  setStowed(name,value){if(!['walkman','binoculars','radio','anbernic'].includes(name))return;if(value)stowed.add(name);else stowed.delete(name);if(roots[name])roots[name].visible=!value;},isStowed:name=>stowed.has(name),
+  setHeld(name,value){const root=name==='lantern'?canoe.lantern:roots[name];if(!root)return;if(value&&!heldMeshes.has(name)){const values=[];root.traverse(o=>{if(o.isMesh||o.isSprite){values.push([o,o.visible]);o.visible=false;}});heldMeshes.set(name,values);grounding.visible(name,false);}else if(!value&&heldMeshes.has(name)){for(const [o,visible]of heldMeshes.get(name))o.visible=visible;heldMeshes.delete(name);grounding.visible(name,!stowed.has(name));}},
+  setStowed(name,value){if(!['walkman','binoculars','radio','anbernic'].includes(name))return;if(value)stowed.add(name);else stowed.delete(name);if(roots[name])roots[name].visible=!value;grounding.visible(name,!value);},isStowed:name=>stowed.has(name),
   update(dt,rain=0,media={}){display?.update(media);anbernic?.applyFinish(roots.anbernic);advanceTape(tapeState,dt,media);applyTapePose(roots.walkman,tapeState);wet+=(Math.min(1,rain)-wet)*(1-Math.exp(-dt/12));for(const s of surfaces)s.material.roughness=s.roughness*(1-wet*s.factor);}
  };
 }

@@ -6,7 +6,7 @@ const DEG = Math.PI / 180;
 let KEY = 'pacific-drift-voyage-v1';
 export function useStorageKey(k) { KEY = k; }
 export const POINT_NEMO = { lat: -48.8767, lng: -123.3933 };
-export const DEFAULT_PLAYLIST = 'spotify:playlist:2crIyukpd3DVtlDBIK8ERM';
+export const DEFAULT_PLAYLIST = 'spotify:playlist:5n2ooBPVSatZeogCIYbMmh';
 
 export function newVoyage(now = Date.now()) {
   return {

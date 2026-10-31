@@ -9,7 +9,7 @@ export function createAudio({base='./'}={}) {
   let arrivalMix=1,shipEmitter={amount:0,pan:0};
   let mix=soundMix(0,0,0,0),manifestPromise=null,selectedRain='auto',audition=null,auditioning=false;
   let nextWater=0,nextWave=0,nextOcean=0,rainHasThunder=false;
-  const streams=[];let nextSail=0,nextPassing=0;
+  const streams=[];let nextPassing=0,lightning=0;const rainTimes=new Map();
   const listeners=[],recordings=new Map(),loopLayers=[],lastPlayed=new Map(),active=new Map();
   const layerLevels=new Map(),buses=new Map(),bufferCache=new Map(),lastVariant=new Map();
   const set=(p,v,tc=.5)=>p.setTargetAtTime(Math.max(0,v),ctx.currentTime,tc);
@@ -83,6 +83,8 @@ export function createAudio({base='./'}={}) {
     mix=soundMix(windSpeed,waveHeight,rainAmount,heaveRate,ctx.currentTime);
     const rainId=selectedRain==='auto'?(rainAmount>.35?'freesound-121533':rainClipForWeather(rainAmount,windSpeed,isNight)):selectedRain;
     for(const stream of streams){const role=stream.entry.role;let amount=role==='sailing'?(options.sail?Math.min(1,windSpeed/6)*Math.max(.15,1-windSpeed/28):0):role==='ship'?shipEmitter.amount:role==='rain'?(rainId===stream.entry.id?Math.pow(Math.min(1,rainAmount),1.15)*.15:0):mix[roleAlias(role)]||0;stream.player.update(auditioning?0:amount,{pan:role==='ship'?shipEmitter.pan:0});}
+    // Cue lightning from the recorded rain timeline instead of unrelated flashes.
+    for(const stream of streams){if(!stream.entry.lightningCues)continue;const now=stream.player.time,previous=rainTimes.get(stream.entry.id)??now;rainTimes.set(stream.entry.id,now);if(!muted&&!auditioning&&rainAmount>.35&&rainId===stream.entry.id&&enabled('rain')&&stream.player.playing&&now>=previous&&now-previous<1){for(const cue of stream.entry.lightningCues)if(previous<cue&&now>=cue)lightning=.65;}}
     rainHasThunder=rainAmount>.05&&['magnific-225','magnific-278','magnific-280','freesound-121533'].includes(rainId)&&enabled('rain');
     for(const layer of loopLayers){
       const role=layer.entry.role,rainRole=['rain','heavyRain','stormRain','nightRain'].includes(role);
@@ -97,7 +99,7 @@ export function createAudio({base='./'}={}) {
       set(layer.gain.gain,auditioning?0:amount*(layer.entry.gain??1)*layer.entry.level/Math.sqrt(siblings),role==='waves'?.75:1.6);
     }
     const t=ctx.currentTime;
-    if(t>=nextSail){nextSail=t+5+Math.random()*13;if(options.sail&&windSpeed>2)recorded('sail',Math.min(.6,windSpeed/24),{pan:.12,cooldown:4,lowpass:6000});}
+
     if(t>=nextPassing){nextPassing=t+17+Math.random()*21;if(waveHeight>1.1)recorded('passingWave',mix.waves*.45,{pan:(Math.random()-.5)*.9,cooldown:10,lowpass:2200});}
     // Schedule at most one event per role after a tab resumes; never catch up a backlog.
     if(t>=nextWater){nextWater=t+waterEventInterval(waveHeight,Math.random());if(mix.water>.001)recorded('water',mix.water,{pan:(Math.random()<.5?-1:1)*(.35+Math.random()*.35),cooldown:3,lowpass:4200});}
@@ -128,7 +130,7 @@ export function createAudio({base='./'}={}) {
   function setMuted(value){muted=value;if(audition)audition.muted=value;if(master)set(master.gain,value?0:.75*arrivalMix,.06);}
   function setArrivalMix(value){const next=Math.max(0,Math.min(1,Number.isFinite(value)?value:1));if(Math.abs(next-arrivalMix)<.002&&next!==0&&next!==1)return;arrivalMix=next;if(master)set(master.gain,muted?0:.75*arrivalMix,.18);}
   function setLayerLevel(role,level){const key=roleAlias(role),v=Math.max(0,Math.min(1,level));layerLevels.set(key,v);if(ctx&&buses.has(key))set(buses.get(key).gain,v,.08);}
-  return {ship(range=Infinity,pan=0){shipEmitter={amount:range<1600?.20*Math.pow(140/Math.max(140,range),1.4):0,pan};},marine(kind,strength,pan=0){recorded(kind==='orca'?'orcaBreath':'water',strength,{pan,cooldown:kind==='orca'?2:.25,lowpass:kind==='orca'?4200:2400});},start,update,splash,paddleExit,lap,creak,thunder,setLantern,setStatic,tone,crackle,setMuted,setArrivalMix,auditionClip,stopAudition,setLayerLevel,
+  return {sailFlap(strength=.3){recorded('sail',strength,{pan:.12,cooldown:6,lowpass:6000});},consumeLightning(){const value=lightning;lightning=0;return value;},get recordedThunder(){return rainHasThunder;},ship(range=Infinity,pan=0){shipEmitter={amount:range<1600?.20*Math.pow(140/Math.max(140,range),1.4):0,pan};},marine(kind,strength,pan=0){recorded(kind==='orca'?'orcaBreath':'water',strength,{pan,cooldown:kind==='orca'?2:.25,lowpass:kind==='orca'?4200:2400});},start,update,splash,paddleExit,lap,creak,thunder,setLantern,setStatic,tone,crackle,setMuted,setArrivalMix,auditionClip,stopAudition,setLayerLevel,
     setRainClip(id){selectedRain=id;},
     onStart(fn){listeners.push(fn);if(ctx)fn(ctx);},get muted(){return muted;},get ready(){return !!ctx;},get recordingsReady(){return manifestPromise;},
     get recordingCount(){return new Set([...recordings.values()].flat().map(r=>r.file).concat(streams.map(s=>s.entry.file))).size;},

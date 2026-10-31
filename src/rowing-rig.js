@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {sailFlap} from './sail-motion.js';
 const clamp=THREE.MathUtils.clamp,smooth=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
 export const ROWING_SEAT=new THREE.Vector3(0,1.10,1.81);
 /** The owner's FBX oars, driven about fixed rowlocks. World-space blade contact. */
@@ -17,12 +18,13 @@ export function createRowingRig(parent,root){
   const grip={position:new THREE.Vector3(),quaternion:new THREE.Quaternion()};pose.grips[side<0?'left':'right']=grip;
   oars.push({side,pivot,mesh,parkQuat,parkPos,grip,bladeLocal:new THREE.Vector3(0,.64-length,0),tipLocal:new THREE.Vector3(0,mesh.geometry.boundingBox.min.y,0),previous:new THREE.Vector3(),valid:false,caught:false,exited:false,wet:0});
  }
- const fabric=['Sail','Lacing'].map(name=>{const mesh=root.getObjectByName(name),p=mesh.geometry.attributes.position,original=new Float32Array(p.count*3);for(let i=0;i<p.count;i++){original[i*3]=p.getX(i);original[i*3+1]=p.getY(i);original[i*3+2]=p.getZ(i);}return {mesh,original};});let hoist=1,lastNormals=-1;
+ const fabric=['Sail','Lacing'].map(name=>{const mesh=root.getObjectByName(name),p=mesh.geometry.attributes.position,original=new Float32Array(p.count*3);for(let i=0;i<p.count;i++){original[i*3]=p.getX(i);original[i*3+1]=p.getY(i);original[i*3+2]=p.getZ(i);}return {mesh,original};});let hoist=1,lastNormals=-1,priorFlap=0;
  let phase=0,active=false,queued=false,blend=0,serial=0,latch=false;
  function requestStroke(){if(active||queued||blend>.02)return false;queued=true;return true;}
  function update(o){
   hoist+=(Number(!!o.sailUp)-hoist)*(1-Math.exp(-o.dt/1.1));
-  for(const {mesh,original} of fabric){const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=original[i*3],y=original[i*3+1],z=original[i*3+2],along=clamp((z+1.35)/3.77,0,1),foot=.70+.15*along,baseX=-.17+1.30*along;const height=clamp((y-foot)/3.35,0,1);const tension=Math.sin(Math.PI*height)*Math.sin(Math.PI*along);p.setXYZ(i,THREE.MathUtils.lerp(baseX,x,hoist)+Math.sin(o.t*2.1+height*9+along*4)*.018*tension*hoist*Math.min(1,o.windSpeed/7),foot+(y-foot)*hoist+Math.sin(height*70)*.015*(1-hoist),z);}p.needsUpdate=true;if(o.t-lastNormals>1/24)mesh.geometry.computeVertexNormals();}
+  const flap=sailFlap(o.t,o.windSpeed,hoist>.8);if(flap>.22&&priorFlap<=.22)o.onSailFlap?.(Math.min(.65,.15+o.windSpeed/35));priorFlap=flap;
+  for(const {mesh,original} of fabric){const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=original[i*3],y=original[i*3+1],z=original[i*3+2],along=clamp((z+1.35)/3.77,0,1),foot=.70+.15*along,baseX=-.17+1.30*along;const height=clamp((y-foot)/3.35,0,1);const tension=Math.sin(Math.PI*height)*Math.sin(Math.PI*along);p.setXYZ(i,THREE.MathUtils.lerp(baseX,x,hoist)+Math.sin(o.t*2.1+height*9+along*4)*(.012+flap*.06)*tension*hoist*Math.min(1,o.windSpeed/7),foot+(y-foot)*hoist+Math.sin(height*70)*.015*(1-hoist),z);}p.needsUpdate=true;if(o.t-lastNormals>1/24)mesh.geometry.computeVertexNormals();}
   if(o.t-lastNormals>1/24)lastNormals=o.t;
   const timeScale=clamp(o.paddleTimeScale??1,.25,1),dt=o.dt*timeScale;
   if(o.singleStroke&&!latch)requestStroke();latch=!!o.singleStroke;

@@ -39,6 +39,7 @@ import {createGPS} from './gps.js';
 import {createAnbernic} from './anbernic.js';
 import {journeyWeather} from './weather-journey.js';
 import {createVoyageGuidance} from './voyage-guidance.js';
+import {createVoyageCamera,CAMERA_VIEWS} from './voyage-camera.js';
 import {onceLoader,loadPackedJSON,loadPackedModel} from './asset-loading.js';
 import {createBinoculars} from './binoculars.js';
 
@@ -88,6 +89,7 @@ try {
 if (!renderer.capabilities.isWebGL2) fail('This browser lacks WebGL 2, which the clouds need. Try a current version of Chrome, Edge, Firefox or Safari.');
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.autoClear = false;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;
 const isTouch = window.matchMedia('(pointer: coarse)').matches;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.4 : 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -105,6 +107,9 @@ scene.add(hemi);
 const sunLight = new THREE.DirectionalLight(0xffffff, 1);
 sunLight.layers.enableAll();
 scene.add(sunLight, sunLight.target);
+sunLight.castShadow=true;sunLight.shadow.mapSize.set(isTouch?512:1024,isTouch?512:1024);
+Object.assign(sunLight.shadow.camera,{left:-5,right:5,top:5,bottom:-5,near:.1,far:130});sunLight.shadow.bias=-.0003;sunLight.shadow.normalBias=.025;sunLight.shadow.radius=2;
+sunLight.shadow.camera.layers.enableAll();
 
 const sky = createSky(renderer, scene, isTouch);
 const marineLighting=createMarineLighting(renderer,sky,isTouch);
@@ -126,6 +131,11 @@ const fronts=createWeatherFronts(scene);
 const wildlife = createWildlife(scene,ocean,{base:BASE});
 const whales = createMarineEncounters(scene,ocean,{base:BASE,register:root=>marineLighting.register(root),onShip(position){if(!position){audio.ship();return;}const d=position.clone().sub(camNear.position),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),range=d.length();audio.ship(range,d.dot(right)/Math.max(1,range));},onSound(event){if(event.type==='surface'&&event.kind==='orca')return;const d=new THREE.Vector3(event.x,event.y,event.z).sub(camNear.position),range=d.length(),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),strength=Math.min(.75,event.size/12)*Math.pow(25/Math.max(25,range),1.3);if(strength>.015)audio.marine(event.type==='breath'?'orca':event.kind,strength,d.dot(right)/Math.max(1,range));},isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
 const canoe = createCanoe(scene);
+const cameraPanel=document.createElement('details');cameraPanel.className='camera-controls';cameraPanel.innerHTML=`<summary id="cameraSummary">View · Aboard</summary><div><label>Camera<select id="voyageCamera">${Object.entries(CAMERA_VIEWS).map(([id,v])=>`<option value="${id}">${v.label}</option>`).join('')}</select></label><label>View range<input id="cameraRange" type="range" min=".55" max="2.2" step=".05" value="1"></label><p>Drag to look around · scroll to change range<br>V changes camera · steering stays the same</p></div>`;document.body.append(cameraPanel);
+const voyageCamera=createVoyageCamera({reducedMotion:()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches,onChange:syncCameraControls});
+function syncCameraControls(){cameraPanel.querySelector('select').value=voyageCamera.mode;cameraPanel.querySelector('input').value=voyageCamera.zoom;cameraPanel.querySelector('summary').textContent='View · '+CAMERA_VIEWS[voyageCamera.mode].label;}
+syncCameraControls();cameraPanel.querySelector('select').onchange=e=>{voyageCamera.select(e.target.value);yawRel=0;pitch=0;canvas.focus({preventScroll:true});};cameraPanel.querySelector('input').oninput=e=>voyageCamera.setZoom(Number(e.target.value));
+canvas.addEventListener('wheel',e=>{if(!started||paused||inspection?.active||binoculars?.active)return;e.preventDefault();voyageCamera.setZoom(voyageCamera.zoom*Math.exp(e.deltaY*.001*(voyageCamera.external?1:-1)));},{passive:false});
 const paddlerHands=createPaddlerHands(canoe.group);
 const hullRain = createHullRain(canoe);
 ocean.uniforms.uHullSeg.value.set(...HULL_MASK.seg, 0);
@@ -212,7 +222,9 @@ const radio = createRadio({
 const anbernic=createAnbernic({base:BASE,getVoyage:()=>voyage,save:saveVoyage});
 const gps=createGPS({base:BASE,getVoyage:()=>voyage,getConditions:()=>cond,save:saveVoyage,toast});
 const prepareGPS=onceLoader(async()=>{gps.loading();const chart=await loadPackedJSON(BASE+'data/navigation-world.json');gps.setup(land,chart,gpsLandData);});let gpsLandData=null;
-inspection=createEquipmentInspection({renderer,radio,gps,anbernic,onSelect:id=>{if(id==='gps')prepareGPS().catch(()=>toast('Chart could not load. Open the GPS to retry.'));},getTapeState:()=>boatProps?.tapeState??{phase:0},
+inspection=createEquipmentInspection({renderer,radio,gps,anbernic,
+  getWorld:()=>({camera:camNear,hemi,key:sunLight,environment:marineLighting.environment,root:boatProps?.getRoot(inspection?.current)}),
+  onHeld:(id,value)=>boatProps?.setHeld(id,value),onSelect:id=>{if(id==='gps')prepareGPS().catch(()=>toast('Chart could not load. Open the GPS to retry.'));},getTapeState:()=>boatProps?.tapeState??{phase:0},
   onOpen(){keys.clear();dragging=false;dragMode=true;if(document.pointerLockElement)document.exitPointerLock();radio.setOpen(false);},
   onClose(){dragMode=true;},onLantern:toggleLantern,lanternOn:()=>lanternOn,
   onBinoculars(){binoculars.open();},
@@ -238,13 +250,13 @@ const touchInput = { paddle: false, left: false, right: false };
 const LIMIT = 80 * DEG;
 function look(dx, dy, sens) {
   yawRel -= dx * sens;
-  yawRel = Math.max(-170 * DEG, Math.min(170 * DEG, yawRel));
+  yawRel = voyageCamera.external ? Math.atan2(Math.sin(yawRel),Math.cos(yawRel)) : Math.max(-170 * DEG, Math.min(170 * DEG, yawRel));
   pitch = Math.max(-LIMIT, Math.min(LIMIT, pitch - dy * sens));
 }
 function resetStudioCamera(angle=-.07){
   fronts.cancelPreview();if(environment)Object.assign(sm,previewWeather(environment));firstFrame=true;
   window.__moonCam=false;window.__birdCam=false;window.__cam=null;pitch=angle;yawRel=0;
-  camNear.fov=camFar.fov=68;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();
+  voyageCamera.select('seated');voyageCamera.reset();camNear.fov=camFar.fov=68;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();
   const direction=new THREE.Vector3(0,Math.sin(angle),-Math.cos(angle)).applyAxisAngle(new THREE.Vector3(0,1,0),-voyage.heading*DEG);
   camNear.lookAt(camNear.position.clone().add(direction));camFar.quaternion.copy(camNear.quaternion);
 }
@@ -322,6 +334,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (radio.key(e.code)) { e.preventDefault(); return; }
   keys.add(e.code);
+  if (e.code === 'KeyV'&&!e.repeat) {voyageCamera.cycle();yawRel=0;pitch=0;toast(CAMERA_VIEWS[voyageCamera.mode].label);}
   if (e.code === 'KeyE') toggleSail();
   if (e.code === 'KeyR') toggleRadio();
   if (e.code === 'KeyC') toggleStars();
@@ -672,7 +685,8 @@ function frame() {
 
   /* ----- Lightning in heavy squalls ----- */
   const stormy = Math.max(0, Math.min(1, (sm.precip - 0.35) * 1.6)) * Math.max(0, Math.min(1, (dark - 0.25) * 2));
-  if (started && stormy > 0 && Math.random() < dt * stormy * 0.12) {
+  const recordedFlash=audio.consumeLightning();if(started&&recordedFlash>0){flash=Math.max(flash,recordedFlash);log.storm();}
+  if (started && stormy > 0 && !audio.recordedThunder && Math.random() < dt * stormy * 0.12) {
     flash = 0.7 + Math.random() * 0.8;
     const distKm = 1 + Math.random() * 9;
     audio.thunder(distKm / 0.343, Math.min(1, 2.2 / distKm + 0.25));
@@ -717,6 +731,9 @@ function frame() {
   const cold = smoothstep(22, 50, Math.abs(voyage.lat));
   const lum = Math.max(0.05, Math.min(1, (e + 10) / 20)) * (1 - 0.35 * dark) + ml * 0.15;
   const body = lerp3([0.015, 0.085, 0.15], [0.025, 0.07, 0.085], cold).map((v) => v * lum);
+  // A small scotopic floor keeps swell readable without inventing moonlight.
+  const nightFloor=smoothstep(0,-.15,sunV.y)*(.50+.50*darkAdaptation)*(1-.35*dark);
+  for(let i=0;i<3;i++)body[i]=Math.max(body[i],[.028,.052,.082][i]*nightFloor);
   ou.uBody.value.set(...body);
 
   /* ----- Lantern: lit automatically after dusk unless the player chooses otherwise ----- */
@@ -734,10 +751,11 @@ function frame() {
     apparentFromRel: relWind, windSpeed: sm.speed, lantern: lanternOn,
     t: elapsed, dt, rawDt, waveT: waveTime, ocean,
     light: [0, 1, 2].map((i) => p.sun[i] * smoothstep(-0.04, 0.08, sunV.y) * (1 - 0.6 * dark) * 0.6 + hor[i] * 0.35),
+    onSailFlap: strength=>audio.sailFlap(strength),
     onPaddleWater: event=>paddleFeedback.water(event,elapsed)
   });
   canoe.eye(eyePos, eyeQuat);
-  paddlerHands.update(dt,canoe.getPaddlePose(),{seat:canoe.seat,eye:canoe.group.worldToLocal(paddlerLocalEye.copy(eyePos)),visible:started&&!paused&&!window.__cam&&!window.__moonCam&&!window.__birdCam&&(!environment||environment.hands)});
+  paddlerHands.update(dt,canoe.getPaddlePose(),{seat:canoe.seat,eye:canoe.group.worldToLocal(paddlerLocalEye.copy(eyePos)),visible:started&&!paused&&!voyageCamera.external&&!inspection.active&&!window.__cam&&!window.__moonCam&&!window.__birdCam&&(!environment||environment.hands)});
   hullRain.update(dt,Math.min(1,sm.precip),hor,{enabled:environment?.boatImpacts!==false,strength:environment?.rainImpactStrength??1});
   boatProps?.update(dt,Math.min(1,Math.max(sm.precip,boatWater.wetness)),radio.mediaState());gps.update(dt,elapsed);anbernic.update(dt,elapsed);guidance.update(voyage,gps.route,gps.state,started&&!paused&&!inspection.active&&!binoculars.active&&!worldArrival?.active);if(gps.route!==previousRoute){previousRoute=gps.route;if(gps.route)$('mapWrap').hidden=false;}const music=radio.mediaState(),audible=music.on&&(music.mode==='TAPE'?music.spotify.playing:music.status.toLowerCase().includes('on air'));playingChip.hidden=!audible||!started||paused||inspection.active;playingChip.textContent=music.mode==='TAPE'?'♫ Spotify':'♫ '+(music.station||'Radio');
 
@@ -747,7 +765,7 @@ function frame() {
   ou.uHullSpeed.value = voyage.speed;
   const heaveRateNow = (canoe.heave - prevHeave) / Math.max(dt, 1e-3);
   ou.uBoatMotion.value = Math.min(1.5, Math.abs(heaveRateNow)*.65);
-  boatWater.update(dt,waveTime,voyage.speed,sm.precip,{view:started&&!paused&&!window.__cam&&!window.__birdCam});
+  boatWater.update(dt,waveTime,voyage.speed,sm.precip,{view:started&&!paused&&!voyageCamera.external&&!inspection.active&&!window.__cam&&!window.__birdCam});
   if (Math.random() < dt * Math.max(0,sm.speed-5)*.002) audio.creak(0.4 + Math.random() * 0.4);
   audio.setLantern(lanternOn ? 1 : 0);
   spray.update(dt, hor, bio,waveTime);
@@ -755,6 +773,8 @@ function frame() {
   lookQuat.setFromEuler(lookEuler);
   camNear.position.copy(eyePos);
   camNear.quaternion.copy(eyeQuat).multiply(lookQuat);
+  voyageCamera.apply(camNear,dt,{boat:canoe.group,heading:voyage.heading*DEG,eyePosition:eyePos,eyeQuaternion:eyeQuat,yaw:yawRel,pitch,ocean,time:waveTime,forceAboard:binoculars.active||inspection.active});
+  if(!binoculars.active&&Math.abs(camFar.fov-camNear.fov)>.005){camFar.fov=camNear.fov;camFar.updateProjectionMatrix();}
   if (DEBUG && window.__cam) {
     // Debug orbit camera: offset from the boat in its own frame, looking at the hull
     const c = window.__cam;
@@ -802,18 +822,18 @@ function frame() {
   /* ----- Light for the boat ----- */
   const sunUp = smoothstep(-0.04, 0.06, sunV.y);
   if (sunUp > 0.01) {
-    sunLight.position.copy(camNear.position).addScaledVector(sunV, 100);
+    sunLight.position.copy(canoe.group.position).addScaledVector(sunV, 100);
     sunLight.color.setRGB(...p.sun);
     sunLight.intensity = Math.PI * 1.05 * sunUp * (1 - 0.7 * dark);
   } else {
-    sunLight.position.copy(camNear.position).addScaledVector(moonV, 100);
+    sunLight.position.copy(canoe.group.position).addScaledVector(moonV, 100);
     sunLight.color.setRGB(0.55, 0.6, 0.72);
     sunLight.intensity = Math.PI * 0.12 * moonLight * clamp01(moonV.y * 4);
   }
-  sunLight.target.position.copy(camNear.position);
+  sunLight.target.position.copy(canoe.group.position);
   hemi.color.setRGB(zen[0] * 0.8 + hor[0] * 0.5, zen[1] * 0.8 + hor[1] * 0.5, zen[2] * 0.8 + hor[2] * 0.5);
   hemi.groundColor.setRGB(...body.map((v) => v * 2));
-  hemi.intensity = Math.PI * 0.75;
+  hemi.intensity = Math.PI * 0.55;
 
   /* ----- Rain, sound, radio, compass, HUD ----- */
   rain.update(dt, camNear.position, Math.min(1, sm.precip), sm.u, sm.v, hor.map((v) => Math.min(1, v * 1.25 + 0.08)),{enabled:environment?.fallingRain!==false,veil:environment?.rainVeil!==false,strength:environment?.rainDensity??1});
@@ -873,7 +893,7 @@ function frame() {
   $('itemHint').hidden=!itemUnderPointer||inspection.active||binoculars.active;
   boatProps?.highlight(heldItem?.name||itemUnderPointer);
   if(itemUnderPointer)$('itemHint').textContent='Inspect '+({gps:'GPS',anbernic:'Anbernic',walkman:'Walkman'}[itemUnderPointer]||itemUnderPointer);
-  if(inspection.active){inspection.render(dt);firstFrame=false;return;}
+  // Inspection overlays the continuously rendered voyage, preserving place and sound.
 
   /* ----- Render ----- */
   sky.renderClouds(firstFrame);
@@ -881,16 +901,18 @@ function frame() {
   const glareSun=new THREE.Vector3().copy(sunV).multiplyScalar(1000).add(camNear.position).project(camNear),sunForward=new THREE.Vector3(0,0,-1).applyQuaternion(camNear.quaternion).dot(sunV);if(sunForward<=0||sunV.y<0)glareSun.set(-10,-10,0);else glareSun.set(glareSun.x*.5+.5,glareSun.y*.5+.5,0);
   lensRain.setIntensity(environment?.screenWaterStrength ?? 2.2);
   lensRain.setRainStrength(environment?.rainDropStrength??1.5);
-  lensRain.update(dt, Math.min(1,sm.precip),sm.speed,Math.max(.02,sunUp),elapsed,started && !paused && !window.__cam && !window.__birdCam,{drops:environment?.screenDrops!==false,heat:sm.heat||0,sun:glareSun});
+  lensRain.update(dt, Math.min(1,sm.precip),sm.speed,Math.max(.02,sunUp),elapsed,started && !paused && !voyageCamera.external && !inspection.active && !window.__cam && !window.__birdCam,{drops:environment?.screenDrops!==false,heat:sm.heat||0,sun:glareSun});
   boatReflections.update(camNear,elapsed,{enabled:started&&!paused&&environment?.hullReflections!==false});
   lensRain.begin();
   renderer.clear();
   renderer.render(scene, camFar);
   renderer.clearDepth();
+  renderer.shadowMap.needsUpdate=true;
   // Moon inspection is a sky study; the mast must not obscure the inspected disc.
   if(!(PREVIEW&&window.__moonCam))renderer.render(scene, camNear);
   lensRain.render();
   worldArrival?.render();
+  if(inspection.active)inspection.render(dt);
   firstFrame = false;
 }
 
@@ -940,7 +962,7 @@ async function boot() {
     } catch (e) { console.warn('Rowing boat could not be fitted', e); }
   }).catch(error=>console.warn('Boat unavailable',error));
   loadPackedModel(loader,BASE+'models/lantern.glb').then((g) => {
-    try { inspection.register('lantern',g.scene.clone(true));canoe.applyLantern(g.scene); } catch (e) { console.warn('Lantern model could not be fitted', e); }
+    try { inspection.register('lantern',g.scene.clone(true));canoe.applyLantern(g.scene);marineLighting.register(canoe.lantern); } catch (e) { console.warn('Lantern model could not be fitted', e); }
   }).catch(()=>{});
 
   if(PREVIEW)voyage=null;
@@ -991,7 +1013,7 @@ async function boot() {
       onPreset(){resetStudioCamera();},
       onMeteor(){resetStudioCamera(.5);meteors.preview(camFar);},
       onFront(){resetStudioCamera(.04);fronts.preview(camNear);},
-      onBio(){resetStudioCamera(-.55);voyage.lantern=false;keys.add('KeyW');setTimeout(()=>keys.delete('KeyW'),9000);},
+      onBio(){resetStudioCamera(-.55);voyageCamera.select('follow');voyageCamera.setZoom(.65);yawRel=.8;pitch=.12;voyage.lantern=false;keys.add('KeyW');setTimeout(()=>keys.delete('KeyW'),9000);},
       onMoon(){
         fronts.cancelPreview();sm.cover=0;sm.precip=0;sm.dark=0;firstFrame=true;
         let bestHour=0,bestScore=-Infinity;

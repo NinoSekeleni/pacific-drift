@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {createVoyageCamera,CAMERA_VIEWS} from '../src/voyage-camera.js';
+const values=new Map(),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)},boat=new THREE.Group();boat.updateMatrixWorld(true);const camera=new THREE.PerspectiveCamera(68,16/9,.08,16000),eyePosition=new THREE.Vector3(0,1.1,1.81),eyeQuaternion=new THREE.Quaternion();
+const rig=createVoyageCamera({storage,reducedMotion:()=>true}),input={boat,heading:0,eyePosition,eyeQuaternion,ocean:{sample:(x,z,t,out)=>{out.h=3;}},time:0};
+for(const id of Object.keys(CAMERA_VIEWS)){rig.select(id);rig.apply(camera,1/60,input);assert.ok(camera.position.toArray().every(Number.isFinite));assert.ok(camera.fov>=40&&camera.fov<=86);if(!['seated','bow'].includes(id)){assert.ok(camera.position.y>=4.25,'exterior lens clears the sampled wave crest');assert.ok(camera.position.distanceTo(boat.position)>4);}}
+rig.select('wide');rig.setZoom(9);assert.equal(rig.zoom,2.2);rig.setZoom(NaN);assert.equal(rig.zoom,2.2);const restored=createVoyageCamera({storage});assert.equal(restored.mode,'wide');assert.equal(restored.zoom,2.2);rig.apply(camera,1/60,{...input,forceAboard:true});assert.ok(camera.position.distanceTo(eyePosition)<1e-9,'binoculars return to the real seated eye');rig.select('bogus');assert.equal(rig.mode,'wide');
+const smooth=createVoyageCamera({storage:{getItem:()=>null,setItem(){}}});smooth.apply(camera,1/60,input);const before=camera.position.clone();smooth.select('aerial');smooth.apply(camera,1/60,input);assert.ok(camera.position.distanceTo(before)>0&&camera.position.distanceTo(before)<8,'view transition is bounded instead of a hard cut');
+const seated=createVoyageCamera({storage:{getItem:()=>null,setItem(){}}});for(let i=0;i<120;i++)seated.apply(camera,1/60,input);eyePosition.y=6;seated.apply(camera,1/60,input);assert.equal(camera.position.y,6,'a rising hull cannot overtake the seated eye');
+console.log('PASS camera modes, wave clearance, safe zoom, persistence, binocular eye and smooth transition');

@@ -276,7 +276,7 @@
     },
     {
       "id": "freesound-645974",
-      "name": "Sailing Ambience \u2013 Low Wind",
+      "name": "Sailing Ambience – Low Wind",
       "author": "iainmccurdy",
       "role": "sailing",
       "file": "audio/field/freesound-645974.mp3",
@@ -370,11 +370,17 @@
       "loop": true,
       "gain": 0.6,
       "streamLevel": 2.0081,
-      "duration": 311.89145833333333
+      "duration": 311.89145833333333,
+      "lightningCues": [
+        90.8,
+        135.2,
+        195.1
+      ],
+      "lightningCueNote": "Lightning precedes the three strongest low-frequency thunder transients in this approved recording; timings aligned to its streamed preview."
     },
     {
       "id": "freesound-198937",
-      "name": "ORCA.wav \u2013 source audition",
+      "name": "ORCA.wav – source audition",
       "author": "mikewest",
       "role": "audition",
       "file": "audio/field/freesound-198937.mp3",
@@ -388,7 +394,7 @@
     },
     {
       "id": "freesound-198937-breaths",
-      "name": "Orca breaths \u2013 isolated excerpts",
+      "name": "Orca breaths – isolated excerpts",
       "role": "orcaBreath",
       "file": "audio/field/orca-breaths-198937.wav",
       "author": "mikewest",

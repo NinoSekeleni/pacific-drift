@@ -10,5 +10,5 @@ export function streamedAmbience(ctx,entry,destination,url){
  if(started&&Number.isFinite(duration)&&duration>seam*3&&!fade&&a.audio.currentTime>duration-seam){b.audio.currentTime=0;play(b);fade=now;}
  if(fade!==null){const t=Math.min(1,(now-fade)/seam);a.gain.gain.setTargetAtTime(level*Math.cos(t*Math.PI/2),now,.08);b.gain.gain.setTargetAtTime(level*Math.sin(t*Math.PI/2),now,.08);if(t>=1){a.audio.pause();a.audio.currentTime=0;current=1-current;fade=null;}}
  else{a.gain.gain.setTargetAtTime(level,now,1.6);b.gain.gain.setTargetAtTime(0,now,.2);}
- },stop(){for(const c of channels)c.audio.pause();},get playing(){return started;}};
+ },stop(){for(const c of channels)c.audio.pause();},get time(){return channels[current].audio.currentTime;},get playing(){return started;}};
 }

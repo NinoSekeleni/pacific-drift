@@ -661,3 +661,11 @@ body:has(.voyage-guidance:not([hidden])) #mapWrap{top:225px;}
 .equipment-media-active #radio button{font:inherit;color:#dce7e3;background:#1c3038;border:1px solid #758f9466;border-radius:5px;padding:9px 12px;cursor:pointer}.equipment-media-active #radio .radio-head{padding:0 0 8px;justify-content:flex-end}
 @media(max-width:700px){body:has(.voyage-guidance:not([hidden])) #mapWrap{top:255px;}.voyage-guidance details[open]{max-height:80px;overflow:auto}}
 @media(max-width:700px){.equipment-has-media .equipment-details{max-height:52dvh}}
+
+/* Camera choices stay small and available while steering. */
+.camera-controls{position:fixed;right:24px;bottom:210px;z-index:20;color:var(--ink);font:12px var(--font-body);max-width:240px;background:#10232bd9;border:1px solid #a1bab644;border-radius:7px;backdrop-filter:blur(12px)}
+.camera-controls summary{padding:11px 14px;cursor:pointer;min-height:20px}.camera-controls>div{padding:0 14px 12px}.camera-controls label{display:grid;gap:6px;margin-top:10px}.camera-controls select{width:100%;padding:9px;border:1px solid #557478;background:#182e36;color:#e3ece6;border-radius:4px}.camera-controls input{width:100%;accent-color:#d6c49b}.camera-controls p{font-size:10px;line-height:1.6;color:#a4bdba;margin:10px 0 0}
+.at-home .camera-controls,.arriving .camera-controls,.inspecting-equipment .camera-controls,.using-binoculars .camera-controls{display:none}.camera-controls :focus-visible{outline:2px solid #e6d2a5;outline-offset:2px}
+.equipment-inspection{background:linear-gradient(90deg,#07121922,transparent 40%,#07121944);}.equipment-header{background:linear-gradient(#08141dcc,transparent);text-shadow:0 1px 8px #000}.equipment-has-media .equipment-details,.equipment-playing .equipment-details{background:#102027d9;backdrop-filter:blur(12px)}
+.equipment-inspection.is-returning .equipment-header,.equipment-inspection.is-returning .equipment-details{opacity:0;pointer-events:none}
+@media(max-width:700px){.camera-controls{right:12px;bottom:196px;max-width:205px}.camera-controls summary{padding:9px 11px}.camera-controls>div{padding:0 11px 10px}}

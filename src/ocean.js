@@ -328,19 +328,19 @@ export function createOcean(renderer, scene, skyUniforms) {
             vec2 q=vec2(dot(dv,acrossAxis),dot(dv,alongAxis));
             // A widening, anisotropic disturbance stays at the place where the
             // paddle or hull aerated the water while the canoe travels onward.
-            vec2 eddyQ=q/vec2(.18+age*.095,.24+age*.15);
+            vec2 eddyQ=q/vec2(.24+age*.13,.30+age*.20);
             float eddyRadius=length(eddyQ);
             if(eddyRadius<3.2){
-              float seed=noise(rp.xy*.71);
-              float rotation=(seed>.5?1.0:-1.0);
-              float theta=atan(eddyQ.y,eddyQ.x+.0001);
-              float curl=theta*2.0+log(1.0+eddyRadius*3.0)*4.2-age*.85*rotation+seed*6.28;
-              float curlAA=clamp(waterPixelFootprint*4.0,.09,.7);
-              float filament=1.0-smoothstep(.17,.17+curlAA,abs(sin(curl)));
-              float eddyEnvelope=exp(-eddyRadius*eddyRadius*.65);
-              float fresh=(1.0-exp(-age*9.0))*exp(-age*.72);
-              float memory=(1.0-exp(-age*2.0))*exp(-age*.30)*.12;
-              bioWake+=(fresh+memory)*rp.w*19.0*eddyEnvelope*(.12+filament*.88);
+              // Water-bound turbulence, never an angular spiral or spinning decal.
+              vec2 advected=q+vec2(noise(q*2.1+rp.xy)*.14,noise(q*1.8-rp.xy)*.17);
+              float broad=fbm(advected*3.7+rp.xy*.13+vec2(age*.09,-age*.065),3);
+              float grain=noise(advected*19.0+rp.xy*3.1);
+              float resolved=1.-smoothstep(.025,.16,waterPixelFootprint);
+              float cells=mix(.30,smoothstep(.58,.84,grain),resolved);
+              float eddyEnvelope=exp(-eddyRadius*eddyRadius*.83)*(1.-smoothstep(1.5,2.8,eddyRadius));
+              float fresh=(1.0-exp(-age*12.0))*exp(-age*.95);
+              float memory=(1.0-exp(-age*3.0))*exp(-age*.52)*.12;
+              bioWake+=(fresh+memory)*rp.w*24.0*eddyEnvelope*smoothstep(.18,.65,broad)*(.35+cells*.65);
               float foamAge=(1.0-exp(-age*5.0))*exp(-age*.31);
               float broken=.3+.7*smoothstep(.33,.69,noise(q*4.0+rp.xy*.37+vec2(age*.12,-age*.08)));
               float rim=exp(-pow((eddyRadius-(.68+age*.025))/.20,2.0));
@@ -471,7 +471,7 @@ export function createOcean(renderer, scene, skyUniforms) {
         // Plankton light traces individual disturbed filaments. It never
         // supplies a uniform blue fill over the sea or an unbroken neon hull rim.
         if (uBio > .01 && dist < 65.0) {
-          vec2 flow = vWorld.xz*.20+waterWind*uTime*.015;
+          vec2 flow = vBase*.20-waterWind*uTime*.006;
           float planktonPatch=smoothstep(.34,.71,fbm(flow,3));
           vec2 hullRel=vWorld.xz-uHull.xy;
           vec2 hullRight=vec2(-uHullAx.y,uHullAx.x);
@@ -480,14 +480,13 @@ export function createOcean(renderer, scene, skyUniforms) {
           float beam=uHullSeg.y*pow(max(.0,1.0-pow(section,2.3)),.72);
           float edgeDistance=abs(hullAcross)-beam;
           float contact=exp(-pow((edgeDistance-.06)/.15,2.0))*(1.0-smoothstep(2.35,2.9,abs(hullAlong)))*uHull.w;
-          float contactTravel=sin(hullAlong*3.1-uTime*2.2+hullAcross*1.8);
-          float contactPulse=smoothstep(-.15,.72,contactTravel)*smoothstep(.28,.72,noise(vec2(hullAlong*1.8-uTime*.23,hullAcross*1.4)));
-          float hullGlow=contact*contactPulse*(.12+uBoatMotion*.95+uHullSpeed*.25);
+          float contactPulse=smoothstep(.42,.76,fbm(vBase*5.0-waterWind*uTime*.12,3));
+          float hullGlow=contact*contactPulse*(uBoatMotion*.65+uHullSpeed*.15);
           float breaking=smoothstep(.75,1.2,vH/max(uHsWind*.5,.05))*uWhitecap*.14*smoothstep(.6,.87,planktonPatch);
-          float luminous=(bioWake+hullGlow+breaking)*mix(.12,1.0,planktonPatch)*uBio;
-          float visible=1.0-exp(-luminous*2.1);
+          float luminous=(bioWake+hullGlow+breaking)*mix(.35,1.0,planktonPatch)*uBio;
+          float visible=1.0-exp(-luminous*1.6);
           float core=pow(visible,2.5);
-          col+=vec3(.008,.38,1.0)*visible*1.25+vec3(.10,.60,1.0)*core*.65;
+          col+=vec3(.006,.36,.55)*visible+vec3(.08,.62,.75)*core*.38;
         }
 
         float fogF = 1.0 - exp(-dist / uVis);

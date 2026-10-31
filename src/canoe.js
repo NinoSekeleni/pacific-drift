@@ -415,10 +415,11 @@ export function createCanoe(scene) {
   halo.position.y = 0.13;
   halo.renderOrder = 6;
   lantern.add(halo);
-  const lampLight = new THREE.PointLight(0xffa860, 0, 14, 2);
+  const lampLight = new THREE.PointLight(0xffc58c, 0, 8, 1);
+  lampLight.castShadow=!globalThis.matchMedia?.('(pointer: coarse)').matches;lampLight.shadow.mapSize.set(256,256);lampLight.shadow.camera.near=.04;lampLight.shadow.camera.far=8;lampLight.shadow.bias=-.001;lampLight.shadow.normalBias=.012;lampLight.shadow.camera.layers.enableAll();
   lampLight.position.y = 0.14;
   lantern.add(lampLight);
-  let lampLevel = 0;
+  let lampLevel = 0;const lampWorld={value:new THREE.Vector3()},lampEmission={value:0};
 
   canoe.traverse((o) => o.layers.set(LAYER_NEAR));
   lampLight.layers.enableAll();
@@ -560,7 +561,7 @@ export function createCanoe(scene) {
     // Lantern: a kerosene flame flickers; light fades in and out when trimmed
     lampLevel += ((o.lantern ? 1 : 0) - lampLevel) * Math.min(1, o.dt * 3);
     const flick = 0.86 + 0.08 * Math.sin(o.t * 17.3) + 0.06 * Math.sin(o.t * 7.1 + Math.sin(o.t * 2.3));
-    lampLight.intensity = 2.6 * lampLevel * flick;
+    lampLight.intensity = .38 * lampLevel * flick;lampEmission.value=lampLevel*flick;lampLight.getWorldPosition(lampWorld.value);
     flame.visible = halo.visible = lampLevel > 0.02;
     flame.material.opacity = lampLevel;
     halo.material.opacity = 0.22 * lampLevel * flick;
@@ -658,8 +659,14 @@ export function createCanoe(scene) {
     root.updateMatrixWorld(true);
     root.traverse((o) => {
       if (!o.isMesh) return;
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].colorSpace = THREE.NoColorSpace;
+      o.userData.noShadow=true;o.castShadow=false;
+      const prepare=source=>{const m=createBoatMaterial(source);const prior=m.onBeforeCompile;m.onBeforeCompile=shader=>{prior(shader);shader.uniforms.uLampWorld=lampWorld;shader.uniforms.uLampEmission=lampEmission;
+       shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vLampWorld;').replace('#include <project_vertex>','#include <project_vertex>\nvLampWorld=(modelMatrix*vec4(transformed,1.)).xyz;');
+       shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vLampWorld;uniform vec3 uLampWorld;uniform float uLampEmission;').replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+        float globe=1.-smoothstep(.055,.10,length((vLampWorld-uLampWorld)*vec3(1.,.72,1.)));
+        float glass=smoothstep(.18,.5,min(diffuseColor.r,min(diffuseColor.g,diffuseColor.b)));
+        totalEmissiveRadiance+=vec3(.65,.23,.04)*globe*glass*uLampEmission;
+       `);};m.customProgramCacheKey=()=> 'pacific-aboard-lantern-v2';return m;};o.material=Array.isArray(o.material)?o.material.map(prepare):prepare(o.material);
     });
     const box = new THREE.Box3().setFromObject(root);
     const size = box.getSize(new THREE.Vector3());
@@ -762,7 +769,7 @@ export function createCanoe(scene) {
     for(const part of hullParts)part.visible=false;rig.visible=false;paddlePivot.visible=false;innerHull.visible=false;
     root.traverse(o=>{if(o.isMesh)prepareMarineUV(o);});
     const materialCache=new Map();
-    root.traverse(o=>{o.layers.set(LAYER_NEAR);if(o.isMesh){o.frustumCulled=false;const cloth=o.name==='Sail';const prepare=source=>{const key=source.uuid+':'+cloth+':'+(o.name==='Lacing'?'rope':'wood');if(!materialCache.has(key))materialCache.set(key,createBoatMaterial(source,{cloth}));const material=materialCache.get(key);registerWet(material);return material;};o.material=Array.isArray(o.material)?o.material.map(prepare):prepare(o.material);}});
+    root.traverse(o=>{o.layers.set(LAYER_NEAR);if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;const cloth=o.name==='Sail';const prepare=source=>{const key=source.uuid+':'+cloth+':'+(o.name==='Lacing'?'rope':'wood');if(!materialCache.has(key))materialCache.set(key,createBoatMaterial(source,{cloth}));const material=materialCache.get(key);registerWet(material);return material;};o.material=Array.isArray(o.material)?o.material.map(prepare):prepare(o.material);}});
     const hull=root.getObjectByName('Hull');surfaceMeshes.splice(0,surfaceMeshes.length,hull,root.getObjectByName('Fittings'));
     seating.copy(ROWING_SEAT);eyeInitialized=false;rollResponse=.72;
     wetPoints=WET.map(([al,ac,w])=>[al*.90,ac*2.1,w]);

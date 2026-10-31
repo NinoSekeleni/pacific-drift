@@ -17,7 +17,7 @@ export function createMarineLighting(renderer,sky,isTouch=false){
  const cube=new THREE.WebGLCubeRenderTarget(isTouch?32:64,{type:THREE.HalfFloatType});
  const camera=new THREE.CubeCamera(.1,20000,cube),pmrem=new THREE.PMREMGenerator(renderer);
  let filtered=null,last=-Infinity,lastKey='';
- function register(root){root.traverse(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.isMeshStandardMaterial){materials.add(m);if(filtered){m.envMap=filtered.texture;m.needsUpdate=true;}m.envMapIntensity=m.userData.boatFabric?.12:.32;}});}
+ function register(root){root.traverse(o=>{if(!o.isMesh)return;o.castShadow=!o.userData.noShadow;o.receiveShadow=true;for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.isMeshStandardMaterial){materials.add(m);if(filtered){m.envMap=filtered.texture;m.needsUpdate=true;}m.envMapIntensity=m.userData.boatFabric?.12:.32;}});}
  function update(time,enabled=true){
   if(!materials.size)return;
   for(const m of materials)m.envMapIntensity=enabled?(m.userData.boatFabric?.12:.32):0;
@@ -31,5 +31,5 @@ export function createMarineLighting(renderer,sky,isTouch=false){
   for(const m of materials){const first=!m.envMap;m.envMap=filtered.texture;if(first)m.needsUpdate=true;}
   old?.dispose();
  }
- return {register,update,dispose(){filtered?.dispose();cube.dispose();material.dispose();pmrem.dispose();}};
+ return {register,update,get environment(){return filtered?.texture??null;},dispose(){filtered?.dispose();cube.dispose();material.dispose();pmrem.dispose();}};
 }
