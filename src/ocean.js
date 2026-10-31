@@ -122,6 +122,7 @@ export function createOcean(renderer, scene, skyUniforms) {
   const phaseOffsets=new Float32Array(N_WAVES);
   let seaInitialized=false;
   const ripples = Array.from({ length: RIPPLE_COUNT }, () => new THREE.Vector4(0, 0, -1000, 0));
+  const rippleKinds=Array(RIPPLE_COUNT).fill(0);
   const rippleAxes=Array.from({length:RIPPLE_COUNT},()=>new THREE.Vector2(0,-1));
   let rippleNext = 0;
 
@@ -130,6 +131,7 @@ export function createOcean(renderer, scene, skyUniforms) {
     uWavePhase:{value:phaseOffsets},
     uRipples: { value: ripples },
     uWaterRippleAxes: {value:rippleAxes},
+    uWaterRippleKinds:{value:rippleKinds},
     uWaterWindDir: {value:new THREE.Vector2(0,-1)},
     tDetail: { value: detailNormals(renderer) },
     tImportedNormal:{value:null},tImportedRoughness:{value:null},tFoamDetail:{value:null},
@@ -205,6 +207,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform float uTextureDetail,uFoamDetail,uOpticsDetail;
       uniform vec4 uRipples[${RIPPLE_COUNT}];
       uniform vec2 uWaterRippleAxes[${RIPPLE_COUNT}];
+      uniform float uWaterRippleKinds[${RIPPLE_COUNT}];
       uniform vec2 uWaterWindDir;
       uniform vec3 uBody;
       uniform vec3 uFog;
@@ -326,6 +329,7 @@ export function createOcean(renderer, scene, skyUniforms) {
             vec2 drift=waterWind*age*min(uWind*.012,.28);
             vec2 dv = vBase - rp.xy-drift;
             float d = length(dv);
+            float hullWake=uWaterRippleKinds[i];
             vec2 alongAxis=uWaterRippleAxes[i];
             vec2 acrossAxis=vec2(-alongAxis.y,alongAxis.x);
             vec2 q=vec2(dot(dv,acrossAxis),dot(dv,alongAxis));
@@ -344,13 +348,16 @@ export function createOcean(renderer, scene, skyUniforms) {
               float fresh=(1.0-exp(-age*12.0))*exp(-age*.95);
               float memory=(1.0-exp(-age*3.0))*exp(-age*.52)*.12;
               bioWake+=(fresh+memory)*rp.w*24.0*eddyEnvelope*smoothstep(.18,.65,broad)*(.35+cells*.65);
-              float foamAge=(1.0-exp(-age*5.0))*exp(-age*.31);
-              float broken=.3+.7*smoothstep(.33,.69,noise(q*4.0+rp.xy*.37+vec2(age*.12,-age*.08)));
-              float rim=exp(-pow((eddyRadius-(.68+age*.025))/.20,2.0));
+              float foamAge=(1.0-exp(-age*7.0))*exp(-age*mix(.8,1.35,hullWake));
+              // Sparse aerated patches fade in place. Annular rims made successive
+              // emissions read as a chain of identical white rings.
+              float broken=smoothstep(.36,.76,broad)*smoothstep(.2,.72,noise(advected*7.0+rp.xy*.37));
               float turbulence=clamp((rp.w-.018)*9.0,.0,.9);
-              waterWakeFoam+=(rim*.7+eddyEnvelope*.13)*foamAge*broken*turbulence;
+              waterWakeFoam+=eddyEnvelope*foamAge*broken*turbulence*mix(.32,.16,hullWake);
             }
             // Expanding capillary rings decay faster than the foam they leave.
+            // Hull displacement is broad and quiet, not repeated expanding impact rings.
+            if(hullWake>.5){rg+=acrossAxis*(-q.x)*exp(-dot(eddyQ,eddyQ))*rp.w*exp(-age*1.5)*.3;continue;}
             if(age>8.0)continue;
             float front = .9 * age + .04;
             float wdt = .16 + .32 * age;
@@ -593,7 +600,8 @@ export function createOcean(renderer, scene, skyUniforms) {
     return raw(px, pz, t, out);
   }
 
-  function addRipple(x, z, t, strength, direction=null) {
+  function addRipple(x, z, t, strength, direction=null, source='impact') {
+    rippleKinds[rippleNext]=source==='hull'?1:0;
     ripples[rippleNext].set(x, z, t, strength);
     const axis=uniforms.uHullAx.value;
     rippleAxes[rippleNext].set(direction?.x??axis.x,direction?.z??axis.y);
