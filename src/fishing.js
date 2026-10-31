@@ -67,7 +67,7 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
   if(Math.abs(local.z)<halfLength&&Math.abs(local.x)<halfBeam){rod.retrieve();resetLine();status('The float came down against the hull. Cast out over open water.',true);return;}
   const a=advice();
   if(!a.ok){rod.retrieve();resetLine();status(a.reason,true);return;}
-  castHabitat=a.weights;castRig=a.rig;bite.start();
+  castHabitat=a.weights;castRig=a.rig;bite.start(context.baitNear?.45:1);if(context.baitNear)status('Birds are working the water close by. Fish are feeding here.');
  };
 
  const catchPanel=document.createElement('dialog');catchPanel.className='fishing-catch';catchPanel.setAttribute('aria-labelledby','catchTitle');

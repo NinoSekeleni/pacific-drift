@@ -20,8 +20,8 @@ export function createBiteTimer(rng = Math.random, config = BITE) {
   let armed = false, waited = 0, due = 0, bites = 0;
   const draw = (min, max) => Math.min(config.maxWait, min + Math.max(0, Math.min(1, rng())) * (max - min));
   return {
-    /** The float has landed in fishable water. */
-    start() { armed = true; waited = 0; due = draw(config.firstMin, config.firstMax); },
+    /** The float has landed in fishable water. A scale below 1 (fish feeding nearby) shortens the wait. */
+    start(scale = 1) { armed = true; waited = 0; due = draw(config.firstMin, config.firstMax) * Math.max(.2, Math.min(1, scale)); },
     /** The fish let go without being struck: another will come sooner. */
     missed() { armed = true; waited = 0; due = draw(config.retryMin, config.retryMax); },
     /** Line retrieved, rig changed, rod put away or the boat changed. */

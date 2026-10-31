@@ -16,7 +16,7 @@ import {createSeaRain} from './sea-rain.js';
 import { createLensRain } from './lens-rain.js';
 import { createHullRain } from './hull-rain.js';
 import { createWildlife } from './wildlife.js';
-import {createMarineEncounters} from './marine-encounters.js';import {createWhaleWater} from './whale-water.js';
+import {createMarineEncounters} from './marine-encounters.js';import {createWhaleWater} from './whale-water.js';import {createFeedingBirds,FLOCK} from './feeding-birds.js';
 import {createMeteors} from './meteors.js';
 import {createWeatherFronts} from './weather-fronts.js';
 import {createSkyOptics} from './sky-optics.js';
@@ -158,6 +158,7 @@ const seaRain=createSeaRain(scene,ocean,canoe);
 const lensRain = createLensRain(renderer,{low:isTouch});
 let darkAdaptation = 0.8;
 const spray = createSpray(scene,{max:isTouch?1400:2400});
+const feedingBirds=createFeedingBirds(scene,ocean,{spray:()=>spray});let flockNoticed=false;
 spray.setSurfaceSampler(ocean.sample,(x,z,t,strength)=>ocean.addRipple(x,z,t,strength));
 const log = createLog();
 const birds = createBirds(scene);
@@ -1009,6 +1010,8 @@ function frame() {
     birds.update(dt, camNear.position, islands.nearest, e);
   }
 
+  feedingBirds.update(dt,camNear,{time:elapsed,playing:started&&!paused,daylight:e>4,windSpeed:sm.speed,enabled:!environment||environment.birds!==false,currentU:cond?.c?.u??0,currentV:cond?.c?.v??0});
+  if(feedingBirds.active&&!flockNoticed&&started&&!paused){flockNoticed=true;const c=feedingBirds.center,d=Math.hypot(c.x-camNear.position.x,c.z-camNear.position.z),br=(Math.atan2(c.x-camNear.position.x,-(c.z-camNear.position.z))*180/Math.PI+360)%360;toast(`Birds are diving on a patch of water ${Math.round(d/10)*10} m off, bearing ${Math.round(br)}°. Fish are feeding there.`);}else if(!feedingBirds.active)flockNoticed=false;
   wildlife.update(dt,camNear,{lat:voyage.lat,windFrom:w.from*DEG,windSpeed:sm.speed,time:elapsed,sunAltitude:e,enabled:!environment || environment.birds,playing:started && !paused && (!environment || environment.birds)});
 
   whaleWater.update(dt);whales.update(dt,camNear,{wind:airWind,time:elapsed,windSpeed:sm.speed,sunAltitude:e,playing:started && !paused,enabled:!environment || environment.whales,ships:!environment||environment.ships,lat:voyage.lat,nearestLand:islands?.nearest?.d??Infinity,tint:hor});
@@ -1091,6 +1094,7 @@ function frame() {
   const fishContext={lat:voyage.lat,lng:voyage.lng,temperature:oceanTemperature(voyage.lat,new Date(tNow).getUTCMonth()),motor:voyage.boat==='launch',speed:Math.abs(voyage.speed),coastKm:fishCoastKm,depth:fishCoastKm<1?8:fishCoastKm<5?40:fishCoastKm<30?150:3000,reef:false,hour:(new Date(skyT+voyage.lng/15*3600e3)).getUTCHours(),origin};
   if(environment?.fishHabitat==='warm')Object.assign(fishContext,{lat:-20,temperature:26,depth:3000,coastKm:1000});
   if(environment?.fishHabitat==='reef')Object.assign(fishContext,{lat:-20,temperature:26,depth:18,coastKm:.5,reef:true});
+  fishContext.baitNear=feedingBirds.distanceTo(camNear.position)<FLOCK.near;
   lastFishContext=fishContext;
   fishing?.update(dt,elapsed,{playing:started&&!paused,visible:started&&!paused,blocked:inspection.active||binoculars.active||worldArrival?.active,hidden:document.hidden||shell.modalOpen,context:fishContext});
   marineLife.update(dt,elapsed,camNear,{...fishContext,playing:started&&!paused,enabled:started&&!paused,currentU:cond.c?.u??0,currentV:cond.c?.v??0,jellies:environment?.jellyfish!==false,fish:environment?.fishSchools!==false,origin});
@@ -1289,7 +1293,7 @@ async function boot() {
       get conditions(){return {mode:conditionsMode,status:liveWeather.status(voyage.lat,voyage.lng,now()),sample:liveWeather.sample(voyage.lat,voyage.lng,now()),skyTime:skyTime(now(),voyage.lng,{mode:conditionsMode,hour:environment?.hour})};},
       get gear(){return boatProps?.state;},
       get mode(){return modes.mode;},get fishContext(){return lastFishContext;},get walker(){return walker;},get throttle(){return throttle;},get shell(){return shell;},get fishing(){return fishing;},
-      takeHelm,leaveHelm,startFishing,chooseVessel,runAction,get whales(){return whales;},get whaleWater(){return whaleWater;},previewWhale(kind){return whales.preview(camNear,kind);},
+      takeHelm,leaveHelm,startFishing,chooseVessel,runAction,get whales(){return whales;},get whaleWater(){return whaleWater;},previewWhale(kind){return whales.preview(camNear,kind);},get birds(){return feedingBirds;},previewBirds(distance=60){return feedingBirds.start(camNear,{distance,ahead:true});},
       look(p,y){pitch=p;if(y!==undefined)yawRel=y;},
       get equipment(){return {open:inspection.active,item:inspection.current,binoculars:binoculars.active,media:radio.mediaState()};},
       sea(speed, swellH = speed / 5) { window.__sea = { speed, swellH, precip: speed > 18 ? 0.7 : 0, cover: speed > 18 ? 0.85 : 0.25 }; },
