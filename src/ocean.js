@@ -129,6 +129,7 @@ export function createOcean(renderer, scene, skyUniforms) {
   const uniforms = Object.assign({}, skyUniforms, {
     uWaves: { value: waves },
     uWavePhase:{value:phaseOffsets},
+    uMarineClarity:{value:0},tMarineLife:{value:null},uMarineLife:{value:0},uMarineResolution:{value:new THREE.Vector2(1,1)},
     uRipples: { value: ripples },
     uWaterRippleAxes: {value:rippleAxes},
     uWaterRippleKinds:{value:rippleKinds},
@@ -211,6 +212,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform vec2 uWaterWindDir;
       uniform vec3 uBody;
       uniform vec3 uFog;
+      uniform float uMarineClarity;uniform sampler2D tMarineLife;uniform float uMarineLife;uniform vec2 uMarineResolution;
       uniform float uVis,uBoatReflection;uniform vec2 uBoatReflectionTexel;uniform sampler2D tBoatReflection;uniform mat4 uBoatReflectionMatrix;
       uniform float uWind;
       uniform float uWhitecap;
@@ -420,6 +422,10 @@ export function createOcean(renderer, scene, skyUniforms) {
             col=mix(col,localReflection.rgb/max(.001,localReflection.a),weight);
           }
         }
+
+        // Underwater life is captured before the sea and viewed through this water pixel.
+        // Hull occlusion remains the sea's ordinary depth test; grazing views reflect more sky.
+        if(uMarineLife>.5){vec2 lifeUV=gl_FragCoord.xy/uMarineResolution+N.xz*.00065;vec4 life=texture2D(tMarineLife,lifeUV);float transmission=mix((1.-(.02+.98*pow(1.-clamp(NdV,0.,1.),5.)))*.88,1.,uMarineClarity);vec3 body=life.rgb/max(.001,life.a);body*=vec3(.72,.9,.94);col=mix(col,body,life.a*transmission);if(uMarineClarity>.5)col=mix(vec3(.015,.08,.12),body,life.a);}
 
         // Wind-aligned streaks break reflected highlights into long moving
         // lanes. They emerge only in a breeze and remain broad enough to resolve.

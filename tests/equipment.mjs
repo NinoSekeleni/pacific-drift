@@ -13,7 +13,7 @@ assert.ok(Math.abs(Math.max(...new THREE.Box3().setFromObject(clone).getSize(new
 const lamp=new THREE.Group(),body=new THREE.Mesh(new THREE.BoxGeometry(.1,.3,.1)),halo=new THREE.Sprite();halo.scale.set(4,4,4);lamp.add(body,halo);const invisible=new THREE.Group();invisible.visible=false;invisible.add(new THREE.Mesh(new THREE.BoxGeometry(10,10,10)));lamp.add(invisible);
 assert.ok(visibleItemBounds(lamp).getSize(new THREE.Vector3()).distanceTo(new THREE.Vector3(.1,.3,.1))<1e-7,'light halos and hidden fallbacks cannot intercept other items');
 const originalTexture=new THREE.Texture(),material=new THREE.MeshStandardMaterial({map:originalTexture}),source=new THREE.Mesh(new THREE.BoxGeometry(1,2,1),material);inspectionObject(source,null);assert.equal(originalTexture.colorSpace,THREE.NoColorSpace,'inspection must not recolour textures used by the boat');
-assert.equal(PROP_LAYOUT.backpack.rotation[1],0,'bag now faces the opposite way');assert.equal(Object.keys(EQUIPMENT).length,7);
+assert.equal(PROP_LAYOUT.backpack.rotation[1],0,'bag now faces the opposite way');assert.equal(Object.keys(EQUIPMENT).length,8);
 assert.equal(displayLines({}).status,'STANDBY');assert.equal(displayLines({mode:'TAPE',on:true,spotify:{ready:false}}).status,'CONNECTING');
 assert.equal(displayLines({mode:'TAPE',on:true,spotify:{ready:true,playing:false}}).status,'PRESS PLAY','never claim playback just because play was requested');
 const playing=displayLines({mode:'TAPE',on:true,spotify:{ready:true,playing:true,position:65000,duration:130000}});assert.equal(playing.status,'PLAYING');assert.equal(playing.time,'1:05');assert.equal(playing.progress,.5);

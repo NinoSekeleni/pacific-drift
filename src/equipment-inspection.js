@@ -3,6 +3,7 @@ import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {createBoatMaterial} from './boat-materials.js';
 import {applyTapePose} from './tape-transport.js';
 export const EQUIPMENT={
+ rod:{title:'Saltwater fishing rod',kind:'FISHING / SPINNING REEL',description:'A 2.13 metre carbon rod and saltwater spinning reel. Turn it over to inspect the guides, grip and reel. Close inspection and choose Fish to cast.'},
  anbernic:{title:'Anbernic RG35XX',kind:'OBJECT ROOM / POCKET GARDEN',description:'Your Object Room handheld, brought aboard at its real size. Choose its classic grey shell or transparent Atomic purple finish. Turn it over to see the internals, or play Pocket Garden on its own screen. Arrow keys move; A explores; Start pauses. Your garden is saved with your voyage.'},
  gps:{title:'GPS tablet',kind:'GLOBAL NAVIGATION / REAL GEOGRAPHY',description:'Your position on an offline world chart. Pick a country, island, town or coordinates, then plot a passage around land. Select Use GPS to operate the screen; Inspect device returns to the 3D view.'},
  backpack:{title:'Backpack',kind:'CANVAS / PERSONAL KIT',description:'Turn it over to inspect the fabric, pockets and straps. Keep the small instruments here when you want a clear bench.'},

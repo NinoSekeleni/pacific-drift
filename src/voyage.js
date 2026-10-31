@@ -74,25 +74,26 @@ export function step(s, dt, input, land, cache = {}) {
   const c = currentAt(s.lat, s.lng, t);
 
   // Steering
-  const steerRate = 9 * (0.35 + 0.65 * Math.min(1, s.speed / 1.4)); // degrees per second
+  const motor=s.boat==='launch';
+  const steerRate = (motor?5:9) * (0.35 + 0.65 * Math.min(1, s.speed / 1.4)); // degrees per second
   s.heading = (s.heading + input.steer * steerRate * dt + 360) % 360;
 
   // Speed through the water
   let sailSpeed = 0;
   let twa = angleDiff(w.from, s.heading);
-  if (s.sail) {
+  if (s.sail&&!motor) {
     const eff = w.speed > 13 ? 13 + (w.speed - 13) * 0.3 : w.speed; // reefed in strong wind
     sailSpeed = Math.min(MAX_SAIL, polar(twa) * eff);
   }
   const physicalStroke=Number.isFinite(input.paddleForce);
   const paddleSpeed = physicalStroke ? 0 : input.paddle * PADDLE_SPEED;
-  const target = Math.max(sailSpeed, paddleSpeed) + 0.25 * Math.min(sailSpeed, paddleSpeed);
+  const target = motor?(input.paddleRequested?4.5:0):Math.max(sailSpeed, paddleSpeed) + 0.25 * Math.min(sailSpeed, paddleSpeed);
   const k = 1 - Math.exp(-dt / (target > s.speed ? 7 : 12));
   s.speed += (target - s.speed) * k;
   // A blade supplies a short impulse, followed by the existing hull coasting.
   // Fade its contribution near a brisk paddling speed; sailing remains free
   // to exceed that speed. Slow-motion contact already scales its force.
-  if(physicalStroke)s.speed+=Math.max(0,Math.min(1,input.paddleForce))*.72*dt*Math.max(0,1-(s.speed/2.6)**2);
+  if(physicalStroke&&!motor)s.speed+=Math.max(0,Math.min(1,input.paddleForce))*.72*dt*Math.max(0,1-(s.speed/2.6)**2);
 
   const hx = Math.sin(s.heading * DEG), hy = Math.cos(s.heading * DEG);
   // Leeway: windage pushes the canoe downwind, more when sailing across the wind

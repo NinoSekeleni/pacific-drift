@@ -162,7 +162,7 @@ export function createCanoe(scene) {
   }
   for (const material of [navy,cedar,ash,walnut]) registerWet(material);
   const canoe = new THREE.Group();
-  let rowingRig=null,waterOutline=null;const seating=SEAT.clone();let wetPoints=WET,rollResponse=1.15;
+  let motorVessel=null,rowState=null;let rowingRig=null,waterOutline=null;const seating=SEAT.clone();let wetPoints=WET,rollResponse=1.15;
   const hullGeo = hullGeometry();
   const outer = new THREE.Mesh(hullGeo, navy);
   const innerHull = new THREE.Mesh(hullGeo, cedar);
@@ -568,6 +568,7 @@ export function createCanoe(scene) {
     flame.scale.set(0.06 * (0.95 + 0.05 * flick), 0.09 * flick, 1);
     glassMat.emissive.setRGB(0.55 * lampLevel * flick, 0.32 * lampLevel * flick, 0.12 * lampLevel * flick);
 
+    if(motorVessel){rig.visible=false;paddlePivot.visible=false;rowingRig?.setVisible?.(false);paddlePose.drive=0;paddlePose.submerged=0;paddlePose.blend=0;return;}
     if(rowingRig){rig.visible=false;paddlePivot.visible=false;rowingRig.update(o);Object.assign(paddlePose,rowingRig.pose);return;}
     // A full stroke is a committed action. It prepares, reaches, enters, pulls,
     // exits and feathers back before the paddle is allowed to park.
@@ -787,7 +788,17 @@ export function createCanoe(scene) {
     return {halfBeam:.86,halfLength:2.367,profile,seat:seating.clone()};
   }
 
-  return { group: canoe, lantern, surfaceMeshes, applyRowingBoat,get seat(){return seating;},get waterOutline(){return waterOutline;}, requestStroke,getPaddlePose(){return paddlePose;}, get wetness() { return wetness; }, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; },get animationState(){return {strokeActive,strokePhase:strokeT,strokeCount:strokes,paddleBlend:paddleVis,side,strokeQueued,submerged:paddlePose.submerged,drive:paddlePose.drive,sailHoist:sailState.shown};} };
+  function setMotorVessel(model){
+    if(!rowState){rowState={seat:seating.clone(),wet:wetPoints,outline:waterOutline,surfaces:[...surfaceMeshes],lantern:lantern.position.clone(),parts:canoe.children.filter(o=>o!==lantern&&o.name!=='Onboard equipment'&&o.name!=='FishingRod'&&!o.name.endsWith(' contact')&&!o.name.includes('securing webbing'))};}
+    if(motorVessel){canoe.remove(motorVessel.root);motorVessel=null;}
+    for(const part of rowState.parts)part.visible=model?false:true;
+    // Legacy fallback parts stay hidden when returning to the supplied rowing boat.
+    if(!model){for(const part of hullParts)part.visible=false;rig.visible=false;paddlePivot.visible=false;innerHull.visible=false;seating.copy(rowState.seat);wetPoints=rowState.wet;waterOutline=rowState.outline;surfaceMeshes.splice(0,surfaceMeshes.length,...rowState.surfaces);lantern.position.copy(rowState.lantern);rollResponse=.72;}
+    else{motorVessel=model;canoe.add(model.root);seating.copy(model.eye);wetPoints=[[-3,0,.7],[-1.8,-.9,1],[-1.8,.9,1],[0,-1,1],[0,1,1],[1.8,-.8,1],[1.8,.8,1],[3,0,.7]];rollResponse=.45;waterOutline={halfLength:model.halfLength,profile:model.profile};surfaceMeshes.splice(0,surfaceMeshes.length,...model.surfaces);lantern.position.set(.6,.355,2.25);}
+    eyeInitialized=false;settled=false;canoe.userData.motor=!!model;
+  }
+  function fishingSeat(value){if(motorVessel){seating.copy(value?new THREE.Vector3(.85,1.85,2.3):motorVessel.eye);eyeInitialized=false;}}
+  return { group: canoe, lantern, surfaceMeshes, applyRowingBoat,setMotorVessel,fishingSeat,get seat(){return seating;},get waterOutline(){return waterOutline;}, requestStroke,getPaddlePose(){return paddlePose;}, get wetness() { return wetness; }, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; },get animationState(){return {strokeActive,strokePhase:strokeT,strokeCount:strokes,paddleBlend:paddleVis,side,strokeQueued,submerged:paddlePose.submerged,drive:paddlePose.drive,sailHoist:sailState.shown};} };
 }
 
 /** Sea mask settings for this hull: (along from, along to, half-beam) and no float. */

@@ -14,10 +14,10 @@ export function sampleArrival(seconds){
   audio:smooth(9.5,16.6,t),blend:smooth(11.7,ARRIVAL_DURATION,t),done:seconds>=ARRIVAL_DURATION,
   stage:['Earth','South Pacific','Open ocean','Your boat'][stageIndex]};
 }
-export function arrivalStory({returning=false,estimated=false}={}){
+export function arrivalStory({returning=false,estimated=false,boat='rowboat'}={}){
  if(estimated)return ['Your chart holds an estimate. The ocean holds the rest.','A bag. A radio. A compass. Enough to keep going.','Somewhere beyond the horizon, there is land.','Read the weather. Keep your bearings. Find your shore.'];
  if(returning)return ['While you were away, the ocean kept moving.','Your bag, radio and compass are waiting where you left them.','Somewhere beyond the horizon, there is land.','Read the weather. Choose your bearing. Continue toward shore.'];
- return ['Far out in the South Pacific, you wake aboard a small wooden boat.','A bag. A radio. A compass. Enough to begin.','Somewhere beyond the horizon, there is land.','Read the weather. Choose your bearing. Find your shore.'];
+ return [boat==='launch'?'Far out in the South Pacific, your fishing launch rides the swell.':'Far out in the South Pacific, you wake aboard a small wooden boat.','A bag. A radio. A compass. Enough to begin.','Somewhere beyond the horizon, there is land.','Read the weather. Choose your bearing. Find your shore.'];
 }
 export function globeDirection(lat,lng,out=new THREE.Vector3()){
  return out.set(Math.cos(lat*DEG)*Math.cos(lng*DEG),Math.sin(lat*DEG),-Math.cos(lat*DEG)*Math.sin(lng*DEG));
@@ -106,7 +106,7 @@ export function createWorldArrival({renderer,land,isTouch=false,base='./'}){
   if(active)finish();location=arrivalLocation(voyage);elapsed=0;holdFrame=Number.isFinite(at)?THREE.MathUtils.clamp(at,0,ARRIVAL_DURATION-.01):null;complete=onComplete;
   staticStory=reduced;
   try{resources=staticStory?null:build();}catch(error){release();console.warn('World arrival unavailable; entering boat',error);complete=null;onComplete?.();return;}
-  active=true;overlay.hidden=false;document.body.classList.add('arriving');story=arrivalStory({returning,estimated:location.estimated});
+  active=true;overlay.hidden=false;document.body.classList.add('arriving');story=arrivalStory({returning,estimated:location.estimated,boat:voyage.boat});
   $('h1').textContent=location.title;$('.arrival-coordinates').textContent=formatArrivalCoordinates(location.lat,location.lng);
   $('.arrival-region').textContent=location.lat<5&&location.lng>=-180&&location.lng< -67?'SOUTH PACIFIC OCEAN':'OPEN OCEAN';
   $('.arrival-context').textContent=story[0];

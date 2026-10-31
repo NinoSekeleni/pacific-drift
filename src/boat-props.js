@@ -88,6 +88,7 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   candidates.sort((a,b)=>a.distance-b.distance);const first=candidates[0];if(!first)return null;
   const obstruction=ray.intersectObjects(canoe.surfaceMeshes,false)[0];return obstruction&&obstruction.distance<first.distance-.035?null:first.name;
  }
+ let vesselRowPoses=null;
  let highlighted=null;const originalEmissive=new Map();
  function highlight(name){if(name===highlighted)return;for(const [mat,entry]of originalEmissive){mat.emissive.copy(entry.color);mat.emissiveIntensity=entry.intensity;}originalEmissive.clear();highlighted=name;const root=name==='lantern'?canoe.lantern:roots[name];root?.traverseVisible(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material]){if(!m.emissive||originalEmissive.has(m))continue;originalEmissive.set(m,{color:m.emissive.clone(),intensity:m.emissiveIntensity});m.emissive.set(0x6b9da8);m.emissiveIntensity=.32;}});}
  function move(name,x,z,yaw=0,notify=true){
@@ -95,9 +96,10 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   const oldPosition=root.position.clone(),oldRotation=root.rotation.clone();root.position.set(0,0,0);root.rotation.y=yaw;
   root.updateWorldMatrix(true,true);const local=new THREE.Box3(),inverse=canoe.group.matrixWorld.clone().invert();root.traverseVisible(o=>{if(!o.isMesh||!o.geometry)return;o.geometry.computeBoundingBox();local.union(o.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,o.matrixWorld)));});const size=local.getSize(new THREE.Vector3()),center=local.getCenter(new THREE.Vector3());
   const halfX=size.x/2,halfZ=size.z/2;
-  let valid=Math.abs(z)+halfZ<2.05;
+  const motor=!!canoe.group.userData.motor;
+  let valid=motor?(Math.abs(x)+halfX<1.15&&z-halfZ>.55&&z+halfZ<3.6):Math.abs(z)+halfZ<2.05;
   // Keep the complete footprint within the tapered hull, clear of the gunwales.
-  for(const dz of [-halfZ,halfZ]){const maxWidth=.55*Math.sqrt(Math.max(0,1-Math.pow((z+dz)/2.25,2)));valid&&=Math.abs(x)+halfX<maxWidth;}
+  if(!motor)for(const dz of [-halfZ,halfZ]){const maxWidth=.55*Math.sqrt(Math.max(0,1-Math.pow((z+dz)/2.25,2)));valid&&=Math.abs(x)+halfX<maxWidth;}
   const deck=Math.max(...[[0,0],[-halfX*.7,-halfZ*.7],[halfX*.7,-halfZ*.7],[-halfX*.7,halfZ*.7],[halfX*.7,halfZ*.7]].map(([dx,dz])=>supportY(x+dx,z+dz)));valid&&=deck<.7&&Number.isFinite(deck);
   root.position.set(x-center.x,deck+(name==='gps'?.018:0)-local.min.y+.003,z-center.z);root.updateWorldMatrix(true,true);
   const moved=visibleItemBounds(root).expandByScalar(-.004);
@@ -106,9 +108,12 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   if(cradles[name])cradles[name].position.set(x,deck,z);
   state.contacts[name]={deckY:deck,x,z};grounding.fit(name,root,state.contacts[name]);if(notify)onMove(name,{x,z,yaw});return true;
  }
- function dragPoint(camera,x,y,width,height){pointer.set(x/width*2-1,1-y/height*2);ray.setFromCamera(pointer,camera);const localRay=ray.ray.clone().applyMatrix4(canoe.group.matrixWorld.clone().invert());return localRay.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-.3),new THREE.Vector3());}
+ function dragPoint(camera,x,y,width,height){pointer.set(x/width*2-1,1-y/height*2);ray.setFromCamera(pointer,camera);const localRay=ray.ray.clone().applyMatrix4(canoe.group.matrixWorld.clone().invert());return localRay.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-(canoe.group.userData.motor?.36:.3)),new THREE.Vector3());}
  function interact(camera,x,y,width,height){const name=pick(camera,x,y,width,height);if(!name)return false;onInspect(name);return true;}
- return {group,loading,state,interact,pick,highlight,move,dragPoint,tapeState,getRoot:name=>name==='lantern'?canoe.lantern:roots[name],
+ async function setVessel(motor){await loading;const layout={backpack:[-.55,2.8],radio:[.65,1.6],walkman:[.35,1.6],gps:[0,1.6],binoculars:[-.5,1.6],anbernic:[.1,2.8]};
+ if(motor){if(!vesselRowPoses)vesselRowPoses=Object.fromEntries(Object.entries(roots).map(([id,r])=>[id,{position:r.position.clone(),rotation:r.rotation.clone(),contact:{...state.contacts[id]},cradle:cradles[id]?.position.clone()}]));for(const [id,[x,z]]of Object.entries(layout)){const root=roots[id];if(!root)continue;move(id,x,z,root.rotation.y,false);}}
+ else if(vesselRowPoses){for(const [id,p]of Object.entries(vesselRowPoses)){roots[id].position.copy(p.position);roots[id].rotation.copy(p.rotation);state.contacts[id]={...p.contact};if(p.cradle)cradles[id].position.copy(p.cradle);grounding.fit(id,roots[id],p.contact);}vesselRowPoses=null;}}
+ return {group,loading,state,setVessel,attachCustom(name,root){roots[name]=root;},interact,pick,highlight,move,dragPoint,tapeState,getRoot:name=>name==='lantern'?canoe.lantern:roots[name],
   setHeld(name,value){const root=name==='lantern'?canoe.lantern:roots[name];if(!root)return;if(value&&!heldMeshes.has(name)){const values=[];root.traverse(o=>{if(o.isMesh||o.isSprite){values.push([o,o.visible]);o.visible=false;}});heldMeshes.set(name,values);grounding.visible(name,false);}else if(!value&&heldMeshes.has(name)){for(const [o,visible]of heldMeshes.get(name))o.visible=visible;heldMeshes.delete(name);grounding.visible(name,!stowed.has(name));}},
   setStowed(name,value){if(!['walkman','binoculars','radio','anbernic'].includes(name))return;if(value)stowed.add(name);else stowed.delete(name);if(roots[name])roots[name].visible=!value;grounding.visible(name,!value);},isStowed:name=>stowed.has(name),
   update(dt,rain=0,media={}){display?.update(media);anbernic?.applyFinish(roots.anbernic);advanceTape(tapeState,dt,media);applyTapePose(roots.walkman,tapeState);wet+=(Math.min(1,rain)-wet)*(1-Math.exp(-dt/12));for(const s of surfaces)s.material.roughness=s.roughness*(1-wet*s.factor);}
