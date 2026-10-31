@@ -24,7 +24,7 @@ assert.ok(!formatArrivalCoordinates(nav.lat,nav.lng).includes('123.39'),'navigat
 for(const [lat,lng]of [[0,0],[90,0],[-90,180],[-48.8767,-123.3933]])assert.ok(Math.abs(globeDirection(lat,lng).length()-1)<1e-12);
 assert.ok(globeDirection(0,0).distanceTo(new THREE.Vector3(1,0,0))<1e-12);
 assert.ok(globeDirection(0,90).distanceTo(new THREE.Vector3(0,0,-1))<1e-12,'globe directions match Three sphere UV orientation');
-for(const options of [{},{returning:true},{estimated:true}]){const story=arrivalStory(options);assert.equal(story.length,4);assert.ok(story.every(s=>s.split(/\s+/).length<=16),'each story card has time to be read');assert.match(story[3],/land/);}
-assert.match(arrivalStory()[0],/Point Nemo/);assert.match(arrivalStory({returning:true})[0],/away/);assert.match(arrivalStory({estimated:true})[0],/estimate/);
+for(const options of [{},{returning:true},{estimated:true}]){const story=arrivalStory(options);assert.equal(story.length,4);assert.ok(story.every(s=>s.split(/\s+/).length<=16),'each story card has time to be read');assert.match(story[3],/shore/);}
+assert.match(arrivalStory()[0],/South Pacific/);assert.match(arrivalStory({returning:true})[0],/away/);assert.match(arrivalStory({estimated:true})[0],/estimate/);
 for(const aspect of [.46,.75,1,1.78]){const vertical=arrivalGlobeFov(aspect)*Math.PI/180,horizontal=2*Math.atan(Math.tan(vertical/2)*aspect);assert.ok(Math.min(vertical,horizontal)>=44*Math.PI/180-1e-8,'the globe fits both portrait and landscape views');}
 console.log('PASS smooth bounded descent, exact seat handover, audio fade, geographic orientation, returning positions and Navigator privacy');

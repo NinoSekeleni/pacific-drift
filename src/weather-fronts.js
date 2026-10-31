@@ -116,9 +116,13 @@ export function createWeatherFronts(scene){
     else{normal.set(-windU,0,windV);if(normal.lengthSq()<1)normal.set(.7,0,-.7);normal.normalize();distance=7500;travel=Math.max(8,Math.min(25,Math.hypot(windU,windV)*1.1));}
     root.visible=true;clearInfluence();
   }
-  function update(dt,camera,{time=0,windU=0,windV=0,rain=0,cover=0,darkness=0,sunAltitude=20,tint=[.3,.4,.45],enabled=true,playing=true,flash=0}={}){
+  function update(dt,camera,{time=0,windU=0,windV=0,rain=0,cover=0,darkness=0,sunAltitude=20,tint=[.3,.4,.45],enabled=true,playing=true,flash=0,journeyKind=null,journeyProgress=0}={}){
     const delta=Math.max(0,Math.min(.25,Number.isFinite(dt)?dt:0));
     if(!enabled){active=false;manual=false;root.visible=false;clearInfluence();lastRain=rain;return;}
+    const journey=!!journeyKind&&!manual;
+    const inFront=['building','rain','storm','squall','clearing'].includes(journeyKind);
+    if(journey&&!inFront){active=false;root.visible=false;amount=0;clearInfluence();lastRain=rain;return;}
+    if(journey&&inFront&&!active)spawn(camera,windU,windV,false);
     if(!active){
       if(playing)wait-=delta;
       // Existing local weather and its trend, rather than an unrelated random storm.
@@ -133,10 +137,11 @@ export function createWeatherFronts(scene){
     const strength=manual ? .92 : clamp(.32+rain*.55+darkness*.25);
     const target=strength*smooth(0,4,age);
     amount+=(target-amount)*(1-Math.exp(-delta/2));
-    const remaining=distance-age*travel;
+    const progress=clamp(journeyProgress);
+    const remaining=journey?(journeyKind==='building'?7500-4500*progress:journeyKind==='clearing'?-1800-6500*progress:journeyKind==='rain'?3000-4800*progress:-1800):distance-age*travel;
     // Fade into the existing overhead sky/rain before a mesh could cross the eye.
-    const nearFade=smooth(250,1800,remaining);
-    const endFade=manual?1-smooth(106,120,age):1-smooth(760,900,age);
+    const nearFade=smooth(250,1800,journey&&journeyKind==='clearing'?Math.abs(remaining):remaining);
+    const endFade=journey?(journeyKind==='clearing'?smooth(0,.15,progress)*(1-smooth(.3,1,progress)):journeyKind==='building'?smooth(0,.18,progress):1):manual?1-smooth(106,120,age):1-smooth(760,900,age);
     uniforms.uTime.value=time;uniforms.uOpacity.value=amount*nearFade*endFade;
     uniforms.uRain.value=frontRain;uniforms.uDark.value=frontDark;uniforms.uDay.value=smooth(-6,12,sunAltitude);
     uniforms.uFog.value.setRGB(...tint);uniforms.uFlash.value=Math.max(0,flash);
@@ -146,7 +151,7 @@ export function createWeatherFronts(scene){
     // Earth curvature drops the distant rain foot below the visible horizon.
     root.position.y=-Math.min(100,Math.max(0,remaining)*Math.max(0,remaining)/(2*6371000));
     lastRain=rain;
-    if((manual&&age>=120)||(!manual&&(remaining< -2200||age>=900))){active=false;manual=false;root.visible=false;clearInfluence();wait=360;}
+    if((manual&&age>=120)||(!manual&&!journey&&(remaining< -2200||age>=900))){active=false;manual=false;root.visible=false;clearInfluence();wait=360;}
   }
   return {
     update,

@@ -1,6 +1,7 @@
 // Open ocean: a wind sea and swell built from a fixed bank of Gerstner waves whose amplitudes follow
 // the wind (Pierson-Moskowitz), whitecaps, rain on the surface and ripples from paddle strokes.
 import * as THREE from 'three';
+import {EXCEPTIONAL_WAVE_GLSL,sampleWaveSet} from './exceptional-waves.js';
 import { SKY_GLSL, LAYER_NEAR } from './sky.js';
 
 const G = 9.81;
@@ -136,7 +137,7 @@ export function createOcean(renderer, scene, skyUniforms) {
     uBody: { value: new THREE.Vector3(0.03, 0.08, 0.1) },
     uFog: { value: new THREE.Vector3() },
     uVis: { value: 30000 },
-    tBoatReflection:{value:null},uBoatReflectionMatrix:{value:new THREE.Matrix4()},uBoatReflection:{value:0},
+    uBoatReflectionTexel:{value:new THREE.Vector2(1,1)},tBoatReflection:{value:null},uBoatReflectionMatrix:{value:new THREE.Matrix4()},uBoatReflection:{value:0},
     uWind: { value: 5 },
     uWhitecap: { value: 0 },
     uStormChop:{value:0},uFoamActivity:{value:0},
@@ -152,13 +153,13 @@ export function createOcean(renderer, scene, skyUniforms) {
     uLantern: { value: new THREE.Vector4(0, -100, 0, 0) },
     uBio: { value: 0 },
     uHullSpeed: { value: 0 },
-    uBoatMotion: { value: 0 }
+    uWaveSet:{value:new THREE.Vector4(0,0,-1000,0)},uWaveSetDir:{value:new THREE.Vector2(0,-1)},uBoatMotion: { value: 0 }
   });
 
   const mat = new THREE.ShaderMaterial({
     uniforms,
     side: THREE.DoubleSide,
-    vertexShader: WAVE_GLSL + /* glsl */`
+    vertexShader: WAVE_GLSL + EXCEPTIONAL_WAVE_GLSL + /* glsl */`
       uniform float uWaveT;
       varying vec3 vWorld;
       varying vec2 vBase;
@@ -182,6 +183,7 @@ export function createOcean(renderer, scene, skyUniforms) {
         }
         // Judge the hull against where this point of the surface actually ends up after the waves
         // have carried it sideways, so swell can never slide water in under the hull
+        disp.y+=waveSet(base,uWaveT).x;
         vec2 moved = base + disp.xz;
         vec3 hm = hullMask(moved);
         wp.xz = moved;
@@ -197,7 +199,7 @@ export function createOcean(renderer, scene, skyUniforms) {
         vMask = hm.x;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
-    fragmentShader: SKY_GLSL + WAVE_GLSL + /* glsl */`
+    fragmentShader: SKY_GLSL + WAVE_GLSL + EXCEPTIONAL_WAVE_GLSL + /* glsl */`
       uniform sampler2D tDetail;
       uniform sampler2D tImportedNormal,tImportedRoughness,tFoamDetail;
       uniform float uTextureDetail,uFoamDetail,uOpticsDetail;
@@ -206,7 +208,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform vec2 uWaterWindDir;
       uniform vec3 uBody;
       uniform vec3 uFog;
-      uniform float uVis,uBoatReflection;uniform sampler2D tBoatReflection;uniform mat4 uBoatReflectionMatrix;
+      uniform float uVis,uBoatReflection;uniform vec2 uBoatReflectionTexel;uniform sampler2D tBoatReflection;uniform mat4 uBoatReflectionMatrix;
       uniform float uWind;
       uniform float uWhitecap;
       uniform float uStormChop,uFoamActivity;
@@ -268,6 +270,7 @@ export function createOcean(renderer, scene, skyUniforms) {
             crestHistory=max(crestHistory,(recent+older)*steep*resolved);
           }
         }
+        N.xz-=waveSet(vBase,uWaveT).yz;
         N.xz *= 1.0 - vMask;
 
         float t = uTime;
@@ -400,10 +403,14 @@ export function createOcean(renderer, scene, skyUniforms) {
         vec3 col = mix(body, refl, F);
         if(uBoatReflection>.5&&dist<45.){
           vec4 projected=uBoatReflectionMatrix*vec4(vWorld,1.);vec2 uv=projected.xy/max(.001,projected.w);
-          uv+=N.xz*.009*(.3+uWind*.025);
+          uv+=N.xz*(.0013+.0025*clamp(uWind/22.,0.,1.));
           if(projected.w>0.&&all(greaterThan(uv,vec2(0.)))&&all(lessThan(uv,vec2(1.)))){
-            vec4 localReflection=texture2D(tBoatReflection,uv);float weight=localReflection.a*(.10+.64*pow(1.-NdV,3.))*(1.-smoothstep(28.,45.,dist));
-            col=mix(col,localReflection.rgb,weight);
+            vec2 spread=uBoatReflectionTexel*(.6+clamp(uWind/20.,0.,1.)*3.2);
+            vec4 localReflection=texture2D(tBoatReflection,uv)*.4;
+            localReflection+=(texture2D(tBoatReflection,uv+vec2(spread.x,0.))+texture2D(tBoatReflection,uv-vec2(spread.x,0.))+texture2D(tBoatReflection,uv+vec2(0.,spread.y))+texture2D(tBoatReflection,uv-vec2(0.,spread.y)))*.15;
+            float roughCoherence=mix(1.,.48,clamp(uWind/25.,0.,1.));
+            float weight=localReflection.a*(.08+.64*pow(1.-NdV,3.))*roughCoherence*(1.-smoothstep(28.,45.,dist));
+            col=mix(col,localReflection.rgb/max(.001,localReflection.a),weight);
           }
         }
 
@@ -519,13 +526,14 @@ export function createOcean(renderer, scene, skyUniforms) {
   /** Set the sea state from wind (m/s, direction the wind blows toward, radians) and swell. */
   function setSea(windSpeed, windToRad, swellHs, swellToRad, whitecap, rain, measuredSea = null) {
     const U = Math.max(0.5, windSpeed);
-    const Lp = measuredSea ? 9.81 * measuredSea.windWavePeriod**2 / (2*Math.PI) : Math.max(2.2, 0.833 * U * U);
-    hsWind = measuredSea ? Math.max(0,measuredSea.windWaveH) : Math.min(6.5, 0.016 * U * U);
-    if(measuredSea)windToRad=(measuredSea.windWaveFrom+180)*DEG;
+    const measuredWind=Number.isFinite(measuredSea?.windWaveH)&&Number.isFinite(measuredSea?.windWavePeriod);
+    const Lp = measuredWind ? 9.81 * measuredSea.windWavePeriod**2 / (2*Math.PI) : Math.max(2.2, 0.833 * U * U);
+    hsWind = measuredWind ? Math.max(0,measuredSea.windWaveH) : Math.min(6.5, 0.016 * U * U);
+    if(measuredWind&&Number.isFinite(measuredSea.windWaveFrom))windToRad=(measuredSea.windWaveFrom+180)*DEG;
     swellH = swellHs;
     windDir = windToRad;
     swellDir = swellToRad;
-    const windLengths=measuredSea?WIND_L.map(L=>L*Math.max(.25,Math.min(4,Lp/85))):WIND_L;
+    const windLengths=measuredWind?WIND_L.map(L=>L*Math.max(.25,Math.min(4,Lp/85))):WIND_L;
     const a = windLengths.map((L) => L * Math.exp(-0.625 * (L / Lp) ** 2) * (L <= Lp * 1.6 ? 1 : 0.4));
     const s2 = a.reduce((m, v) => m + v * v, 0);
     const scale = s2 > 0 ? (hsWind / 2.83) / Math.sqrt(s2) : 0;
@@ -536,7 +544,7 @@ export function createOcean(renderer, scene, skyUniforms) {
     const sw = [0.82, 0.45, 0.3];
     const sn = Math.hypot(...sw);
     SWELL_L.forEach((L, j) => {
-      if(measuredSea) L = L * (9.81*measuredSea.swellPeriod**2/(2*Math.PI)) / SWELL_L[0];
+      if(Number.isFinite(measuredSea?.swellPeriod)) L = L * (9.81*measuredSea.swellPeriod**2/(2*Math.PI)) / SWELL_L[0];
       const ang = swellToRad + (j === 1 ? 9 : j === 2 ? 65 : 0) * DEG;
       setWave(WIND_L.length + j,Math.sin(ang), -Math.cos(ang), L, ((swellHs / 2.83) * sw[j]) / sn);
     });
@@ -551,6 +559,7 @@ export function createOcean(renderer, scene, skyUniforms) {
   }
 
   /** Surface height and slope at a world point (for the canoe). */
+  const waveSetSample={};
   function raw(x, z, t, out) {
     let h = 0, sx = 0, sz = 0, dx = 0, dz = 0;
     for (let i=0;i<waves.length;i++) {
@@ -568,6 +577,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       sx += w.x * d;
       sz += w.y * d;
     }
+    const packet=sampleWaveSet(x,z,t,uniforms.uWaveSet.value,uniforms.uWaveSetDir.value,waveSetSample);h+=packet.h;sx+=packet.sx;sz+=packet.sz;
     out.h = h; out.sx = sx; out.sz = sz; out.dx = dx; out.dz = dz;
     return out;
   }

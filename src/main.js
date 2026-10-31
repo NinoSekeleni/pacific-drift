@@ -16,6 +16,8 @@ import { createWildlife } from './wildlife.js';
 import {createMarineEncounters} from './marine-encounters.js';
 import {createMeteors} from './meteors.js';
 import {createWeatherFronts} from './weather-fronts.js';
+import {createSkyOptics} from './sky-optics.js';
+import {createExceptionalWaves} from './exceptional-waves.js';
 import { createAudio } from './audio.js';
 import { createEnvironmentPreview, previewWeather } from './environment-preview.js';
 import { createRadio } from './radio.js';
@@ -128,6 +130,8 @@ const loadSurfaceDetails=onceLoader(()=>loadMarineAssets(renderer,BASE).then(ass
 const meteors=createMeteors(scene);
 meteors.setCloudTexture(sky.uniforms.tClouds.value);
 const fronts=createWeatherFronts(scene);
+const skyOptics=createSkyOptics(scene,sky);
+const exceptionalWaves=createExceptionalWaves(ocean,{onApproach(){if(started&&!paused){toast('An unusually large swell is approaching.');log.add('An unusually large swell passed through the sea.','weather');}}});
 const wildlife = createWildlife(scene,ocean,{base:BASE});
 const whales = createMarineEncounters(scene,ocean,{base:BASE,register:root=>marineLighting.register(root),onShip(position){if(!position){audio.ship();return;}const d=position.clone().sub(camNear.position),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),range=d.length();audio.ship(range,d.dot(right)/Math.max(1,range));},onSound(event){if(event.type==='surface'&&event.kind==='orca')return;const d=new THREE.Vector3(event.x,event.y,event.z).sub(camNear.position),range=d.length(),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),strength=Math.min(.75,event.size/12)*Math.pow(25/Math.max(25,range),1.3);if(strength>.015)audio.marine(event.type==='breath'?'orca':event.kind,strength,d.dot(right)/Math.max(1,range));},isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
 const canoe = createCanoe(scene);
@@ -444,7 +448,7 @@ $('readLog').addEventListener('click', () => openLog(true));
 /* ---------- Overlays ---------- */
 function pause() {
   paused = true;
-  document.body.classList.add('at-home');
+  document.body.classList.add('at-home');$('intro').classList.add('is-paused');
   $('arrivalHint').hidden=true;
   keys.clear();
   $('intro').hidden = false;
@@ -462,16 +466,16 @@ function begin() {
   if (!land) return;
   loadSurfaceDetails();
   if(worldArrival?.active)return;
-  if(!PREVIEW&&!arrivalPlayed&&worldArrival&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+  if(!PREVIEW&&!arrivalPlayed&&worldArrival){
     arrivalPlayed=true;$('intro').hidden=true;keys.clear();paused=true;started=false;
     audio.setArrivalMix(0);audio.start();
-    worldArrival.start(voyage,()=>enterBoat(false),{returning:returningVoyage,at:DEBUG&&params.has('arrivalAt')?Number(params.get('arrivalAt')):null});
+    worldArrival.start(voyage,()=>enterBoat(false),{returning:returningVoyage,reduced:window.matchMedia('(prefers-reduced-motion: reduce)').matches,at:DEBUG&&params.has('arrivalAt')?Number(params.get('arrivalAt')):null});
     return;
   }
   enterBoat(true);
 }
 function enterBoat(lock){
-  document.body.classList.remove('at-home');
+  document.body.classList.remove('at-home');$('intro').classList.remove('is-paused');
   audio.setArrivalMix(1);
   started = true;
   paused = false;
@@ -717,9 +721,10 @@ function frame() {
 
   /* ----- Sea ----- */
   const windTo = Math.atan2(sm.u, sm.v);
+  exceptionalWaves.update(dt,camNear,{time:waveTime,swell:sm.swellH,wind:sm.speed,heading:(sm.swellFrom+180)*DEG,playing:started&&!paused,enabled:environment?.exceptionalWaves!==false});
   const whitecap = Math.min(0.7, 3.84e-6 * Math.pow(sm.speed, 3.41) * 6);
   const ou = ocean.uniforms;
-  ocean.setSea(sm.speed, windTo, sm.swellH, (sm.swellFrom + 180) * DEG, whitecap, (environment?.seaImpacts===false?0:Math.min(1, sm.precip)*(environment?.rainImpactStrength??1)),Number.isFinite(sm.windWaveH)?{windWaveH:sm.windWaveH,windWavePeriod:sm.windWavePeriod,windWaveFrom:sm.windWaveFrom,swellPeriod:sm.swellPeriod}:null);
+  ocean.setSea(sm.speed, windTo, sm.swellH, (sm.swellFrom + 180) * DEG, whitecap, (environment?.seaImpacts===false?0:Math.min(1, sm.precip)*(environment?.rainImpactStrength??1)),(Number.isFinite(sm.windWaveH)||Number.isFinite(sm.swellPeriod))?{windWaveH:sm.windWaveH,windWavePeriod:sm.windWavePeriod,windWaveFrom:sm.windWaveFrom,swellPeriod:sm.swellPeriod}:null);
   ou.uTextureDetail.value=marineAssets?.water?(environment?.waterDetail??1):0;
   ou.uFoamDetail.value=environment?.foamDetail??1;
   ou.uOpticsDetail.value=environment?.waterOptics===false?0:1;
@@ -794,7 +799,8 @@ function frame() {
   camNear.updateMatrixWorld();
   camFar.updateMatrixWorld();
   meteors.update(dt,camFar,{time:elapsed,sunAltitude:e,cloudCover:sm.cover,playing:started&&!paused,enabled:!environment||environment.meteors});
-  fronts.update(dt,camNear,{time:elapsed,windU:sm.u,windV:sm.v,rain:sm.precip,cover:sm.cover,darkness:sm.dark,sunAltitude:e,tint:hor,enabled:!environment||environment.fronts,playing:started&&!paused,flash});
+  fronts.update(dt,camNear,{time:elapsed,windU:sm.u,windV:sm.v,rain:sm.precip,cover:sm.cover,darkness:sm.dark,sunAltitude:e,tint:hor,enabled:!environment||environment.fronts,playing:started&&!paused,flash,journeyKind:w.journeyKind,journeyProgress:w.journeyProgress});
+  skyOptics.update(dt,camFar,{sunAltitude:e,moonAltitude:Math.asin(moonV.y)/DEG,moonLight,rain:sm.precip,cover:sm.cover,cirrus:sm.cirrus,visibility:sm.visibility,enabled:environment?.rainbows!==false,halos:environment?.halos!==false});
 
   const lampLevel = canoe.lamp(lampPos);
   ou.uLantern.value.set(lampPos.x, lampPos.y, lampPos.z, lampLevel * 1.6);
@@ -1009,6 +1015,13 @@ async function boot() {
     $('begin').textContent='Enter environment studio';
     $('homeStudioLink').textContent='Return to your voyage';$('homeStudioLink').href='./';
     environment=createEnvironmentPreview({audio,base:BASE,onArrival:previewWorldArrival,
+      onOptics(kind){
+        resetStudioCamera(.15);let bestHour=12,bestScore=Infinity,aim;
+        for(let hour=0;hour<24;hour+=.25){const bodies=skyBodies(skyTime(now(),voyage.lng,{hour}),voyage.lat,voyage.lng);const altitude=bodies.sun.alt/DEG,score=Math.abs(altitude-(kind==='halo'?25:12));if(altitude>2&&score<bestScore){bestScore=score;bestHour=hour;aim=bodyDir(bodies.sun,new THREE.Vector3());}}
+        if(aim){const v=kind==='halo'?aim:aim.clone().negate();v.y=Math.abs(v.y);const h=voyage.heading*DEG;yawRel=Math.atan2(-v.x,-v.z)+h;pitch=Math.asin(Math.min(.8,v.y));}
+        return bestHour;
+      },
+      onExceptionalWave(){resetStudioCamera(.05);const d=new THREE.Vector3();camNear.getWorldDirection(d);exceptionalWaves.preview(camNear,clock.elapsedTime,Math.atan2(-d.x,d.z),3.2);},
       onView(view){window.__moonCam=false;camNear.fov=camFar.fov=68;camNear.updateProjectionMatrix();camFar.updateProjectionMatrix();window.__birdCam=false;window.__cam=['seat','sky','rowing'].includes(view)?null:view.split(',').map(Number);pitch=view==='sky'?.65:view==='rowing'?-.55:-.35;yawRel=0;},
       onPreset(){resetStudioCamera();},
       onMeteor(){resetStudioCamera(.5);meteors.preview(camFar);},

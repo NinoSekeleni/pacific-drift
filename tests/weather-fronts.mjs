@@ -29,5 +29,6 @@ assert.equal(fronts.active,true,'unsettled weather should reveal an approaching 
 assert.equal(fronts.previewing,false);
 assert.equal(fronts.influence.rain,0,'natural fronts must not modify weather simulation');
 fronts.preview(camera);fronts.update(.1,camera,weather);fronts.cancelPreview();assert.equal(fronts.previewing,false);assert.equal(fronts.active,false);assert.equal(fronts.influence.rain,0);
+fronts.update(.1,camera,{...weather,journeyKind:'building',journeyProgress:.1});assert.equal(fronts.active,true);fronts.update(.1,camera,{...weather,journeyKind:'clearing',journeyProgress:.8});assert.equal(fronts.active,true);fronts.update(.1,camera,{...weather,journeyKind:'groundswell',journeyProgress:.1});assert.equal(fronts.active,false);
 fronts.dispose();assert.equal(scene.children.length,0);
 console.log('PASS front lifecycle, independent clear weather, delayed rain and preview envelopes');

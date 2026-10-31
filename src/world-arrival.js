@@ -15,9 +15,9 @@ export function sampleArrival(seconds){
   stage:['Earth','South Pacific','Open ocean','Your boat'][stageIndex]};
 }
 export function arrivalStory({returning=false,estimated=false}={}){
- if(estimated)return ['Your chart holds an estimate. The ocean holds the rest.','A boat, a backpack and a radio. Your bearings are yours to keep.','Watch the sky. Listen to the water. Somewhere beyond it lies a shore.','Take the oars, raise the sail, and find your way to land.'];
- if(returning)return ['While you were away, the ocean kept moving.','Your boat is still out here. Your course is yours to choose.','Check your bearings. Listen to the radio. Watch the weather.','Take the oars, raise the sail, and continue toward land.'];
- return ['Point Nemo. Farther from land than anywhere else on Earth.','A wooden boat. A backpack. A radio. Everything you have is here.','Beyond the swell, somewhere, there is a shore.','Keep your bearings. Read the sky. Find your way to land.'];
+ if(estimated)return ['Your chart holds an estimate. The ocean holds the rest.','A bag. A radio. A compass. Enough to keep going.','Somewhere beyond the horizon, there is land.','Read the weather. Keep your bearings. Find your shore.'];
+ if(returning)return ['While you were away, the ocean kept moving.','Your bag, radio and compass are waiting where you left them.','Somewhere beyond the horizon, there is land.','Read the weather. Choose your bearing. Continue toward shore.'];
+ return ['Far out in the South Pacific, you wake aboard a small wooden boat.','A bag. A radio. A compass. Enough to begin.','Somewhere beyond the horizon, there is land.','Read the weather. Choose your bearing. Find your shore.'];
 }
 export function globeDirection(lat,lng,out=new THREE.Vector3()){
  return out.set(Math.cos(lat*DEG)*Math.cos(lng*DEG),Math.sin(lat*DEG),-Math.cos(lat*DEG)*Math.sin(lng*DEG));
@@ -54,7 +54,7 @@ function earthTexture(land,isTouch){
 }
 
 export function createWorldArrival({renderer,land,isTouch=false,base='./'}){
- let active=false,elapsed=0,location=null,complete=null,resources=null,holdFrame=null;
+ let active=false,elapsed=0,location=null,complete=null,resources=null,holdFrame=null,staticStory=false;
  let story=arrivalStory();
  const earthImages={colour:null,clouds:null};
  const imageTexture=image=>{const texture=new THREE.Texture(image);texture.colorSpace=THREE.NoColorSpace;texture.wrapS=THREE.RepeatWrapping;texture.anisotropy=4;texture.needsUpdate=true;return texture;};
@@ -67,7 +67,7 @@ export function createWorldArrival({renderer,land,isTouch=false,base='./'}){
   },undefined,()=>console.warn('Earth '+kind+' image unavailable; geographic fallback retained'));
  }
  const overlay=document.createElement('section');overlay.className='world-arrival';overlay.hidden=true;overlay.setAttribute('aria-label','Arrival from Earth to your boat');
- overlay.innerHTML=`<div class="arrival-top"><span>PACIFIC DRIFT</span><button type="button" class="arrival-skip">Skip to boat <span aria-hidden="true">↘</span></button></div><div class="arrival-chapter"><span class="arrival-step">01 / 04</span><span class="arrival-stage">Earth</span></div><div class="arrival-places" aria-hidden="true"></div><div class="arrival-pin" aria-hidden="true"><i></i><span></span></div><div class="arrival-copy"><p class="arrival-region">SOUTH PACIFIC OCEAN</p><h1></h1><p class="arrival-coordinates"></p><p class="arrival-context arrival-story" role="status" aria-live="polite"></p><div class="arrival-progress"><i></i></div><p class="arrival-height"></p></div>`;
+ overlay.innerHTML=`<div class="arrival-top"><img class="arrival-wordmark" src="${base}brand/pacific-drift-wordmark.webp" alt="Pacific Drift" width="1691" height="936"><button type="button" class="arrival-skip">Skip to boat <span aria-hidden="true">↘</span></button></div><div class="arrival-chapter"><span class="arrival-step">01 / 04</span><span class="arrival-stage">Earth</span></div><div class="arrival-places" aria-hidden="true"></div><div class="arrival-pin" aria-hidden="true"><i></i><span></span></div><div class="arrival-copy"><p class="arrival-region">SOUTH PACIFIC OCEAN</p><h1></h1><p class="arrival-coordinates"></p><p class="arrival-context arrival-story" role="status" aria-live="polite"></p><div class="arrival-progress"><i></i></div><p class="arrival-height"></p></div>`;
  document.body.appendChild(overlay);
  const $=s=>overlay.querySelector(s),pin=$('.arrival-pin'),places=$('.arrival-places');
  const labels=[['South America',-24,-63],['New Zealand',-42,173],['Antarctica',-72,-92],['Pacific Ocean',-10,-137]];
@@ -102,18 +102,19 @@ export function createWorldArrival({renderer,land,isTouch=false,base='./'}){
  }
  function release(){if(!resources)return;const r=resources;r.texture.dispose();r.sphere.dispose();r.planetMaterial.dispose();r.airMat.dispose();r.cloudTexture.dispose();r.cloudMat.dispose();r.starGeo.dispose();r.starMat.dispose();r.target.dispose();r.screenMat.dispose();r.quad.geometry.dispose();resources=null;}
  function finish(){if(!active)return;active=false;if(overlay.contains(document.activeElement))document.activeElement.blur();overlay.hidden=true;document.body.classList.remove('arriving');release();const callback=complete;complete=null;callback?.();}
- function start(voyage,onComplete,{at=null,returning=false}={}){
+ function start(voyage,onComplete,{at=null,returning=false,reduced=false}={}){
   if(active)finish();location=arrivalLocation(voyage);elapsed=0;holdFrame=Number.isFinite(at)?THREE.MathUtils.clamp(at,0,ARRIVAL_DURATION-.01):null;complete=onComplete;
-  try{resources=build();}catch(error){release();console.warn('World arrival unavailable; entering boat',error);complete=null;onComplete?.();return;}
+  staticStory=reduced;
+  try{resources=staticStory?null:build();}catch(error){release();console.warn('World arrival unavailable; entering boat',error);complete=null;onComplete?.();return;}
   active=true;overlay.hidden=false;document.body.classList.add('arriving');story=arrivalStory({returning,estimated:location.estimated});
   $('h1').textContent=location.title;$('.arrival-coordinates').textContent=formatArrivalCoordinates(location.lat,location.lng);
   $('.arrival-region').textContent=location.lat<5&&location.lng>=-180&&location.lng< -67?'SOUTH PACIFIC OCEAN':'OPEN OCEAN';
   $('.arrival-context').textContent=story[0];
   pin.querySelector('span').textContent=location.title;
-  button.focus({preventScroll:true});update(0);
+  overlay.classList.toggle('arrival-reduced',staticStory);overlay.style.opacity='1';button.innerHTML=staticStory?'Step aboard':'Skip to boat <span aria-hidden="true">↘</span>';if(staticStory){$('.arrival-context').textContent=story.join('\n\n');$('.arrival-context').style.opacity='1';}button.focus({preventScroll:true});update(0);
  }
  function update(dt){
-  if(!active)return;
+  if(!active||staticStory)return;
   // Hidden tabs do not skip the whole arrival on resuming.
   elapsed=holdFrame??elapsed+Math.min(.1,Math.max(0,dt));
   const state=sampleArrival(elapsed);if(state.done){finish();return;}
@@ -140,7 +141,7 @@ export function createWorldArrival({renderer,land,isTouch=false,base='./'}){
  }
  const endPosition=new THREE.Vector3(),endQuaternion=new THREE.Quaternion(),aim=new THREE.Vector3(),offset=new THREE.Vector3(),lookCamera=new THREE.PerspectiveCamera();
  function applyCamera(camera,boatPosition,heading){
-  if(!active)return;const state=sampleArrival(elapsed);endPosition.copy(camera.position);endQuaternion.copy(camera.quaternion);
+  if(!active||staticStory)return;const state=sampleArrival(elapsed);endPosition.copy(camera.position);endQuaternion.copy(camera.quaternion);
   const ratio=state.height/1800;
   offset.set(ratio*75,state.height,ratio*130).applyAxisAngle(new THREE.Vector3(0,1,0),-heading*DEG);
   camera.position.copy(endPosition).add(offset);aim.copy(boatPosition).lerp(endPosition,state.blend);aim.y+=.4*(1-state.blend);
@@ -153,5 +154,5 @@ export function createWorldArrival({renderer,land,isTouch=false,base='./'}){
   finally{renderer.setRenderTarget(previous);renderer.setClearColor(clearColor,clearAlpha);}
  }
  function resize(){if(!resources)return;const size=renderer.getDrawingBufferSize(new THREE.Vector2()),scale=Math.min(1,(isTouch?900:1600)/size.x);resources.target.setSize(Math.round(size.x*scale),Math.round(size.y*scale));}
- return {start,finish,update,applyCamera,render,resize,get active(){return active;},get state(){return sampleArrival(elapsed);},dispose(){finish();overlay.remove();window.removeEventListener('keydown',onKey,true);}};
+ return {start,finish,update,applyCamera,render,resize,get active(){return active;},get state(){return sampleArrival(staticStory?ARRIVAL_DURATION:elapsed);},dispose(){finish();overlay.remove();window.removeEventListener('keydown',onKey,true);}};
 }
