@@ -797,8 +797,10 @@ export function createCanoe(scene) {
     else{motorVessel=model;canoe.add(model.root);seating.copy(model.eye);wetPoints=[[-3,0,.7],[-1.8,-.9,1],[-1.8,.9,1],[0,-1,1],[0,1,1],[1.8,-.8,1],[1.8,.8,1],[3,0,.7]];rollResponse=.45;waterOutline={halfLength:model.halfLength,profile:model.profile};surfaceMeshes.splice(0,surfaceMeshes.length,...model.surfaces);lantern.position.set(.6,.355,2.25);}
     eyeInitialized=false;settled=false;canoe.userData.motor=!!model;
   }
+  /** Move the eye point in boat coordinates (walking the launch's deck, taking the helm). */
+  function setSeat(v){seating.copy(v);}
   function fishingSeat(value){if(motorVessel){seating.copy(value?new THREE.Vector3(.85,1.85,2.3):motorVessel.eye);eyeInitialized=false;}}
-  return { group: canoe, lantern, surfaceMeshes, applyRowingBoat,setMotorVessel,fishingSeat,get seat(){return seating;},get waterOutline(){return waterOutline;}, requestStroke,getPaddlePose(){return paddlePose;}, get wetness() { return wetness; }, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; },get animationState(){return {strokeActive,strokePhase:strokeT,strokeCount:strokes,paddleBlend:paddleVis,side,strokeQueued,submerged:paddlePose.submerged,drive:paddlePose.drive,sailHoist:sailState.shown};} };
+  return { group: canoe, lantern, surfaceMeshes, applyRowingBoat,setMotorVessel,fishingSeat,setSeat,get seat(){return seating;},get waterOutline(){return waterOutline;}, requestStroke,getPaddlePose(){return paddlePose;}, get wetness() { return wetness; }, update, eye, lamp, applyLantern, applyCanoe, get heave() { return heaveS; },get animationState(){return {strokeActive,strokePhase:strokeT,strokeCount:strokes,paddleBlend:paddleVis,side,strokeQueued,submerged:paddlePose.submerged,drive:paddlePose.drive,sailHoist:sailState.shown};} };
 }
 
 /** Sea mask settings for this hull: (along from, along to, half-beam) and no float. */

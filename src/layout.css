@@ -1,0 +1,210 @@
+/* Pacific Drift interface layout. One region per job, so panels never sit on top of each other:
+   top-left   wordmark and route guidance
+   top-right  watch, then the utility bar, then one utility panel at a time (the drawer)
+   bottom     the current activity (hints, helm, fishing) in one centred stack; compass at right
+   On phones and short windows the drawer becomes a bottom sheet (a side sheet in landscape)
+   over a scrim, and the on-screen controls change with the player's mode. */
+
+/* ---------- Utility bar ---------- */
+.utility-bar{position:fixed;z-index:30;top:calc(50px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:calc(100vw - 32px)}
+.utility-btn{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;background:var(--glass);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:500 12px/1 var(--font-body);letter-spacing:.02em;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.utility-btn kbd{font:600 10px/1 var(--font-body);color:var(--ink-faint);border:1px solid var(--line);border-radius:3px;padding:2px 4px}
+.utility-btn:hover{background:var(--glass-strong)}
+.utility-btn.active,.utility-btn[aria-pressed="true"]{background:var(--ink);color:var(--night)}
+.utility-btn.active kbd,.utility-btn[aria-pressed="true"] kbd{color:var(--night);border-color:rgba(11,14,16,.3)}
+.help-toggle,.equipment-toggle:not(.utility-btn),.play-hint{display:none!important}
+
+/* ---------- Drawer (desktop) ---------- */
+.utility-drawer{position:fixed;z-index:29;top:calc(96px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));width:min(340px,calc(100vw - 32px));max-height:calc(100dvh - 96px - 170px - env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;touch-action:pan-y;background:rgba(9,14,18,.92);border:1px solid var(--line);border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--ink);font:13px/1.55 var(--font-body)}
+.drawer-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 10px;background:rgba(9,14,18,.97);border-bottom:1px solid var(--line)}
+.drawer-title{margin:0;font:600 12px/1.2 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);outline:none}
+.drawer-close{background:transparent;border:1px solid var(--line);border-radius:5px;padding:7px 11px;color:var(--ink);font:500 12px var(--font-body);cursor:pointer}
+.drawer-body{padding:14px}
+.short-window .utility-drawer{max-height:calc(100dvh - 96px - 150px)}
+.short-window:not(.touch-layout) .compass{width:120px;height:120px}
+
+/* Panels inside the drawer lose their old fixed positions. */
+.utility-drawer .drawer-panel{position:static!important;inset:auto!important;transform:none!important;width:auto!important;max-width:none!important;margin:0;background:none!important;border:0!important;box-shadow:none!important;padding:0!important;backdrop-filter:none!important}
+.utility-drawer .conditions>summary{list-style:none;cursor:default;pointer-events:none;font-weight:600;padding:0 0 8px;text-shadow:none}
+.utility-drawer .conditions>summary::-webkit-details-marker{display:none}
+.utility-drawer .conditions-panel{width:auto;max-height:none;padding:0;background:none;border:0}
+.utility-drawer .camera-controls>summary{display:none}
+.utility-drawer .camera-controls>div{padding:0!important;display:grid;gap:10px}
+.utility-drawer .camera-controls label{display:grid;gap:5px}
+.utility-drawer .camera-controls select,.utility-drawer .conditions select{width:100%;padding:9px;background:#0f1b22;color:var(--ink);border:1px solid var(--line);border-radius:5px;font:inherit}
+.utility-drawer .controls-hud:not([hidden]){display:block!important}
+.utility-drawer .help-mode{margin:0 0 6px;font:600 15px var(--font-body)}
+.utility-drawer .ch-status{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;color:var(--ink-soft)}
+.utility-drawer .ch-keys{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.utility-drawer .ch-keys kbd{display:inline-block;min-width:22px;margin-right:6px;padding:2px 6px;border:1px solid var(--line);border-radius:4px;font:600 11px var(--font-body);text-align:center}
+.utility-drawer .help-links{margin:12px 0 0;font-size:12px;color:var(--ink-faint)}
+.utility-drawer .help-links a{color:var(--ink-soft)}
+.utility-drawer .map-wrap{display:grid;gap:8px}
+.utility-drawer .minimap{width:100%!important;height:auto!important;aspect-ratio:7/5;border-radius:6px}
+.menu-panel{display:grid;gap:14px}
+.menu-tools,.menu-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.menu-panel button{min-height:42px;padding:8px 10px;background:#0f1b22;border:1px solid var(--line);border-radius:6px;color:var(--ink);font:500 13px var(--font-body);text-align:left;cursor:pointer}
+.menu-panel button[aria-pressed="true"]{background:var(--ink);color:var(--night)}
+.menu-links button{color:var(--ink-soft)}
+body:not(.touch-layout) #tTilt{display:none}
+
+/* ---------- Sheet (phones, small and short windows) ---------- */
+.sheet-scrim{position:fixed;inset:0;z-index:28;background:rgba(3,6,8,.42)}
+.utility-drawer.as-sheet{top:auto;left:0;right:0;bottom:0;width:auto;max-height:min(64dvh,560px);border-radius:14px 14px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+.utility-drawer.as-sheet .drawer-head::before{content:"";position:absolute;left:50%;top:5px;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:var(--line)}
+@media (max-height:500px) and (orientation:landscape){
+ .utility-drawer.as-sheet{top:0;bottom:0;left:auto;right:0;width:min(380px,62vw);max-height:none;border-radius:14px 0 0 14px;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 0}
+ .utility-drawer.as-sheet .drawer-head::before{display:none}
+}
+.sheet-open .utility-bar{visibility:hidden}
+
+/* ---------- Activity stack (bottom centre) ---------- */
+.mode-hud{position:fixed;z-index:22;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(600px,calc(100vw - 2*190px));display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.mode-hud>*{pointer-events:auto}
+.mode-hud .toast{position:static!important;transform:none!important;max-width:100%;margin:0;opacity:0;transition:opacity .25s;pointer-events:none}
+.mode-hud .toast.show{opacity:1}
+.mode-hud .toast:not(.show){height:0;padding:0;border:0;overflow:hidden}
+.context-hint,.mode-hud .item-hint{position:static!important;transform:none!important;margin:0;padding:7px 12px;background:var(--glass);border:1px solid var(--line);border-radius:6px;font:500 12px/1.4 var(--font-body);color:var(--ink-soft);text-align:center;pointer-events:none}
+.helm-panel{display:grid;gap:8px;width:100%;padding:7px 10px;background:rgba(9,14,18,.82);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(12px)}
+.helm-readout{display:grid;grid-template-columns:auto minmax(60px,1fr) auto auto auto;align-items:center;gap:10px;font:600 12px var(--font-body)}
+.helm-throttle{--t:0;position:relative;height:8px;border-radius:4px;background:rgba(239,234,224,.14)}
+.helm-throttle::before{content:"";position:absolute;left:33.33%;top:-3px;bottom:-3px;width:1px;background:var(--ink-faint)}
+.helm-throttle i{position:absolute;top:0;bottom:0;left:33.33%;width:calc(max(var(--t),0)*66.67%);background:var(--ink);border-radius:4px}
+.helm-throttle b{position:absolute;top:0;bottom:0;right:66.67%;width:calc(max(calc(var(--t)*-2),0)*33.33%);background:#d6a35a;border-radius:4px}
+.helm-speed{font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.helm-switches{display:flex;flex-wrap:wrap;gap:5px}
+.helm-switches button,.helm-leave,.helm-switch-toggle{padding:6px 9px;background:#0f1b22;border:1px solid var(--line);border-radius:5px;color:var(--ink-soft);font:500 11px var(--font-body);cursor:pointer}
+.helm-switches button[aria-pressed="true"]{color:var(--night);background:#cfe2c8;border-color:#cfe2c8}
+.helm-switch-toggle[aria-expanded="true"]{background:var(--ink);color:var(--night)}
+.helm-leave kbd{font:600 10px var(--font-body);margin-left:4px;opacity:.7}
+
+/* Fishing joins the same stack. */
+.mode-hud .fishing-controls{position:static!important;width:100%;max-width:none;display:grid;gap:7px;padding:11px 12px;background:rgba(9,14,18,.86);border:1px solid var(--line);border-radius:10px;font:13px/1.45 var(--font-body);color:var(--ink)}
+.fishing-controls p{margin:0}
+.fishing-hint{color:var(--ink-soft)}
+.fishing-hint.warn{color:#f0c98a}
+.fishing-row{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.fishing-row.secondary button{padding:7px 10px;font-size:12px}
+.fishing-controls button,.fishing-controls select{font:inherit;color:var(--ink);background:#0f1b22;border:1px solid var(--line);border-radius:6px;padding:9px 12px;cursor:pointer}
+.fishing-controls button:disabled{opacity:.5}
+.fishing-action{flex:1 1 170px;min-height:46px;font-weight:600!important;touch-action:none}
+.fishing-action.strike{background:#f0c98a!important;color:#14100a!important;border-color:#f0c98a!important;animation:strike-pulse .5s ease-in-out infinite alternate}
+@keyframes strike-pulse{from{box-shadow:0 0 0 0 rgba(240,201,138,.7)}to{box-shadow:0 0 0 8px rgba(240,201,138,0)}}
+@media (prefers-reduced-motion:reduce){.fishing-action.strike{animation:none}}
+.fishing-rig{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)}
+.fishing-controls meter{width:100%;height:12px}
+.fishing-fight{font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.fishing-fight:empty{display:none}
+
+/* ---------- Route guidance and the now-playing chip ---------- */
+.voyage-guidance{left:max(20px,env(safe-area-inset-left,0px))!important;right:auto!important;top:calc(108px + env(safe-area-inset-top,0px))!important}
+.environment-preview .voyage-guidance{display:none!important}
+.now-playing{left:max(20px,env(safe-area-inset-left,0px))!important;bottom:calc(20px + env(safe-area-inset-bottom,0px))!important;z-index:21}
+
+/* ---------- Touch controls follow the mode ---------- */
+.touch .walk-only,.touch .helm-only,.touch .use-btn{display:none}
+body[data-mode="walk"] .touch .walk-only{display:inline-grid}
+body[data-mode="walk"] .touch .use-btn{display:grid}
+body[data-mode="helm"] .touch .helm-only{display:grid}
+body[data-mode="fish"] .touch .touch-steer,body[data-mode="fish"] .touch .paddle-btn{display:none}
+body[data-mode="walk"] .touch-steer{display:grid;grid-template-columns:repeat(3,54px);grid-template-rows:repeat(3,54px);gap:4px}
+body[data-mode="walk"] .touch-steer [data-hold="forward"]{grid-column:2;grid-row:1}
+body[data-mode="walk"] .touch-steer [data-hold="left"]{grid-column:1;grid-row:2}
+body[data-mode="walk"] .touch-steer [data-hold="right"]{grid-column:3;grid-row:2}
+body[data-mode="walk"] .touch-steer [data-hold="back"]{grid-column:2;grid-row:3}
+.use-btn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));width:78px;height:78px;border-radius:50%;place-items:center;pointer-events:auto;background:var(--glass-strong);border:1px solid var(--line);color:var(--ink);font:600 14px var(--font-body)}
+.touch-throttle{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(122px + env(safe-area-inset-bottom,0px));grid-template-columns:62px;gap:6px;pointer-events:auto}
+.throttle-btn{height:52px;border-radius:10px;background:var(--glass-strong);border:1px solid var(--line);color:var(--ink);font:600 22px var(--font-body);touch-action:none}
+.throttle-btn.neutral{height:38px;font-size:11px;letter-spacing:.04em}
+.throttle-btn.held{background:var(--ink);color:var(--night)}
+
+/* ---------- Compact layout ---------- */
+.touch-layout .utility-bar{top:calc(46px + env(safe-area-inset-top,0px));right:max(10px,env(safe-area-inset-right,0px));gap:5px}
+.touch-layout .utility-btn[data-priority="2"]{display:none}
+.touch-layout .utility-btn{min-height:38px;padding:0 11px}
+.touch-layout .utility-btn kbd{display:none}
+.touch-layout .touch-tools{display:none}
+.touch-layout .mode-hud{width:min(440px,calc(100vw - 24px));bottom:calc(112px + env(safe-area-inset-bottom,0px))}
+body.touch-layout[data-mode="walk"] .mode-hud{bottom:calc(186px + env(safe-area-inset-bottom,0px))}
+body.touch-layout[data-mode="fish"] .mode-hud{bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+body.touch-layout[data-mode="helm"] .mode-hud{left:max(12px,env(safe-area-inset-left,0px));transform:none;width:min(440px,calc(100vw - 24px - 78px))}
+body.touch-layout[data-mode="fish"] .compass-wrap{bottom:auto!important;top:calc(96px + env(safe-area-inset-top,0px))}
+.touch-layout .voyage-guidance{top:calc(96px + env(safe-area-inset-top,0px))!important;left:12px!important;width:min(200px,48vw)!important}
+.touch-layout .helm-leave kbd{display:none}
+.touch-layout .helm-readout{grid-template-columns:auto minmax(40px,1fr) auto;row-gap:6px}
+.touch-layout .helm-switch-toggle{grid-column:1/3}
+.touch-layout .now-playing{bottom:auto!important;top:calc(96px + env(safe-area-inset-top,0px));left:auto!important;right:12px!important}
+body.touch-layout:has(.voyage-guidance:not([hidden])) .now-playing{top:calc(142px + env(safe-area-inset-top,0px))}
+@media (max-height:500px) and (orientation:landscape){
+ .touch-layout .mode-hud{bottom:calc(10px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100vw - 2*170px))}
+ body.touch-layout[data-mode="walk"] .mode-hud{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+ .touch-layout .compass{width:80px!important;height:80px!important}
+ .touch-layout .compass-wrap{right:max(10px,env(safe-area-inset-right,0px))!important;bottom:calc(8px + env(safe-area-inset-bottom,0px))!important}
+ .touch-layout .touch-throttle{bottom:calc(10px + env(safe-area-inset-bottom,0px));right:calc(104px + env(safe-area-inset-right,0px))}
+ .touch-layout .use-btn,.touch-layout .paddle-btn,body.touch-layout[data-mode="walk"] .use-btn{left:auto!important;right:calc(104px + env(safe-area-inset-right,0px))!important;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:none!important;width:68px;height:68px}
+ body.touch-layout[data-mode="helm"] .mode-hud{left:50%;transform:translateX(-50%);width:min(380px,calc(100vw - 2*180px))}
+ body.touch-layout[data-mode="walk"] .touch-steer{grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px)}
+ .touch-layout .voyage-guidance{display:none!important}
+}
+
+/* ---------- Hidden while the player is elsewhere ---------- */
+.at-home .utility-bar,.at-home .utility-drawer,.at-home .mode-hud,.at-home .sheet-scrim,
+.arriving .utility-bar,.arriving .utility-drawer,.arriving .mode-hud,
+.inspecting-equipment .utility-bar,.inspecting-equipment .utility-drawer,.inspecting-equipment .mode-hud,.inspecting-equipment .sheet-scrim,
+.using-binoculars .utility-bar,.using-binoculars .utility-drawer,.using-binoculars .mode-hud{visibility:hidden!important}
+.environment-preview .utility-btn[data-panel="map"],.environment-preview .utility-btn[data-panel="help"],.environment-preview .utility-btn[data-panel="weather"]{display:none}
+.environment-preview .utility-bar{top:calc(14px + env(safe-area-inset-top,0px))}
+.environment-preview .utility-drawer{top:calc(60px + env(safe-area-inset-top,0px))}
+
+/* ---------- Dialogs: catch and journal ---------- */
+.fishing-catch,.fishing-journal{color:var(--ink);background:#0d171d;border:1px solid var(--line);border-radius:12px;padding:0;font:14px/1.55 var(--font-body);box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.fishing-catch::backdrop,.fishing-journal::backdrop{background:rgba(3,6,8,.6)}
+.fishing-catch{width:min(460px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);overflow:auto;padding:0 0 18px}
+.catch-figure{margin:0;background:#efe9dc;border-bottom:1px solid var(--line)}
+.catch-figure img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:contain}
+.fishing-catch h2{margin:16px 20px 2px;font:600 22px/1.25 var(--font-body)}
+.fishing-catch p{margin:2px 20px}
+.catch-sci{font-style:italic;color:var(--ink-soft)}
+.catch-note{color:#d9c48c}
+.catch-actions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 20px 0}
+.fishing-catch button,.fishing-journal button{padding:10px 14px;background:#16252d;border:1px solid var(--line);border-radius:6px;color:var(--ink);font:500 13px var(--font-body);cursor:pointer}
+.fishing-journal{width:min(980px,calc(100vw - 24px));height:min(760px,calc(100dvh - 24px));max-width:none;max-height:none;display:none;grid-template-rows:auto 1fr auto;overflow:hidden}
+.fishing-journal[open]{display:grid}
+.journal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px;border-bottom:1px solid var(--line)}
+.journal-head h2{margin:2px 0 4px;font:600 22px/1.2 var(--font-body)}
+.journal-head .eyebrow{margin:0;font:600 10px var(--font-body);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+.journal-summary{margin:0;color:var(--ink-soft);font-size:13px}
+.journal-body{overflow:auto;padding:16px 20px;position:relative;touch-action:pan-y;overscroll-behavior:contain}
+.journal-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.journal-card{width:100%;display:grid;grid-template-rows:auto 1fr;padding:0!important;overflow:hidden;text-align:left;background:#121f26!important}
+.journal-card img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;background:#efe9dc}
+.journal-card.undiscovered img{background:#eee7d6}
+.journal-card.no-image::before{content:"";display:block;aspect-ratio:3/2;background:#2a3a42}
+.journal-card-text{display:grid;gap:1px;padding:9px 11px 11px}
+.journal-card-text strong{font-weight:600}
+.journal-card-text em{color:var(--ink-soft);font-size:12px}
+.journal-card-text small{color:var(--ink-faint);font-size:12px}
+.journal-card:not(.undiscovered) small{color:#cfe2c8}
+.journal-detail{position:absolute;inset:0;overflow:auto;padding:16px 20px;background:#0d171d}
+.journal-detail-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:center;margin:12px 0}
+.journal-detail-head img{width:100%;height:auto;max-height:min(300px,34dvh);aspect-ratio:3/2;object-fit:contain;background:#efe9dc;border-radius:8px}
+
+.journal-detail h3{margin:0;font:600 24px/1.2 var(--font-body)}
+.journal-detail .sci{margin:2px 0 0;font-style:italic;color:var(--ink-soft)}
+.journal-detail dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0 0 14px}
+.journal-detail dt{color:var(--ink-faint)}
+.journal-detail dd{margin:0}
+.journal-catches{margin:0;padding-left:20px;display:grid;gap:5px;color:var(--ink-soft);font-size:13px}
+.journal-note{margin:0;padding:10px 20px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-faint)}
+@media (max-width:640px){
+ .journal-detail-head{grid-template-columns:1fr}
+ .journal-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+ .fishing-journal{width:100vw;height:100dvh;max-width:none;max-height:none;border-radius:0}
+}
+
+/* The watch sits on the top line, clear of the utility bar below it. */
+.hud-top .watch{align-self:flex-start;margin-top:2px;min-height:18px}
+.utility-drawer .ch-keys{grid-template-columns:1fr!important;columns:auto!important}
+.utility-drawer .ch-keys li{white-space:normal;align-items:flex-start}
+/* On the deck the Use button sits beside the direction pad, not under it. */
+body.touch-layout[data-mode="walk"] .use-btn{left:auto;right:calc(112px + env(safe-area-inset-right,0px));transform:none}

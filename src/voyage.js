@@ -59,6 +59,7 @@ function polar(twa) {
 
 export const PADDLE_SPEED = 1.45; // m/s, a steady single paddler in a Canadian canoe
 const MAX_SAIL = 2.7;             // m/s, about 5 knots
+export const LAUNCH_SPEED = 4.5;  // m/s at full ahead
 
 /**
  * Advance the voyage by dt seconds.
@@ -75,8 +76,9 @@ export function step(s, dt, input, land, cache = {}) {
 
   // Steering
   const motor=s.boat==='launch';
-  const steerRate = (motor?5:9) * (0.35 + 0.65 * Math.min(1, s.speed / 1.4)); // degrees per second
-  s.heading = (s.heading + input.steer * steerRate * dt + 360) % 360;
+  const steerRate = (motor?5:9) * (0.35 + 0.65 * Math.min(1, Math.abs(s.speed) / 1.4)); // degrees per second
+  // Going astern, the launch's rudder turns the stern rather than the bow.
+  s.heading = (s.heading + input.steer * steerRate * dt * (motor && s.speed < -0.05 ? -1 : 1) + 360) % 360;
 
   // Speed through the water
   let sailSpeed = 0;
@@ -87,8 +89,10 @@ export function step(s, dt, input, land, cache = {}) {
   }
   const physicalStroke=Number.isFinite(input.paddleForce);
   const paddleSpeed = physicalStroke ? 0 : input.paddle * PADDLE_SPEED;
-  const target = motor?(input.paddleRequested?4.5:0):Math.max(sailSpeed, paddleSpeed) + 0.25 * Math.min(sailSpeed, paddleSpeed);
-  const k = 1 - Math.exp(-dt / (target > s.speed ? 7 : 12));
+  // Launch: throttle -0.5 (astern) .. 1 (ahead). 4.5 m/s is about 8.7 knots at full ahead.
+  const throttle = Number.isFinite(input.throttle) ? Math.max(-0.5, Math.min(1, input.throttle)) : (input.paddleRequested ? 1 : 0);
+  const target = motor?(throttle >= 0 ? throttle * LAUNCH_SPEED : throttle * 2.4):Math.max(sailSpeed, paddleSpeed) + 0.25 * Math.min(sailSpeed, paddleSpeed);
+  const k = 1 - Math.exp(-dt / (Math.abs(target) > Math.abs(s.speed) ? (motor ? 5 : 7) : (motor ? 9 : 12)));
   s.speed += (target - s.speed) * k;
   // A blade supplies a short impulse, followed by the existing hull coasting.
   // Fade its contribution near a brisk paddling speed; sailing remains free

@@ -38,7 +38,17 @@ export function visibleItemBounds(root,out=new THREE.Box3()){
  root.traverseVisible(o=>{if(!o.isMesh||!o.geometry)return;if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();if(o.geometry.boundingBox)out.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));});
  return out;
 }
-export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{},register=()=>{},gps=null,anbernic=null,layout={},onMove=()=>{}}={}){
+// Launch supports, canoe-local (bow toward -z): dash top beside the helm, the cabin bench,
+// the bait barrel lid and the cockpit sole. Each item tries these in order until one is free.
+export const LAUNCH_SUPPORTS={
+ gps:[[-.84,-1.29,0],[-.62,-1.29,0],[.25,-1.29,0]],
+ binoculars:[[-.86,.82,.3],[-.95,-1.29,.2],[.4,1.4,.2]],
+ radio:[[-.86,-.3,0],[-.9,-.62,0],[-.6,1.5,0]],
+ walkman:[[-.82,-.62,.25],[-.9,-.18,.25],[-.3,1.5,.25]],
+ anbernic:[[-.92,-.18,0],[-.72,.66,0],[.2,1.9,0]],
+ backpack:[[.45,1.6,0],[.3,2.6,0],[-.2,2.9,0]]
+};
+export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{},register=()=>{},gps=null,anbernic=null,layout={},launchLayout=()=>null,onMove=()=>{}}={}){
  const loader=new GLTFLoader(),ray=new THREE.Raycaster();ray.layers.enableAll();
  const group=new THREE.Group();group.name='Onboard equipment';canoe.group.add(group);
  const grounding=createBoatGrounding(canoe.group),heldMeshes=new Map();
@@ -46,7 +56,9 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
  function supportY(x,z){
   canoe.group.updateMatrixWorld(true);
   const origin=new THREE.Vector3(x,3,z).applyMatrix4(canoe.group.matrixWorld),down=new THREE.Vector3(0,-1,0).transformDirection(canoe.group.matrixWorld);
-  ray.set(origin,down);const hit=ray.intersectObjects(canoe.surfaceMeshes,false).find(h=>canoe.group.worldToLocal(h.point.clone()).y<.7);
+  // The launch has raised supports (dash top, cabin bench, bait barrel); the rowboat's sole is low.
+  const ceiling=canoe.group.userData.motor?1.6:.7;
+  ray.set(origin,down);const hit=ray.intersectObjects(canoe.surfaceMeshes,false).find(h=>canoe.group.worldToLocal(h.point.clone()).y<ceiling);
   return hit?canoe.group.worldToLocal(hit.point.clone()).y:.115;
  }
  function fit(name,root){
@@ -97,21 +109,32 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   root.updateWorldMatrix(true,true);const local=new THREE.Box3(),inverse=canoe.group.matrixWorld.clone().invert();root.traverseVisible(o=>{if(!o.isMesh||!o.geometry)return;o.geometry.computeBoundingBox();local.union(o.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,o.matrixWorld)));});const size=local.getSize(new THREE.Vector3()),center=local.getCenter(new THREE.Vector3());
   const halfX=size.x/2,halfZ=size.z/2;
   const motor=!!canoe.group.userData.motor;
-  let valid=motor?(Math.abs(x)+halfX<1.15&&z-halfZ>.55&&z+halfZ<3.6):Math.abs(z)+halfZ<2.05;
+  let valid=motor?(Math.abs(x)+halfX<1.12&&z-halfZ>-1.5&&z+halfZ<3.75):Math.abs(z)+halfZ<2.05;
   // Keep the complete footprint within the tapered hull, clear of the gunwales.
   if(!motor)for(const dz of [-halfZ,halfZ]){const maxWidth=.55*Math.sqrt(Math.max(0,1-Math.pow((z+dz)/2.25,2)));valid&&=Math.abs(x)+halfX<maxWidth;}
-  const deck=Math.max(...[[0,0],[-halfX*.7,-halfZ*.7],[halfX*.7,-halfZ*.7],[-halfX*.7,halfZ*.7],[halfX*.7,halfZ*.7]].map(([dx,dz])=>supportY(x+dx,z+dz)));valid&&=deck<.7&&Number.isFinite(deck);
+  const supports=[[0,0],[-halfX*.7,-halfZ*.7],[halfX*.7,-halfZ*.7],[-halfX*.7,halfZ*.7],[halfX*.7,halfZ*.7]].map(([dx,dz])=>supportY(x+dx,z+dz)),deck=Math.max(...supports);
+  valid&&=deck<(motor?1.6:.7)&&Number.isFinite(deck);
+  // On the launch an item must rest on one flat surface, not hang over the edge of a bench or dash.
+  if(motor)valid&&=deck-Math.min(...supports)<.035;
   root.position.set(x-center.x,deck+(name==='gps'?.018:0)-local.min.y+.003,z-center.z);root.updateWorldMatrix(true,true);
   const moved=visibleItemBounds(root).expandByScalar(-.004);
   for(const [id,other]of Object.entries({...roots,lantern:canoe.lantern})){if(id===name||!other.visible)continue;if(moved.intersectsBox(visibleItemBounds(other)))valid=false;}
   if(!valid){root.position.copy(oldPosition);root.rotation.copy(oldRotation);root.updateWorldMatrix(true,true);return false;}
   if(cradles[name])cradles[name].position.set(x,deck,z);
-  state.contacts[name]={deckY:deck,x,z};grounding.fit(name,root,state.contacts[name]);if(notify)onMove(name,{x,z,yaw});return true;
+  state.contacts[name]={deckY:deck,x,z};grounding.fit(name,root,state.contacts[name]);if(notify)onMove(name,{x,z,yaw},motor?'launch':'rowboat');return true;
  }
  function dragPoint(camera,x,y,width,height){pointer.set(x/width*2-1,1-y/height*2);ray.setFromCamera(pointer,camera);const localRay=ray.ray.clone().applyMatrix4(canoe.group.matrixWorld.clone().invert());return localRay.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-(canoe.group.userData.motor?.36:.3)),new THREE.Vector3());}
  function interact(camera,x,y,width,height){const name=pick(camera,x,y,width,height);if(!name)return false;onInspect(name);return true;}
- async function setVessel(motor){await loading;const layout={backpack:[-.55,2.8],radio:[.65,1.6],walkman:[.35,1.6],gps:[0,1.6],binoculars:[-.5,1.6],anbernic:[.1,2.8]};
- if(motor){if(!vesselRowPoses)vesselRowPoses=Object.fromEntries(Object.entries(roots).map(([id,r])=>[id,{position:r.position.clone(),rotation:r.rotation.clone(),contact:{...state.contacts[id]},cradle:cradles[id]?.position.clone()}]));for(const [id,[x,z]]of Object.entries(layout)){const root=roots[id];if(!root)continue;move(id,x,z,root.rotation.y,false);}}
+ async function setVessel(motor){await loading;
+ if(motor){if(!vesselRowPoses)vesselRowPoses=Object.fromEntries(Object.entries(roots).map(([id,r])=>[id,{position:r.position.clone(),rotation:r.rotation.clone(),contact:{...state.contacts[id]},cradle:cradles[id]?.position.clone()}]));
+  // Saved launch positions first, then each item's own supports in order of preference.
+  const saved=launchLayout()||{};
+  for(const [id,options]of Object.entries(LAUNCH_SUPPORTS)){const root=roots[id];if(!root)continue;const tries=saved[id]?[[saved[id].x,saved[id].z,saved[id].yaw??root.rotation.y],...options]:options;
+   if(tries.some(([x,z,yaw])=>move(id,x,z,yaw??root.rotation.y,false)))continue;
+   // Otherwise the nearest free flat spot on the cockpit sole, searched outward from the first choice.
+   const [x0,z0]=options[options.length-1],spots=[];for(let x=-.95;x<=.95;x+=.12)for(let z=.5;z<=3.5;z+=.12)spots.push([x,z]);
+   spots.sort((a,b)=>Math.hypot(a[0]-x0,a[1]-z0)-Math.hypot(b[0]-x0,b[1]-z0));
+   if(!spots.some(([x,z])=>move(id,x,z,root.rotation.y,false)))console.warn('No free support for '+id+' on the launch');}}
  else if(vesselRowPoses){for(const [id,p]of Object.entries(vesselRowPoses)){roots[id].position.copy(p.position);roots[id].rotation.copy(p.rotation);state.contacts[id]={...p.contact};if(p.cradle)cradles[id].position.copy(p.cradle);grounding.fit(id,roots[id],p.contact);}vesselRowPoses=null;}}
  return {group,loading,state,setVessel,attachCustom(name,root){roots[name]=root;},interact,pick,highlight,move,dragPoint,tapeState,getRoot:name=>name==='lantern'?canoe.lantern:roots[name],
   setHeld(name,value){const root=name==='lantern'?canoe.lantern:roots[name];if(!root)return;if(value&&!heldMeshes.has(name)){const values=[];root.traverse(o=>{if(o.isMesh||o.isSprite){values.push([o,o.visible]);o.visible=false;}});heldMeshes.set(name,values);grounding.visible(name,false);}else if(!value&&heldMeshes.has(name)){for(const [o,visible]of heldMeshes.get(name))o.visible=visible;heldMeshes.delete(name);grounding.visible(name,!stowed.has(name));}},

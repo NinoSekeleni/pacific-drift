@@ -21,7 +21,15 @@ The production site is written to `dist/`. The included GitHub Actions workflow 
 
 ## Controls
 
-W row; A/D steer; E sail; L lantern; R radio; C constellation lines and names; N map; +/- zoom; J log; M sound; H controls; I equipment; F inspect the item under the pointer; Escape pause. Drag to look, or click for pointer lock. Phones and narrow screens show tool buttons, steering, and paddle controls; tilt requires device permission.
+Controls depend on what you are doing, and each key has one meaning in each mode:
+
+- **Rowboat (seated):** W row; A/D steer; E sail; G take the fishing rod.
+- **Launch, on deck:** WASD walk (Shift for a brisk pace); drag to look; E beside the wheel takes the helm; G fishes from the open deck; F inspects the item under the pointer.
+- **Launch, at the helm:** W/S open or close the throttle (it stops at neutral before going astern); X neutral; A/D steer; E stands up. Leaving the helm puts the engine in neutral, so walking never steers or drives the boat.
+- **Fishing (either boat):** hold Space to wind up and release to cast; Space strikes when the float dives; hold Space to reel and release to ease the line; Q reels in; G or Escape puts the rod away.
+- **Everywhere:** V view; L lantern; R radio; C star chart; N map; K catch journal; J ship's log; M sound; H controls; I equipment. Escape closes the open dialog or panel first, then ends the current interaction (rod, helm), then pauses.
+
+Utility panels (boat tools, view, weather, map, controls) open one at a time in a drawer under the top-right bar; on phones and short windows the same panels open in a bottom sheet (a side sheet in landscape) over a scrim. The ship's log, catch journal and catch card are modal dialogs that return focus to whatever opened them. On touch screens the bottom controls change with the mode: steering and Row in the rowboat, a direction pad and Use on the launch's deck, throttle and Neutral at the helm, and the cast/reel button while fishing.
 
 ## Equipment and close-up inspection
 
@@ -307,3 +315,18 @@ Approved longer recordings include 9:06 sailing, 1:05 moving water, 3:00 wind, 5
 Sources, individual approvals and usage are in `public/data/soundscape.json`; see `ASSET-CREDITS.md` and the in-game Sound credits link. Public HQ Freesound previews retain their full recording lengths.
 
 Validation: `npm test` runs the complete suite, including journey continuity, dateline route guidance, contact-driven boat effects, streamed seams and reflection state restoration. `tools/generate-test-rom.py` creates an original NES letter-pattern ROM for browser QA; no third-party game content is included.
+
+
+## Launch: deck, helm and finishes (October 2026)
+
+The 8.2 m launch can be walked. Walking follows Tidewater's deck controller and boat-frame colliders (cabin walls, console, helm seat, bench, traps, hauler, bait barrel, bulwarks and transom), so the player moves with the rocking hull and cannot pass through the cabin, gear or rails. Taking and leaving the helm, and walking to the open deck to fish, are short glides rather than camera jumps. The launch keeps Pacific Drift's voyage integrator; Tidewater's full rigid-body controller is not ported.
+
+Tidewater's boat materials are rewritten for WebGL in `src/launch-materials.js`: clear-coated hull paint with boot stripe, waterline scum, algae, streaks and scuffs; molded non-skid and aged gelcoat with screwed interior panels and a perforated headliner; varnished wood grain and a teak-and-holly sole; wrinkle-finish plastics, rope, fabric and salt bloom on bare metal; salt-hazed glass; alpha-tested trap netting; and a house flag that flies with the apparent wind.
+
+The helm is live. The radar sweeps at 24 rpm and shows echoes only for real targets in 12 nm (the nearest land and passing ships). The chart plotter draws the actual heading, speed through the water and over the ground, track, position, the GPS route's next waypoint and the bearing to the nearest land. Gauges show engine speed from the throttle, coolant temperature, speed through the water, charging voltage and rudder angle. Six switches (navigation lights, deck floodlight, cabin light, radar, plotter, instrument lights) turn those things on and off and are saved with the voyage. Equipment on the launch rests on real supports (dash top, cabin bench, bait barrel lid, cockpit sole) and its arrangement is saved separately from the rowboat's.
+
+## Fishing: guaranteed bite, uncertain catch
+
+A valid cast (open water, clear of the hull, with a rig that suits the water) always produces a bite: the first within 7–24 seconds and, after a missed strike, the next within 6–15 seconds, never more than 30 seconds of active fishing. Only active time counts: pauses, hidden tabs, open dialogs and inspection freeze the wait, and reeling in or changing rig cancels it. Before casting, the fishing panel explains when the chosen rig cannot raise anything here (for example a 40 m rig in 8 m of water, or a surface rig south of every catalogued species' range) and suggests the rig that can. Bites come only from species whose simulated range includes the water. Strikes can still be missed and fish still run, escape and snap lines.
+
+The catch journal shows all 16 species with original natural-history illustrations (see `public/fish/PROMPTS.md`), scientific names, first record, catch count, largest weight and estimated length, and each catch's date, position, rig, boat and kept/released status. Undiscovered species appear as silhouettes. Records are shared by both boats and the stored format remains readable by earlier releases.
