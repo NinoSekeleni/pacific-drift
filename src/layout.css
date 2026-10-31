@@ -162,6 +162,10 @@ body.touch-layout:has(.voyage-guidance:not([hidden])) .now-playing{top:calc(142p
 .fishing-catch{width:min(460px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);overflow:auto;padding:0 0 18px}
 .catch-figure{margin:0;background:#efe9dc;border-bottom:1px solid var(--line)}
 .catch-figure img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:contain}
+.catch-figure{position:relative;background:radial-gradient(ellipse at 50% 40%,#f4efe4,#d9d2c2)}
+.catch-canvas{display:block;width:100%;height:auto;aspect-ratio:3/2;cursor:grab;touch-action:none}
+.catch-canvas:active{cursor:grabbing}
+.catch-turn{position:absolute;right:.6rem;bottom:.4rem;font-size:.75rem;color:#5a5448;pointer-events:none}
 .fishing-catch h2{margin:16px 20px 2px;font:600 22px/1.25 var(--font-body)}
 .fishing-catch p{margin:2px 20px}
 .catch-sci{font-style:italic;color:var(--ink-soft)}

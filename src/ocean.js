@@ -2,6 +2,7 @@
 // the wind (Pierson-Moskowitz), whitecaps, rain on the surface and ripples from paddle strokes.
 import * as THREE from 'three';
 import {EXCEPTIONAL_WAVE_GLSL,sampleWaveSet} from './exceptional-waves.js';
+import {WHALE_MARKS,WHALE_WATER_GLSL} from './whale-water.js';
 import { SKY_GLSL, LAYER_NEAR } from './sky.js';
 
 const G = 9.81;
@@ -156,7 +157,7 @@ export function createOcean(renderer, scene, skyUniforms) {
     uLantern: { value: new THREE.Vector4(0, -100, 0, 0) },
     uBio: { value: 0 },
     uHullSpeed: { value: 0 }, uSunVis: { value: 1 },
-    uWaveSet:{value:new THREE.Vector4(0,0,-1000,0)},uWaveSetDir:{value:new THREE.Vector2(0,-1)},uBoatMotion: { value: 0 }
+    uWhaleMarks:{value:Array.from({length:WHALE_MARKS},()=>new THREE.Vector4(0,0,1,0))},uWaveSet:{value:new THREE.Vector4(0,0,-1000,0)},uWaveSetDir:{value:new THREE.Vector2(0,-1)},uBoatMotion: { value: 0 }
   });
 
   const mat = new THREE.ShaderMaterial({
@@ -207,6 +208,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform sampler2D tImportedNormal,tImportedRoughness,tFoamDetail;
       uniform float uTextureDetail,uFoamDetail,uOpticsDetail;
       uniform vec4 uRipples[${RIPPLE_COUNT}];
+      ${WHALE_WATER_GLSL}
       uniform vec2 uWaterRippleAxes[${RIPPLE_COUNT}];
       uniform float uWaterRippleKinds[${RIPPLE_COUNT}];
       uniform vec2 uWaterWindDir;
@@ -327,6 +329,11 @@ export function createOcean(renderer, scene, skyUniforms) {
               +exp(-pow(across/(uHullSeg.y*1.2+aft*.05),2.))*exp(-aft/(6.0+uHullSpeed*3.0))*smoothstep(1.0,3.5,uHullSpeed)*.45;
           }
         }
+
+        // Whale marks: churned water where a back rolls through, a glassy print where flukes went under
+        vec2 whaleMark=whaleWater(vWorld.xz);
+        slope*=1.0-whaleMark.y*.85;
+        kelvinFoam+=whaleMark.x;
 
         // Raindrops pock the surface
         if (uRain > 0.01) {

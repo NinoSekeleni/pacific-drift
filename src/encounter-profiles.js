@@ -1,7 +1,7 @@
 // Dimensions are metres, against the supplied 5.2 m rowing boat. Timing is active
 // play time; preview buttons bypass scheduling and geographic habitat filters.
 export const ENCOUNTERS={
- humpback:{label:'Humpback whale',length:15,speed:1.4,count:1,clearance:48,duration:105,period:27,skin:.8,blow:true},
+ humpback:{label:'Humpback whale',length:15,speed:1.4,count:1,clearance:48,duration:120,period:27,skin:.8,blow:true},
  blue:{label:'Blue whale',length:27,speed:1.7,count:1,clearance:75,duration:135,period:40,skin:1.5,blow:true},
  orca:{label:'Female orca',length:6.5,speed:2.1,count:3,clearance:38,duration:100,period:15,skin:.5,blow:true},
  dolphin:{label:'Bottlenose dolphins',length:3.2,speed:3.3,count:4,clearance:20,duration:85,period:6.5,skin:.23},

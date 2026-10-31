@@ -16,7 +16,7 @@ import {createSeaRain} from './sea-rain.js';
 import { createLensRain } from './lens-rain.js';
 import { createHullRain } from './hull-rain.js';
 import { createWildlife } from './wildlife.js';
-import {createMarineEncounters} from './marine-encounters.js';
+import {createMarineEncounters} from './marine-encounters.js';import {createWhaleWater} from './whale-water.js';
 import {createMeteors} from './meteors.js';
 import {createWeatherFronts} from './weather-fronts.js';
 import {createSkyOptics} from './sky-optics.js';
@@ -141,7 +141,8 @@ const fronts=createWeatherFronts(scene);
 const skyOptics=createSkyOptics(scene,sky);
 const exceptionalWaves=createExceptionalWaves(ocean,{onApproach(){if(started&&!paused){toast('An unusually large swell is approaching.');log.add('An unusually large swell passed through the sea.','weather');}}});
 const wildlife = createWildlife(scene,ocean,{base:BASE});
-const whales = createMarineEncounters(scene,ocean,{base:BASE,register:root=>marineLighting.register(root),onShip(position){if(!position){audio.ship();return;}lastShip={p:position.clone(),t:clock.elapsedTime};const d=position.clone().sub(camNear.position),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),range=d.length();audio.ship(range,d.dot(right)/Math.max(1,range));},onSound(event){if(event.type==='surface'&&event.kind==='orca')return;const d=new THREE.Vector3(event.x,event.y,event.z).sub(camNear.position),range=d.length(),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),strength=Math.min(.75,event.size/12)*Math.pow(25/Math.max(25,range),1.3);if(strength>.015)audio.marine(event.type==='breath'?'orca':event.kind,strength,d.dot(right)/Math.max(1,range));},isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
+const whaleWater=createWhaleWater(ocean.uniforms.uWhaleMarks);let blowView=false;
+const whales = createMarineEncounters(scene,ocean,{base:BASE,marks:whaleWater,spray:()=>spray,onBlowSpray(amount){if(!blowView)return;boatWater.addWet(amount*.6);for(let n=0;n<3;n++)if(Math.random()<amount*30)lensRain.addDrop(.08+Math.random()*.84,.15+Math.random()*.8,.0016+Math.random()*.0026);},register:root=>marineLighting.register(root),onShip(position){if(!position){audio.ship();return;}lastShip={p:position.clone(),t:clock.elapsedTime};const d=position.clone().sub(camNear.position),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),range=d.length();audio.ship(range,d.dot(right)/Math.max(1,range));},onSound(event){if(event.type==='surface'&&event.kind==='orca')return;const d=new THREE.Vector3(event.x,event.y,event.z).sub(camNear.position),range=d.length(),right=new THREE.Vector3(1,0,0).applyQuaternion(camNear.quaternion),strength=Math.min(.75,event.size/12)*Math.pow(25/Math.max(25,range),1.3);if(strength>.015)audio.marine(event.type==='breath'?'orca':event.kind,strength,d.dot(right)/Math.max(1,range));},isWater(x,z){if(!origin||!land)return true;const lat=origin.lat-z/111320,lng=((origin.lng+x/(111320*Math.cos(origin.lat*Math.PI/180))+540)%360)-180;return !land.landAt(lat,lng);},onEncounter(kind,preview){if(preview){toast('Encounter ready');const status=$('whaleStatus');if(status)status.textContent='Preview: '+kind+' · authored textures and metre scale. Try the binoculars for a closer look.';}}});
 const canoe = createCanoe(scene);
 const cameraPanel=document.createElement('details');cameraPanel.className='camera-controls';cameraPanel.innerHTML=`<summary id="cameraSummary">View · Aboard</summary><div><label>Camera<select id="voyageCamera">${Object.entries(CAMERA_VIEWS).map(([id,v])=>`<option value="${id}">${v.label}</option>`).join('')}</select></label><label>View range<input id="cameraRange" type="range" min=".55" max="2.2" step=".05" value="1"></label><p>Drag to look around · scroll to change range<br>V changes camera · steering stays the same</p></div>`;document.body.append(cameraPanel);
 const voyageCamera=createVoyageCamera({reducedMotion:()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches,onChange:syncCameraControls});
@@ -822,7 +823,7 @@ function frame() {
   }
 
   /* ----- Placement ----- */
-  if (!origin || distance(voyage.lat, voyage.lng, origin.lat, origin.lng) > 20000) origin = { lat: voyage.lat, lng: voyage.lng };
+  if (!origin || distance(voyage.lat, voyage.lng, origin.lat, origin.lng) > 20000) { origin = { lat: voyage.lat, lng: voyage.lng }; whaleWater.clear(); }
   toLocal(voyage.lat, voyage.lng, origin.lat, origin.lng, tmpLocal);
   const bx = seaReview?0:tmpLocal.x, bz = seaReview?0:tmpLocal.z;
 
@@ -948,7 +949,7 @@ function frame() {
   if (Math.random() < dt * Math.max(0,sm.speed-5)*.002) audio.creak(0.4 + Math.random() * 0.4);
   audio.setLantern(lanternOn ? 1 : 0);
   // Hull spray from the waterline contacts; the wind carries some of it aboard and onto the view.
-  const airWind={u:sm.u,v:-sm.v},aboardView=started&&!paused&&!voyageCamera.external&&!inspection.active&&!window.__cam&&!window.__birdCam;
+  const airWind={u:sm.u,v:-sm.v},aboardView=started&&!paused&&!voyageCamera.external&&!inspection.active&&!window.__cam&&!window.__birdCam;blowView=aboardView;
   const thrown=hullSpray.update(dt,waveTime,{wind:airWind,scale:environment?.hullSpray??1});
   if(thrown.aboard>0)boatWater.addWet(thrown.aboard*dt*.04);
   const sunTint=p.sun.map(v=>v*smoothstep(-0.04,0.06,sunV.y)*(1-dark)*.45);
@@ -1010,7 +1011,7 @@ function frame() {
 
   wildlife.update(dt,camNear,{lat:voyage.lat,windFrom:w.from*DEG,windSpeed:sm.speed,time:elapsed,sunAltitude:e,enabled:!environment || environment.birds,playing:started && !paused && (!environment || environment.birds)});
 
-  whales.update(dt,camNear,{time:elapsed,windSpeed:sm.speed,sunAltitude:e,playing:started && !paused,enabled:!environment || environment.whales,ships:!environment||environment.ships,lat:voyage.lat,nearestLand:islands?.nearest?.d??Infinity,tint:hor});
+  whaleWater.update(dt);whales.update(dt,camNear,{wind:airWind,time:elapsed,windSpeed:sm.speed,sunAltitude:e,playing:started && !paused,enabled:!environment || environment.whales,ships:!environment||environment.ships,lat:voyage.lat,nearestLand:islands?.nearest?.d??Infinity,tint:hor});
 
   /* ----- Light for the boat ----- */
   const sunUp = smoothstep(-0.04, 0.06, sunV.y);
@@ -1288,7 +1289,7 @@ async function boot() {
       get conditions(){return {mode:conditionsMode,status:liveWeather.status(voyage.lat,voyage.lng,now()),sample:liveWeather.sample(voyage.lat,voyage.lng,now()),skyTime:skyTime(now(),voyage.lng,{mode:conditionsMode,hour:environment?.hour})};},
       get gear(){return boatProps?.state;},
       get mode(){return modes.mode;},get fishContext(){return lastFishContext;},get walker(){return walker;},get throttle(){return throttle;},get shell(){return shell;},get fishing(){return fishing;},
-      takeHelm,leaveHelm,startFishing,chooseVessel,runAction,
+      takeHelm,leaveHelm,startFishing,chooseVessel,runAction,get whales(){return whales;},get whaleWater(){return whaleWater;},previewWhale(kind){return whales.preview(camNear,kind);},
       look(p,y){pitch=p;if(y!==undefined)yawRel=y;},
       get equipment(){return {open:inspection.active,item:inspection.current,binoculars:binoculars.active,media:radio.mediaState()};},
       sea(speed, swellH = speed / 5) { window.__sea = { speed, swellH, precip: speed > 18 ? 0.7 : 0, cover: speed > 18 ? 0.85 : 0.25 }; },

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Fish review</title>
+<style>body{margin:0;background:#d9d2c2;font:12px system-ui}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+// Review sheet for the catch models: every species, landed pose, at model scale. ?id=opah shows one.
+import * as T from 'three';
+import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.js';
+import {createFishMesh} from '../src/fish-skin.js';
+import {FISH} from '../src/fishing-ecology.js';
+T.ColorManagement.enabled=false;
+const q=new URLSearchParams(location.search),one=q.get('id'),ids=one?[one]:Object.keys(FISH);
+const cols=one?1:4,rows=Math.ceil(ids.length/cols),W=one?960:1280,H=one?640:rows*230;
+const r=new T.WebGLRenderer({canvas:c,antialias:true});r.setSize(W,H);r.outputColorSpace=T.LinearSRGBColorSpace;r.toneMapping=T.NeutralToneMapping;r.setScissorTest(true);
+const pm=new T.PMREMGenerator(r),env=pm.fromScene(new RoomEnvironment(),.04).texture;
+const cam=new T.PerspectiveCamera(26,W/cols/(H/rows),.05,20);cam.position.set(0,.02,1.65);cam.lookAt(0,0,0);
+const yaw=+(q.get('yaw')??(Math.PI/2-.25)),landed=q.get('swim')==null;
+ids.forEach((id,i)=>{const s=new T.Scene();s.environment=env;const sun=new T.DirectionalLight(0xfff1dc,2.4);sun.position.set(1.5,3,2);s.add(sun,new T.HemisphereLight(0xbcd4e6,0x3a4048,.6));
+ const f=createFishMesh(id,{landed,seed:.37});f.userData.setLength(1);f.scale.setScalar(1);f.userData.fishUniforms.uFInfo.value.w=.7;f.rotation.set(.12,yaw,0);s.add(f);
+ const x=(i%cols)*W/cols,y=H-(Math.floor(i/cols)+1)*H/rows;r.setViewport(x,y,W/cols,H/rows);r.setScissor(x,y,W/cols,H/rows);r.setClearColor(0xe8e2d4);r.render(s,cam);});
+document.title='done';
+const lab=document.createElement('div');lab.style.cssText=`position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);pointer-events:none`;lab.innerHTML=ids.map(id=>`<div style="height:${H/rows}px;padding:4px">${FISH[id].name}</div>`).join('');document.body.append(lab);
+</script>

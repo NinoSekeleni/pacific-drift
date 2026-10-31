@@ -6,7 +6,7 @@ import {CatchMinigame} from './vendor/tidewater/CatchMinigame.js';
 import {FISH,chooseFish,pickWeighted,rollFish,oceanTemperature,rigAdvice,RIGS} from './fishing-ecology.js';
 import {createBiteTimer,BITE} from './bite-timer.js';
 import {createFishJournal} from './fish-journal.js';
-import {createFish} from './fish-model.js';
+import {createFishMesh} from './fish-skin.js';import {createCatchViewer} from './catch-viewer.js';
 import {LAYER_NEAR} from './sky.js';
 
 export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()=>{},audio,onEquip=()=>{},onInspect=()=>{},register=()=>{},storageKey='pacific-drift-fishing-v1',getBoat=()=>'rowboat',canFish=()=>({ok:true}),onCatchDialog=()=>{}}={}){
@@ -26,7 +26,7 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
  const action=bar.querySelector('[data-fish=action]'),select=bar.querySelector('select'),meter=bar.querySelector('meter');
  const journal=createFishJournal({base,storageKey,FISH});
 
- function clearCatch(){if(catchModel){scene.remove(catchModel);catchModel.material.dispose();catchModel=null;}}
+ function clearCatch(){if(catchModel){scene.remove(catchModel);catchModel.material.dispose();catchModel=null;}}let thrash=0;
  function resetLine(){held=false;fight=null;strikeLeft=0;pending=null;castHabitat=null;bite.cancel();rod.dip=0;clearCatch();}
  function equip(value){
   if(value){const allowed=canFish();if(!allowed.ok){toast(allowed.reason||'You cannot fish from here.');return false;}}
@@ -44,7 +44,7 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
   }else if(rod.state==='floating'&&strikeLeft>0&&pending){
    rod.hook();fight=new CatchMinigame({species:pending.id,kg:pending.kg,lineKg:8,reelSpeed:1.6,distance:Math.max(5,rod.lineOut)});strikeLeft=0;
    sound('fish_splash');ocean.addRipple(rod.bobber.x,rod.bobber.z,time,.045);spray?.emit(rod.bobber.x,rod.waterY+.02,rod.bobber.z,0,.8,0,8,.15);
-   catchModel=createFish(pending.id);catchModel.layers.set(LAYER_NEAR);catchModel.visible=false;scene.add(catchModel);
+   catchModel=createFishMesh(pending.id);catchModel.layers.set(LAYER_NEAR);catchModel.visible=false;scene.add(catchModel);
   }else if(rod.state==='floating'){status('Nothing has taken the bait yet. Watch the float.');}
   else if(rod.state==='fighting')held=true;
  }
@@ -71,11 +71,11 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
  };
 
  const catchPanel=document.createElement('dialog');catchPanel.className='fishing-catch';catchPanel.setAttribute('aria-labelledby','catchTitle');
- catchPanel.innerHTML='<figure class="catch-figure"><img alt="" width="480" height="320" decoding="async"></figure><h2 id="catchTitle"></h2><p class="catch-sci"></p><p class="catch-size"></p><p class="catch-note"></p><div class="catch-actions"><button type="button" data-release>Record &amp; release</button><button type="button" data-keep>Keep catch</button></div>';
- document.body.append(catchPanel);let landing=null;
+ catchPanel.innerHTML='<figure class="catch-figure"><img alt="" width="480" height="320" decoding="async" hidden><figcaption class="catch-turn">Drag to turn the fish over.</figcaption></figure><h2 id="catchTitle"></h2><p class="catch-sci"></p><p class="catch-size"></p><p class="catch-note"></p><div class="catch-actions"><button type="button" data-release>Record &amp; release</button><button type="button" data-keep>Keep catch</button></div>';
+ document.body.append(catchPanel);let landing=null;const viewer=createCatchViewer(catchPanel.querySelector('figure'),{fallback:catchPanel.querySelector('img')});
  function finishCatch(kept){
   if(landing){const entry=journal.record({...landing,kept,lat:context.lat,lng:context.lng,rig:castRig,boat:getBoat()});toast(entry.firstOfSpecies?`First ${FISH[landing.id].name} in your journal.`:kept?'Catch kept and recorded in your journal.':'Catch recorded and released.');}
-  landing=null;resetLine();rod.setState('idle');if(catchPanel.open)catchPanel.close();onCatchDialog(false);
+  landing=null;resetLine();rod.setState('idle');viewer.hide();if(catchPanel.open)catchPanel.close();onCatchDialog(false);
  }
  catchPanel.querySelector('[data-release]').onclick=()=>finishCatch(false);catchPanel.querySelector('[data-keep]').onclick=()=>finishCatch(true);
  catchPanel.addEventListener('cancel',e=>{e.preventDefault();finishCatch(false);});
@@ -84,7 +84,7 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
   catchPanel.querySelector('h2').textContent=f.name;catchPanel.querySelector('.catch-sci').textContent=f.sci;
   catchPanel.querySelector('.catch-size').textContent=`${landing.kg.toFixed(2)} kg · about ${Math.round(landing.cm)} cm (estimated)`;
   catchPanel.querySelector('.catch-note').textContent=!stats.count?'A new species for your journal.':landing.kg>stats.maxKg?`Your heaviest ${f.name} so far.`:`You have recorded ${stats.count} before.`;
-  const img=catchPanel.querySelector('img');img.src=journal.imageFor(landing.id,'full');img.alt=`Illustration of a ${f.name}`;
+  const img=catchPanel.querySelector('img');img.src=journal.imageFor(landing.id,'full');img.alt=`Illustration of a ${f.name}`;const live=viewer.show(landing.id,landing);catchPanel.querySelector('.catch-turn').hidden=!live;
   catchPanel.showModal();onCatchDialog(true);
  }
  function status(text,warn=false){if(text!==lastHint){lastHint=text;const el=bar.querySelector('.fishing-hint');el.textContent=text;el.classList.toggle('warn',warn);}}
@@ -97,6 +97,7 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
   get bite(){return{armed:bite.armed,waited:bite.waited,due:bite.due,strikeLeft,limit:BITE.maxWait};},
   get catchOpen(){return catchPanel.open;},
   setRig(depth){select.value=String(depth);select.onchange();},
+  showCatchFor(id='opah'){landing={...rollFish(id)};showCatch();},
   previewCatch(id='pomfret'){equip(true);pending=rollFish(id);rod.bobber.copy(camera.position).add(new T.Vector3(0,-1,-6));rod.lineOut=6;rod.setState('floating');strikeLeft=30;castHabitat={[id]:1};},
   update(dt,t,options={}){
    time=t;context=options.context||{};
@@ -125,7 +126,7 @@ export function createFishing({scene,camera,canoe,ocean,spray,base='./',toast=()
    }
    for(let left=Math.min(.1,dt);left>1e-6;){const step=Math.min(left,1/120);rod.update(step,{visible:true,fight});left-=step;}
    stowed.visible=!rod.equipped;
-   if(catchModel){catchModel.visible=rod.state==='landing';catchModel.position.copy(rod.bobber);catchModel.rotation.set(0,t*.4,Math.PI/2);const length=T.MathUtils.clamp((landing??pending)?.cm/100||.4,.1,1.8);catchModel.scale.setScalar(length);catchModel.userData.fishUniforms.uFishTime.value=t;}
+   if(catchModel){catchModel.visible=rod.state==='landing';catchModel.position.copy(rod.bobber);catchModel.rotation.set(0,t*.4,Math.PI/2);const length=T.MathUtils.clamp((landing??pending)?.cm/100||.4,.1,1.8);catchModel.userData.setLength(length);thrash+=dt*(9+Math.sin(t*1.7)*3);catchModel.userData.pose({swimPhase:thrash,swim:.05+.03*Math.sin(t*2.3),jaw:.12+.1*Math.max(0,Math.sin(t*3.1)),curl:Math.sin(t*2.7)*.6,wet:1});}
    if(landing&&rod.state==='landing'&&rod.t>.7&&!catchPanel.open)showCatch();
    const state=rod.state,striking=state==='floating'&&strikeLeft>0;
    action.textContent=state==='windup'?`Release to cast · ${Math.round(rod.power*100)}%`:state==='floating'?(striking?'Strike!':'Waiting for a bite'):state==='fighting'?'Hold to reel · release to ease':state==='idle'?'Hold to cast':'Reeling…';
