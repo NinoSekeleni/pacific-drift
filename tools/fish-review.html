@@ -9,8 +9,8 @@ import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.j
 import {createFishMesh} from '../src/fish-skin.js';
 import {FISH} from '../src/fishing-ecology.js';
 T.ColorManagement.enabled=false;
-const q=new URLSearchParams(location.search),one=q.get('id'),ids=one?[one]:Object.keys(FISH);
-const cols=one?1:4,rows=Math.ceil(ids.length/cols),W=one?960:1280,H=one?640:rows*230;
+const q=new URLSearchParams(location.search),one=q.get('id'),ids=one?[one]:q.get('ids')?q.get('ids').split(','):Object.keys(FISH);
+const cols=ids.length===1?1:ids.length<5?2:4,rows=Math.ceil(ids.length/cols),W=ids.length===1?960:1280,H=ids.length===1?640:rows*(cols===2?400:230);
 const r=new T.WebGLRenderer({canvas:c,antialias:true});r.setSize(W,H);r.outputColorSpace=T.LinearSRGBColorSpace;r.toneMapping=T.NeutralToneMapping;r.setScissorTest(true);
 const pm=new T.PMREMGenerator(r),env=pm.fromScene(new RoomEnvironment(),.04).texture;
 const cam=new T.PerspectiveCamera(26,W/cols/(H/rows),.05,20);cam.position.set(0,.02,1.65);cam.lookAt(0,0,0);

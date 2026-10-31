@@ -13,6 +13,37 @@ import {SPECIES,SKIN,PATTERN} from './vendor/tidewater/fish/FishSpecies.js';
 import {PART} from './vendor/tidewater/fish/FishGeometry.js';
 import {FISH} from './fishing-ecology.js';
 
+const spiny=(from,to,rays,h,rake,notch=.16)=>({from,to,rays,spiny:true,h,rake,notch});
+const soft=(from,to,rays,h,rake,notch=.015)=>({from,to,rays,spiny:false,h,rake,notch});
+// Pacific Drift body plans for the billfish, in Tidewater's anatomy format (total length 1, snout
+// at u = 0). The bill is the slender front of the body; the mouth line runs along its underside.
+const BILL_BASE=.21;
+const billfish=({bill=BILL_BASE,depth=1,dorsal,pelvic,eye=.014,caudal=.19})=>({
+ pattern:30,body:.83,sec:2.05,
+ top:[[0,.0015],[bill*.5,.004],[bill,.009],[bill+.04,.035],[bill+.1,.07*depth],[.42,.092*depth],[.52,.094*depth],[.64,.078*depth],[.76,.052*depth],[.88,.026],[.96,.016],[1,.014]],
+ bot:[[0,.001],[bill*.5,.003],[bill,.007],[bill+.04,.028],[bill+.1,.058*depth],[.42,.078*depth],[.52,.08*depth],[.64,.066*depth],[.76,.044*depth],[.88,.022],[.96,.014],[1,.012]],
+ wid:[[0,.0015],[bill*.5,.004],[bill,.008],[bill+.05,.03],[.4,.052],[.55,.05],[.72,.034],[.88,.018],[1,.012]],
+ mouth:{corner:bill+.06,y:-.012,tip:-.0005,protrude:0},
+ eye:{u:bill+.06,y:.012,r:eye},opercle:bill+.13,
+ scales:0,scaleVis:0,lateral:.15,arch:.1,
+ dorsal,anal:[soft(.6,.7,13,[[0,.075],[.3,.04],[1,.012]],[.55,1.0]),soft(.9,.925,6,[[0,.025],[1,.015]],[.7,1.0])],
+ pectoral:{u:bill+.14,y:-.025,len:.16,base:.022,rays:18,shape:'falcate',spread:.22},
+ pelvic,
+ caudal:{shape:'lunate',len:caudal,span:.15,fork:.2,rays:21},
+ iris:0x34404c,irid:.5,metal:.42
+});
+export const PLANS={
+ marlin:{S:billfish({dorsal:[spiny(.31,.6,40,[[0,.17],[.12,.14],[.35,.045],[1,.022]],[.1,.7],.03),soft(.9,.925,6,[[0,.025],[1,.015]],[.7,1.0])],pelvic:{u:.36,len:.09,rays:2}}),
+  skin:{back:0x0e2048,flank:0x6c86a8,belly:0xe4e8ec,fin:0x16233c,edge:0x0c1626,rough:.3}},
+ sailfish:{S:billfish({depth:.82,dorsal:[spiny(.3,.76,44,[[0,.13],[.25,.21],[.6,.2],[.85,.12],[1,.04]],[.05,.35],.04),soft(.9,.925,6,[[0,.025],[1,.015]],[.7,1.0])],pelvic:{u:.35,len:.2,rays:2}}),
+  skin:{back:0x0c1c42,flank:0x5c7898,belly:0xe2e6ea,fin:0x14204a,edge:0x0a1230,rough:.3}},
+ swordfish:{S:{...billfish({bill:.3,depth:1.12,eye:.024,dorsal:[spiny(.4,.47,12,[[0,.16],[.25,.13],[1,.02]],[.35,.95],.05),soft(.91,.93,4,[[0,.022],[1,.014]],[.7,1.0])],pelvic:null,caudal:.2}),
+   wid:[[0,.004],[.15,.01],[.3,.014],[.36,.04],[.48,.064],[.6,.058],[.75,.04],[.9,.02],[1,.014]]},
+  skin:{back:0x2a2420,flank:0x7a6a58,belly:0xbab0a2,fin:0x2c2622,edge:0x16120f,rough:.4}}
+};
+const planOf=f=>PLANS[f.model]?.S??SPECIES[f.model];
+const skinOf=f=>PLANS[f.model]?.skin??SKIN[f.model];
+
 // Proportions and colours per species, on top of the shared body plan.
 //  depth: body height, wid: girth, pec / d1 / d2 / anal / tail: fin length scales, eye: eye size
 export const FISH_LOOKS={
@@ -31,13 +62,22 @@ export const FISH_LOOKS={
  giantTrevally:{mark:13,depth:1.18,wid:1.05,eye:1.1,skin:{back:0x3a4248,flank:0x8d969c,belly:0xc4cacc,fin:0x2c3238,edge:0x16191c}},
  snapper:{mark:14,skin:{back:0xc9606a,flank:0xdc8c8a}},
  parrot:{mark:15,depth:1.05},
+ swordfish:{mark:17,jaw:.12},
+ blueMarlin:{mark:18,jaw:.12},
+ blackMarlin:{mark:19,jaw:.12,depth:1.12,pec:1.1,skin:{back:0x16202c,flank:0x7d8a96}},
+ stripedMarlin:{mark:20,jaw:.12,depth:.9,d1:1.35},
+ sailfish:{mark:21,jaw:.12},
+ dogtooth:{mark:22,pec:.85,skin:{back:0x18243c,flank:0x9aa6b4,fin:0x2a3444,edge:0xe6e8ea}},
+ spanishMackerel:{mark:23,depth:.95,skin:{back:0x324e6a,flank:0xb2bcc6,fin:0x5a6878}},
+ greatBarracuda:{mark:24,depth:1.05,skin:{back:0x3e4c48,flank:0xbcc4c4}},
+ rainbowRunner:{mark:25,depth:.68,wid:.85,skin:{back:0x1a3a6c,flank:0x8eb4d0,belly:0xeef2f4,fin:0xa89a50,edge:0xc8b04a}},
  fusilier:{mark:16,depth:.9,skin:{back:0xe0b62c,flank:0x2e6cc4,belly:0xdce6f0,fin:0x2c5aa8,edge:0xe2c040}}
 };
 
 function scaleProfile(p,k){return p.map(([u,v])=>[u,v*k]);}
 function scaleFin(seg,k){return {...seg,h:seg.h.map(([t,v])=>[t,v*k])};}
 export function speciesShape(id){
- const f=FISH[id],S=SPECIES[f.model],L=FISH_LOOKS[id]||{};const depth=L.depth??f.bodyDepth??1;
+ const f=FISH[id],S=planOf(f),L=FISH_LOOKS[id]||{};const depth=L.depth??f.bodyDepth??1;
  const out={...S,top:scaleProfile(S.top,depth),bot:scaleProfile(S.bot,depth),wid:scaleProfile(S.wid,L.wid??1),
   eye:{...S.eye,r:S.eye.r*(L.eye??1),y:S.eye.y*Math.sqrt(depth)},
   dorsal:S.dorsal.map((d,i)=>scaleFin(d,(i===0?L.d1:L.d2)??(S.dorsal.length===1?L.d2??1:1))),
@@ -153,10 +193,7 @@ const SURFACE_GLSL=/* glsl */`
   c=mix(c,vec3(.86,.9,.92),dots*.55);c=mix(c,back,smoothstep(.3,.45,h)*bodyK);c=mix(c,vec3(.8,.66,.14),finlet*.9);
  }else if(mark==3.){ // pomfret: leaden all over, little counter-shading
   c=mix(c,vec3(.24,.26,.29)*mix(.85,1.1,n2),bodyK*.55);
- }else if(mark==4.){ // opah: white spots on a steel-rose body, scarlet fins and jaws
-  vec2 g=q*32.;vec2 cell=floor(g),j=vec2(fishHash(cell+1.7),fishHash(cell+5.3))-.5;
-  float sp=(1.-smoothstep(.13,.22,length(fract(g)-.5-j*.6)))*step(.5,fishHash(cell+seed))*bodyK;
-  c=mix(c,vec3(.94,.92,.9),sp*.85);
+ }else if(mark==4.){ // southern opah: unspotted steel and rose, crimson fins and jaws
   c=mix(c,vec3(.8,.12,.1),smoothstep(.4,.46,z)*smoothstep(-.2,-.6,h)*bodyK*.7);
  }else if(mark==5.){ // blue mackerel: wavy dark bars on the green back, grey spots below
   float wav=sin(z*48.+sin(y*90.+z*20.)*1.8);
@@ -192,6 +229,26 @@ const SURFACE_GLSL=/* glsl */`
   c=mix(c,vec3(.3,.62,.95),sp*.9);
  }else if(mark==16.){ // fusilier: blue body, golden back and tail
   c=mix(c,vec3(.9,.72,.14),smoothstep(.35,.5,h)*bodyK*smoothstep(.42,.3,z));c=mix(c,vec3(.9,.74,.16),caudal*.9);
+ }
+ if(mark==18.||mark==20.){ // blue and striped marlin: pale cobalt vertical stripes
+  float st=smoothstep(mark==20.?.72:.84,.97,sin(z*(mark==20.?90.:80.)+n1*.4))*smoothstep(-.75,.1,h)*smoothstep(.3,.18,z)*smoothstep(-.42,-.3,z)*bodyK;
+  c=mix(c,vec3(.45,.68,.95),st*(mark==20.?.85:.5));
+ }else if(mark==21.){ // sailfish: rows of pale spots on the flank, a spotted sail
+  float rows=smoothstep(.75,.95,sin(z*80.))*smoothstep(.6,.95,sin(y*260.))*smoothstep(-.6,.3,h)*smoothstep(.28,.2,z)*bodyK;
+  c=mix(c,vec3(.62,.72,.85),rows*.8);
+  vec2 g=q*90.;float sp=(1.-smoothstep(.12,.24,length(fract(g)-.5)))*step(.6,fishHash(floor(g)+seed));
+  c=mix(c,vec3(.02,.03,.06),sp*(part==${PA.DORSAL1}?.9:0.));
+ }else if(mark==17.){ // swordfish: bronze-brown, darker back, no stripes
+  c=mix(c,c*vec3(1.08,.95,.85),bodyK*.6);
+ }else if(mark==22.){ // dogtooth: plain silver, white-tipped second dorsal and anal
+  c=mix(c,vec3(.94),smoothstep(.75,.95,t)*((part==${PA.DORSAL2}||part==${PA.ANAL})?1.:0.));
+ }else if(mark==23.){ // narrow-barred Spanish mackerel: many thin wavy bars
+  float bars=smoothstep(.55,.85,sin(z*120.+sin(y*140.)*1.2))*smoothstep(-.55,.2,h)*bodyK;c=mix(c,vec3(.22,.28,.36),bars*.75);
+ }else if(mark==24.){ // great barracuda: black blotches on the lower rear flank
+  float bl=smoothstep(.6,.78,n2)*smoothstep(.1,-.25,z)*(1.-smoothstep(-.3,.2,h))*bodyK;c=mix(c,vec3(.03),bl*.9);
+ }else if(mark==25.){ // rainbow runner: light blue stripes either side of an olive-yellow band
+  c=mix(c,vec3(.45,.7,.95),max(fishBand(h,.42,.05,fwH+.04),fishBand(h,.08,.045,fwH+.04))*bodyK*smoothstep(.45,.4,z)*.85);
+  c=mix(c,vec3(.72,.66,.24),fishBand(h,.25,.07,fwH+.04)*bodyK*smoothstep(.45,.4,z)*.85);c=mix(c,vec3(.8,.72,.3),caudal*.6);
  }
  // lateral line
  float hl=lat.x+lat.y*(1.-smoothstep(.12,.55,u));
@@ -256,7 +313,7 @@ export function fishGeometryFor(id){if(!geometries.has(id))geometries.set(id,fis
 
 const col=hex=>new T.Color(hex);
 export function createFishMaterial(id,{seed=Math.random()}={}){
- const f=FISH[id],S=speciesShape(id),K={...SKIN[f.model],...(FISH_LOOKS[id]?.skin||{})},look=FISH_LOOKS[id]||{},Lb=S.body;
+ const f=FISH[id],S=speciesShape(id),K={...skinOf(f),...(FISH_LOOKS[id]?.skin||{})},look=FISH_LOOKS[id]||{},Lb=S.body;
  const uniforms={
   uFBack:{value:col(K.back)},uFFlank:{value:col(f.color??K.flank)},uFBelly:{value:col(K.belly)},uFFin:{value:col(K.fin)},uFEdge:{value:col(K.edge)},uFIris:{value:col(S.iris)},
   uFEye:{value:new T.Vector4(.5-S.eye.u*Lb,S.eye.y,S.eye.r,.5-S.opercle*Lb)},
@@ -291,7 +348,8 @@ export function createFishMesh(id,{landed=false,seed}={}){
  const mesh=new T.Mesh(fishGeometryFor(id),createFishMaterial(id,{seed}));mesh.name=FISH[id].name;
  const u=mesh.material.userData.fishUniforms;mesh.userData.fishUniforms=u;
  mesh.userData.setLength=m=>{mesh.scale.setScalar(m);u.uFInfo.value.w=m;};
- mesh.userData.pose=({jaw=0,curl=0,sag=0,wet=0,cloudy=0,swimPhase=0,swim=0}={})=>{u.uFPose.value.set(jaw,curl,sag,landed?1:0);u.uFSwim.value.set(swimPhase,swim,0,0);u.uFScale.value.z=cloudy;u.uFScale.value.w=wet;mesh.material.clearcoat=wet*.6;};
+ const jawScale=FISH_LOOKS[id]?.jaw??1;
+ mesh.userData.pose=({jaw=0,curl=0,sag=0,wet=0,cloudy=0,swimPhase=0,swim=0}={})=>{u.uFPose.value.set(jaw*jawScale,curl,sag,landed?1:0);u.uFSwim.value.set(swimPhase,swim,0,0);u.uFScale.value.z=cloudy;u.uFScale.value.w=wet;mesh.material.clearcoat=wet*.6;};
  mesh.userData.pose(landed?{jaw:.35,curl:.9,sag:-.4,wet:1}:{});
  return mesh;
 }

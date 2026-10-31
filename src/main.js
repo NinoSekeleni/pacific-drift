@@ -16,7 +16,7 @@ import {createSeaRain} from './sea-rain.js';
 import { createLensRain } from './lens-rain.js';
 import { createHullRain } from './hull-rain.js';
 import { createWildlife } from './wildlife.js';
-import {createMarineEncounters} from './marine-encounters.js';import {createWhaleWater} from './whale-water.js';import {createFeedingBirds,FLOCK} from './feeding-birds.js';
+import {createMarineEncounters} from './marine-encounters.js';import {createWhaleWater} from './whale-water.js';import {flagUniforms} from './sa-flag.js';import {createPuzzleBook} from './puzzle-book.js';import {createFeedingBirds,FLOCK} from './feeding-birds.js';
 import {createMeteors} from './meteors.js';
 import {createWeatherFronts} from './weather-fronts.js';
 import {createSkyOptics} from './sky-optics.js';
@@ -282,7 +282,7 @@ const liveVessel=document.createElement('label');liveVessel.innerHTML='Vessel<se
 async function chooseVessel(id){
  if(!fishing||!['launch','rowboat'].includes(id))return;
  document.querySelectorAll('[data-vessel]').forEach(el=>el.disabled=true);vesselOptions.querySelector('output').textContent='Preparing vessel…';
- try{fishing.equip(false);canoe.fishingSeat(false);if(id==='launch'&&!motorboat){const {createMotorboat}=await import('./motorboat.js');motorboat=createMotorboat({low:isTouch});marineLighting.register(motorboat.root);}
+ try{fishing.equip(false);canoe.fishingSeat(false);if(id==='launch'&&!motorboat){const {createMotorboat}=await import('./motorboat.js');motorboat=createMotorboat({low:isTouch,base:BASE});marineLighting.register(motorboat.root);}
  canoe.setMotorVessel(id==='launch'?motorboat:null);const outline=canoe.waterOutline;ocean.uniforms.uHullSeg.value.set(outline.halfLength,id==='launch'?motorboat.halfBeam:.86,1,0);ocean.uniforms.uHullProfile.value=outline.profile;
  await boatProps?.setVessel(id==='launch');fishing.reposition(id==='launch');voyage.boat=id;voyage.sail=false;voyage.speed=0;selectedVessel=id;voyageCamera.reset();yawRel=0;pitch=-.1;
  throttle.neutral();
@@ -306,9 +306,10 @@ shell.register('map',{title:'Chart',buttonLabel:'Map',el:$('mapWrap'),priority:0
 shell.register('help',{title:'Controls',buttonLabel:'Help',el:$('controlsHud'),priority:2,key:'H',onShow:renderHelp});
 const fishButton=shell.addAction('fish','Fish',()=>startFishing(),{priority:0,key:'G'});
 shell.addAction('journal','Journal',()=>fishing?.showJournal(),{priority:2,key:'K'});
+shell.addAction('puzzles','Puzzles',()=>openPuzzles(),{priority:2,key:'P'});
 const inspectButton=$('equipmentToggle');inspectButton.className='utility-btn action';inspectButton.dataset.priority='0';inspectButton.innerHTML='<span>Inspect</span><kbd aria-hidden="true">I</kbd>';shell.bar.append(inspectButton);
 $('helpToggle').hidden=true;
-for(const [id,label]of [['view','View settings'],['weather','Weather and sky'],['help','Controls'],['journal','Catch journal']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>id==='journal'?(shell.close(),fishing?.showJournal()):shell.open(id,b);menuPanel.querySelector('.menu-links').append(b);}
+for(const [id,label]of [['view','View settings'],['weather','Weather and sky'],['help','Controls'],['journal','Catch journal'],['puzzles','Puzzle book']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>id==='journal'?(shell.close(),fishing?.showJournal()):id==='puzzles'?(shell.close(),openPuzzles()):shell.open(id,b);menuPanel.querySelector('.menu-links').append(b);}
 for(const el of [$('touch'),canvas,document.querySelector('.compass-wrap'),modeHud])el?.setAttribute('data-sheet-inert','');
 
 function renderHelp(){
@@ -358,7 +359,9 @@ function canFishHere(){
 }
 
 let previousRoute=null;
-function inspectEquipment(name='backpack'){fishing?.equip(false);if(!started||paused||worldArrival?.active)return;binoculars.close();inspection.open(name);}
+let puzzleBook=null;
+function openPuzzles(){if(!started||paused)return;fishing?.equip(false);puzzleBook??=createPuzzleBook({toast});puzzleBook.open();}
+function inspectEquipment(name='backpack'){if(name==='puzzles'){openPuzzles();return;}fishing?.equip(false);if(!started||paused||worldArrival?.active)return;binoculars.close();inspection.open(name);}
 $('equipmentToggle').addEventListener('click',()=>inspectEquipment());
 
 /* ---------- Input ---------- */
@@ -469,6 +472,7 @@ function runAction(action){
     case 'sound':toggleSound();break;
     case 'inspect':inspectEquipment();break;
     case 'journal':fishing?.showJournal();break;
+    case 'puzzles':openPuzzles();break;
     case 'mapZoomIn':minimap?.zoom(-1);break;
     case 'mapZoomOut':minimap?.zoom(1);break;
     case 'sail':toggleSail();break;
@@ -983,6 +987,7 @@ function frame() {
   fronts.update(dt,camNear,{time:elapsed,windU:sm.u,windV:sm.v,rain:sm.precip,cover:sm.cover,darkness:sm.dark,sunAltitude:e,tint:hor,enabled:!environment||environment.fronts,playing:started&&!paused,flash,journeyKind:w.journeyKind,journeyProgress:w.journeyProgress});
   skyOptics.update(dt,camFar,{sunAltitude:e,moonAltitude:Math.asin(moonV.y)/DEG,moonLight,rain:sm.precip,cover:sm.cover,cirrus:sm.cirrus,visibility:sm.visibility,enabled:environment?.rainbows!==false,halos:environment?.halos!==false});
 
+  {const af=(relWind+180)*DEG;flagUniforms.uFlagTime.value=elapsed;flagUniforms.uFlagWind.value=sm.speed;flagUniforms.uFlagStream.value.set(-Math.sin(af),-Math.cos(af));}
   if(motorboat&&voyage.boat==='launch'){
     const sw=launchSwitches(),night=clamp01((-e+2)/10),appFrom=(relWind+180)*DEG;
     motorboat.update(dt,voyage.speed,cond.input?.steer||0,throttle.value,{radarOn:sw.radar,time:elapsed,night,wet:Math.min(1,Math.max(sm.precip,boatWater.wetness)),wind:sm.speed,flagDir:new THREE.Vector3(Math.sin(appFrom),0,Math.cos(appFrom)),floodOn:sw.flood,domeOn:sw.cabin});

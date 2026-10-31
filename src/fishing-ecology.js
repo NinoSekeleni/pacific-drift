@@ -17,10 +17,21 @@ export const FISH={
  giantTrevally:fish('Giant trevally','Caranx ignobilis','jack',[-30,25],[22,31],[1,25],[0,80],.9,{coastal:true}),
  snapper:fish('Australasian snapper','Chrysophrys auratus','redSnapper',[-45,-18],[12,25],[.4,8],[5,200],.55,{coastal:true}),
  parrot:fish('Pacific steephead parrotfish','Chlorurus microrhinos','parrot',[-30,25],[23,31],[.3,3],[1,30],.35,{reef:true}),
- fusilier:fish('Blue-and-gold fusilier','Caesio caerulaurea','yellowtail',[-30,25],[23,31],[.1,.6],[1,40],.2,{reef:true})
+ fusilier:fish('Blue-and-gold fusilier','Caesio caerulaurea','yellowtail',[-30,25],[23,31],[.1,.6],[1,40],.2,{reef:true}),
+ // Billfish and other exotic pelagics. Billfish use Pacific Drift body plans (fish-skin.js) and a
+ // lighter length-weight curve, because the bill and slim tail add length without weight.
+ swordfish:fish('Swordfish','Xiphias gladius','swordfish',[-45,45],[12,30],[25,300],[0,600],.95,{rarity:.1,lw:[.006,3],night:3.5}),
+ blueMarlin:fish('Blue marlin','Makaira nigricans','marlin',[-30,30],[24,31],[60,350],[0,200],1,{rarity:.06,lw:[.003,3]}),
+ blackMarlin:fish('Black marlin','Istiompax indica','marlin',[-30,25],[22,30],[50,350],[0,150],1,{rarity:.06,lw:[.0032,3],coastal:true}),
+ stripedMarlin:fish('Striped marlin','Kajikia audax','marlin',[-40,35],[18,27],[30,120],[0,120],.9,{rarity:.12,lw:[.0028,3]}),
+ sailfish:fish('Indo-Pacific sailfish','Istiophorus platypterus','sailfish',[-25,25],[24,31],[15,55],[0,60],.8,{rarity:.15,lw:[.0028,3]}),
+ dogtooth:fish('Dogtooth tuna','Gymnosarda unicolor','tuna',[-25,25],[24,31],[5,60],[5,150],.95,{rarity:.3,coastal:true}),
+ spanishMackerel:fish('Narrow-barred Spanish mackerel','Scomberomorus commerson','barracuda',[-32,25],[21,31],[3,30],[0,80],.7,{coastal:true,lw:[.006,3]}),
+ greatBarracuda:fish('Great barracuda','Sphyraena barracuda','barracuda',[-28,28],[22,31],[2,25],[0,60],.6,{coastal:true,rarity:.5,lw:[.007,3]}),
+ rainbowRunner:fish('Rainbow runner','Elagatis bipinnulata','jack',[-30,30],[21,31],[1,10],[0,80],.55,{lw:[.01,3]})
 };
 export function oceanTemperature(lat,month=0){const seasonal=Math.cos((month-1)*Math.PI/6)*(lat<0?1:-1)*2;return Math.max(1,29-Math.abs(lat)*.38+seasonal);}
-export function habitatWeights({lat=-49,lng=-123,temperature=oceanTemperature(lat),depth=3000,coastKm=1000,reef=false,lureDepth=2,hour=12}={}){const out={};if(depth<.5||!(lng<=-67||lng>=120))return out;for(const [id,f]of Object.entries(FISH)){if(lat<f.lat[0]||lat>f.lat[1]||temperature<f.temp[0]||temperature>f.temp[1]||depth<f.depth[0]||lureDepth>depth||lureDepth<f.depth[0]||lureDepth>f.depth[1]||(f.coastal&&coastKm>60)||(f.reef&&!reef))continue;out[id]=(f.rarity??1)*(f.coastal?1:coastKm<3?.25:1)*(hour<5||hour>20?.7:1);}return out;}
+export function habitatWeights({lat=-49,lng=-123,temperature=oceanTemperature(lat),depth=3000,coastKm=1000,reef=false,lureDepth=2,hour=12}={}){const out={};if(depth<.5||!(lng<=-67||lng>=120))return out;for(const [id,f]of Object.entries(FISH)){if(lat<f.lat[0]||lat>f.lat[1]||temperature<f.temp[0]||temperature>f.temp[1]||depth<f.depth[0]||lureDepth>depth||lureDepth<f.depth[0]||lureDepth>f.depth[1]||(f.coastal&&coastKm>60)||(f.reef&&!reef))continue;out[id]=(f.rarity??1)*(f.coastal?1:coastKm<3?.25:1)*(hour<5||hour>20?.7*(f.night??1):1);}return out;}
 export function chooseFish(context,rng=Math.random){const weights=Object.entries(habitatWeights(context));let sum=weights.reduce((a,[,v])=>a+v,0),n=rng()*sum;if(!sum)return null;for(const [id,w]of weights){n-=w;if(n<=0)return id;}return weights.at(-1)?.[0]??null;}
 export function rollFish(id,rng=Math.random){const f=FISH[id],kg=f.kg[0]+(f.kg[1]-f.kg[0])*rng()**2.5;return{id,kg,cm:Math.pow(kg*1000/f.lw[0],1/f.lw[1])};}
 export const RIGS=[{depth:2,label:'Surface float · 2 m'},{depth:40,label:'Deep drift · 40 m'}];

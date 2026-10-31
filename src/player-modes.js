@@ -11,7 +11,7 @@ export const MODES = ['row', 'walk', 'helm', 'fish'];
 
 const COMMON = {
   KeyV: 'camera', KeyR: 'radio', KeyC: 'stars', KeyL: 'lantern', KeyN: 'map', KeyJ: 'log',
-  KeyH: 'help', KeyM: 'sound', KeyI: 'inspect', KeyK: 'journal', Equal: 'mapZoomIn', NumpadAdd: 'mapZoomIn',
+  KeyH: 'help', KeyM: 'sound', KeyI: 'inspect', KeyK: 'journal', KeyP: 'puzzles', Equal: 'mapZoomIn', NumpadAdd: 'mapZoomIn',
   Minus: 'mapZoomOut', NumpadSubtract: 'mapZoomOut'
 };
 export const KEYMAP = {
@@ -38,7 +38,7 @@ export function helpFor(mode, vessel) {
     helm: [['W S', 'open or close the throttle'], ['X', 'neutral'], ['A D', 'steer'], ['E', 'stand up and walk the deck'], ['G', 'leave the helm and fish']],
     fish: [['Hold Space', 'wind up, release to cast'], ['Space', 'strike when the float dives'], ['Hold Space', 'reel; release to ease the line'], ['Q', 'reel in the line'], ['G or Esc', 'put the rod away']]
   }[mode] || [];
-  const common = [['V', 'change view'], ['L', 'lantern'], ['R', 'radio'], ['N', 'map'], ['C', 'star chart'], ['K', 'catch journal'], ['J', "ship's log"], ['M', 'sound'], ['I', 'inspect equipment'], ['Esc', mode === 'helm' ? 'leave the helm, or close a panel' : mode === 'fish' ? 'put the rod away, or close a panel' : 'close a panel, or pause']];
+  const common = [['V', 'change view'], ['L', 'lantern'], ['R', 'radio'], ['N', 'map'], ['C', 'star chart'], ['K', 'catch journal'], ['P', 'puzzle book'], ['J', "ship's log"], ['M', 'sound'], ['I', 'inspect equipment'], ['Esc', mode === 'helm' ? 'leave the helm, or close a panel' : mode === 'fish' ? 'put the rod away, or close a panel' : 'close a panel, or pause']];
   return {title: {row: vessel === 'launch' ? 'Aboard' : 'Rowing', walk: 'On deck', helm: 'At the helm', fish: 'Fishing'}[mode] || 'Controls', rows, common};
 }
 

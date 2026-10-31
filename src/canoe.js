@@ -1,6 +1,7 @@
 // A cedar-strip Canadian canoe (navy hull, cedar interior, ash gunwales, cane seats, carved yoke),
 // with a small sprit sail, a single-blade paddle and a hurricane lantern, riding the sea.
 import * as THREE from 'three';
+import {createSternFlag} from './sa-flag.js';
 import { LAYER_NEAR } from './sky.js';
 import {createMarineSurfaceMaps} from './surface-materials.js';
 import {createRowingRig,ROWING_SEAT} from './rowing-rig.js';
@@ -783,6 +784,8 @@ export function createCanoe(scene) {
     if(cap){canoe.remove(cap);cap.geometry.dispose();}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(idx);cap=new THREE.Mesh(geo,capMat);cap.renderOrder=1;cap.layers.set(LAYER_NEAR);cap.frustumCulled=false;canoe.add(cap);
     const ray=new THREE.Raycaster();ray.layers.enableAll();let best=null;for(const z of [.15,.35,.55,.75]){ray.set(new THREE.Vector3(-.2,2,z).applyMatrix4(canoe.matrixWorld),new THREE.Vector3(0,-1,0).transformDirection(canoe.matrixWorld));const hit=ray.intersectObjects(surfaceMeshes,false)[0];if(hit){const local=canoe.worldToLocal(hit.point.clone());if(local.y>.03&&(!best||local.y>best.y))best=local;}}
     lantern.position.copy(best||new THREE.Vector3(-.2,.15,.35));lantern.position.y+=.005;lantern.userData.support={y:lantern.position.y,z0:lantern.position.z,z1:lantern.position.z};
+    // the national flag on a short staff at the stern
+    {const k=Math.round((2.1-z0)/dz),flag=createSternFlag();flag.position.set(profile[k].x*.78,profile[k].y-.03,2.1);root.add(flag);} // on the starboard quarter, clear of the steering line of sight
     waterOutline={halfLength:2.367,profile};
     rowingRig=createRowingRig(canoe,root);
     return {halfBeam:.86,halfLength:2.367,profile,seat:seating.clone()};

@@ -117,7 +117,7 @@ export function buildWheelhouse( kit, L, parts ) {
 	buildRoof( kit, L );
 	buildConsole( kit, L, parts );
 	buildSeating( kit, L );
-	buildCabinDetail( kit, L );
+	buildCabinDetail( kit, L, parts );
 	buildRoofGear( kit, L, parts );
 
 }
@@ -638,7 +638,7 @@ function wallIn( L, s, z, y ) {
 
 }
 
-function buildCabinDetail( kit, L ) {
+function buildCabinDetail( kit, L, parts = {} ) {
 
 	const d = HOUSE.dash;
 	const y0 = L.deckY;
@@ -739,22 +739,25 @@ function buildCabinDetail( kit, L ) {
 		const prof = [ [ 0.17, 0.0 ], [ 0.2, 0.03 ], [ 0.2, 0.3 ], [ 0.21, 0.5 ], [ 0.2, 0.56 ], [ 0.12, 0.62 ], [ 0.05, 0.66 ], [ 0.001, 0.665 ] ];
 		const g = lathe( prof.map( ( [ r, h ] ) => [ r * scale, h * scale ] ), 20 );
 		g.applyMatrix4( mat4( x - 0.06, yTop - 0.66 * scale, z, 0, 0, 0, 0.3, 1, 1 ) );
-		kit.add( 'fittings', g, { color, rough: 0.6, pattern: 9 } );
+		kit.add( 'garments', g, { color, rough: 0.6, pattern: 9 } );
+		// Pacific Drift: hook positions for the supplied garment models, which replace these shapes
+		( parts.coatHooks ??= [] ).push( { x: x - 0.05, y: yTop + 0.04, z, color, scale } );
 		for ( const sd of [ - 1, 1 ] ) {
 
 			const sh = V( x - 0.07, yTop - 0.12 * scale, z + sd * 0.17 * scale );
 			const sleeve = tube( [ sh, V( x - 0.1, yTop - 0.3 * scale, z + sd * 0.2 * scale ), V( x - 0.11, yTop - 0.52 * scale, z + sd * 0.16 * scale ) ], 0.045 * scale, 10, 8 );
-			kit.add( 'fittings', sleeve, { color, rough: 0.6, pattern: 9 } );
+			kit.add( 'garments', sleeve, { color, rough: 0.6, pattern: 9 } );
 
 		}
 
 		const hood = sphere( 0.1 * scale, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6 );
 		hood.applyMatrix4( mat4( x - 0.04, yTop - 0.03, z, 0.5, 0, 0, 0.5, 0.8, 1 ) );
-		kit.add( 'fittings', hood, { color: new Color( color ).multiplyScalar( 0.85 ).getHex(), rough: 0.6, pattern: 9 } );
+		kit.add( 'garments', hood, { color: new Color( color ).multiplyScalar( 0.85 ).getHex(), rough: 0.6, pattern: 9 } );
 	};
 
-	hang( - 0.12, 1.92, 0xe0a81c, 1.0 ); // yellow oilskin
-	hang( 0.14, 1.9, 0xe2531a, 0.8 ); // orange lifejacket
+	// Pacific Drift: spaced further apart so the two garments no longer pass through each other
+	hang( - 0.2, 1.92, 0xe0a81c, 1.0 ); // yellow oilskin
+	hang( 0.21, 1.9, 0xe2531a, 0.8 ); // orange lifejacket
 
 	// ---- starboard wall: extinguisher on its bracket, photos and the tide table, torch in a clip
 	{

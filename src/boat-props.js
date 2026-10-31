@@ -6,6 +6,7 @@ import {createBoatGrounding} from './boat-grounding.js';
 import {mapLimit,loadPackedModel} from './asset-loading.js';
 import {createWalkmanDisplay} from './walkman-display.js';
 import {prepareTapeTransport,advanceTape,applyTapePose} from './tape-transport.js';
+import {createPuzzleBookModel} from './puzzle-book-model.js';
 export const PROP_LAYOUT={
  backpack:{file:'backpack.glb',height:.56,x:-.36,z:-.65,rotation:[0,0,0]},
  radio:{file:'handheld-radio.glb',height:.28,x:.44,z:.76,rotation:[-Math.PI/2,-.24,0]},
@@ -14,6 +15,8 @@ export const PROP_LAYOUT={
  gps:{file:'gps-tablet.glb',height:.29,x:-.10,z:.76,rotation:[-Math.PI/6,0,0],mountHeight:.018},
  binoculars:{file:'binoculars.glb',height:.06,x:-.40,z:.74,rotation:[0,.24,0]}
 };
+// Props built in code rather than loaded: the puzzle book lies on the floorboards by the rower's feet.
+export const BUILT_PROPS={puzzles:{build:createPuzzleBookModel,height:.03,x:.3,z:.1,rotation:[0,.42,0]}};
 export function placeBoatProp(root,spec,supportY){
  root.rotation.set(...spec.rotation,'YXZ');root.updateMatrixWorld(true);
  const bounds=new THREE.Box3().setFromObject(root),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
@@ -46,7 +49,8 @@ export const LAUNCH_SUPPORTS={
  radio:[[-.86,-.3,0],[-.9,-.62,0],[-.6,1.5,0]],
  walkman:[[-.82,-.62,.25],[-.9,-.18,.25],[-.3,1.5,.25]],
  anbernic:[[-.92,-.18,0],[-.72,.66,0],[.2,1.9,0]],
- backpack:[[.45,1.6,0],[.3,2.6,0],[-.2,2.9,0]]
+ backpack:[[.45,1.6,0],[.3,2.6,0],[-.2,2.9,0]],
+ puzzles:[[-.84,.32,.2],[-.9,1.2,.1],[.35,2.2,.3]]
 };
 export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{},register=()=>{},gps=null,anbernic=null,layout={},launchLayout=()=>null,onMove=()=>{}}={}){
  const loader=new GLTFLoader(),ray=new THREE.Raycaster();ray.layers.enableAll();
@@ -62,7 +66,7 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
   return hit?canoe.group.worldToLocal(hit.point.clone()).y:.115;
  }
  function fit(name,root){
-  const spec=PROP_LAYOUT[name],materials=new Map();root.name=name;
+  const spec=PROP_LAYOUT[name]??BUILT_PROPS[name],materials=new Map();root.name=name;
   if(name==='walkman'){prepareTapeTransport(root);display=createWalkmanDisplay(root);}
   if(name==='gps')gps?.attachScreen(root);
   if(name==='anbernic')anbernic?.attachScreen(root);
@@ -87,7 +91,7 @@ export function createBoatProps(canoe,{base='./',onInspect=()=>{},onAsset=()=>{}
  const loading=mapLimit(order.map(name=>[name,PROP_LAYOUT[name]]),2,async([name,spec])=>{
   try{const gltf=await loadPackedModel(loader,base+'models/'+spec.file);fit(name,gltf.scene);}
   catch(error){state.failed.push(name);console.warn('Supplied '+name+' unavailable',error);}
- });
+ }).then(()=>{for(const [name,spec]of Object.entries(BUILT_PROPS)){try{fit(name,spec.build());}catch(error){state.failed.push(name);console.warn(name+' unavailable',error);}}});
  const pointer=new THREE.Vector2();
  function pick(camera,x,y,width,height){
   group.updateWorldMatrix(true,true);pointer.set(x/width*2-1,1-y/height*2);ray.setFromCamera(pointer,camera);

@@ -1,7 +1,11 @@
 // The catch journal: one record per landed fish, kept in this browser and shared by both boats.
 // The stored format stays a plain array so older releases can still read it; newer fields
 // (rig, boat) are optional and missing values are shown as unknown.
+import { FISH_NOTES } from './fish-notes.js';
 const MAX_RECORDS = 400;
+const latText = v => v === 0 ? 'the equator' : `${Math.abs(v)}° ${v < 0 ? 'S' : 'N'}`;
+/** A species' latitude band in words. */
+export const rangeText = ([a, b]) => `${latText(a)} to ${latText(b)}`;
 const RIG_NAMES = { 2: 'Surface float · 2 m', 40: 'Deep drift · 40 m' };
 const BOAT_NAMES = { rowboat: 'Wooden rowboat', launch: 'Fishing launch' };
 
@@ -98,6 +102,13 @@ export function createFishJournal({ base = './', storageKey = 'pacific-drift-fis
     head.append(img, title); detail.append(head);
     const dl = document.createElement('dl');
     const add = (k, v) => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = k; dd.textContent = v; dl.append(dt, dd); };
+    const notes = FISH_NOTES[id];
+    if (notes) {
+      const where = `${rangeText(f.lat)} · ${f.coastal ? 'near coasts and reefs' : f.reef ? 'on coral reefs' : 'in the open ocean'}`;
+      add('Where', where);
+      add('Depth', f.depth[0] > 20 ? `${f.depth[0]} to ${f.depth[1]} m` : `Surface to ${f.depth[1]} m${f.night > 1 ? ', near the surface at night' : ''}`);
+      add('Size', notes.size);
+    }
     if (!s.count) {
       add('Status', 'Not yet caught. Its silhouette is shown until you land one.');
     } else {
@@ -106,6 +117,7 @@ export function createFishJournal({ base = './', storageKey = 'pacific-drift-fis
       add('Largest', `${s.maxKg.toFixed(2)} kg${Number.isFinite(s.maxCm) ? ` · about ${Math.round(s.maxCm)} cm (estimated)` : ''}`);
     }
     detail.append(dl);
+    if (notes) { const p = document.createElement('p'); p.className = 'journal-notes'; p.textContent = s.count ? notes.about : notes.look; detail.append(p); }
     if (s.count) {
       const list = document.createElement('ol'); list.className = 'journal-catches'; list.setAttribute('aria-label', `${f.name} catches, newest first`);
       for (const r of records.filter(r => r.id === id).slice().reverse().slice(0, 20)) {

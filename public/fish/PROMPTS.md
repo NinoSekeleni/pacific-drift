@@ -26,6 +26,17 @@ Shared prompt frame (species text in the middle):
 | snapper | Australasian snapper, *Chrysophrys auratus* | P3hJtys42C | Rosy pink to coppery body; small bright blue spots on the upper body; slight forehead hump; pink fins. |
 | parrot | Pacific steephead parrotfish, *Chlorurus microrhinos* | O6twIPQynm | Terminal phase; almost vertical bulbous forehead; fused beak; blue-green body with darker scale edges; paler cheek; lunate tail. |
 | fusilier | Blue-and-gold fusilier, *Caesio caerulaurea* | yim7tNWPW9 | Slender body; blue above with one golden stripe from head to tail; white belly; dark streak along each tail lobe. |
+| swordfish | Swordfish, *Xiphias gladius* | lJelVXlgv9 | Long flat sword about a third of the body; scaleless rounded body; large dark eye; tall rigid crescent first dorsal and tiny second dorsal; no pelvic fins; single tail keel; blackish-purple to bronze-brown. |
+| blueMarlin | Blue marlin, *Makaira nigricans* | SyXSDI6Ub8 | Round spear bill; heavy body; first dorsal high in front then low; cobalt back with faint pale blue bars; twin tail keels. |
+| blackMarlin | Black marlin, *Istiompax indica* | ksckzDR16B | Thick deep-shouldered body; low first dorsal; slate blue-black back, silvery flanks, no strong stripes. Requested rigid pectorals held out from the body; the chosen image shows them close to the body. |
+| stripedMarlin | Striped marlin, *Kajikia audax* | ovJoSN9829 | Slender body; tall pointed first dorsal; about fifteen distinct pale cobalt vertical stripes. |
+| sailfish | Indo-Pacific sailfish, *Istiophorus platypterus* | rgTrYXExtc | Huge spotted sail-like first dorsal; very long thin pelvic fins; vertical rows of pale spots on the flank. |
+| dogtooth | Dogtooth tuna, *Gymnosarda unicolor* | aF6aPzXfSh | Torpedo body; large mouth with conical teeth; plain silver flanks; white-tipped second dorsal and anal fins; wavy lateral line. |
+| spanishMackerel | Narrow-barred Spanish mackerel, *Scomberomorus commerson* | ovJoS3i829 | Long slender body; many thin wavy dark vertical bars; lateral line dipping below the second dorsal. |
+| greatBarracuda | Great barracuda, *Sphyraena barracuda* | VXLV1PhMMU | Long cylindrical body; projecting lower jaw with fangs; dark oblique bars above; black blotches on the lower rear flank. |
+| rainbowRunner | Rainbow runner, *Elagatis bipinnulata* | hu9hOYlvqL | Slender jack; dark blue back; light blue stripes either side of an olive-yellow band; two-rayed finlets; yellowish forked tail. |
+
+The nine species above were added on 31 October 2026 with the same model, frame and albacore style reference.
 
 These are artworks, not specimens. They are checked against general field-guide descriptions of each species, but small details (fin-ray counts, exact spot patterns, scute counts) should not be read as scientific reference.
 

@@ -32,7 +32,7 @@ export function createCatchViewer(figure,{fallback=null}={}){
   if(fish){scene.remove(fish);fish.material.dispose();}
   fish=createFishMesh(id,{landed:true});const tail=.15+Math.random()*.2;
   fish.userData.pose({jaw:.28+Math.random()*.15,curl:(Math.random()<.5?-1:1)*(.5+tail*2),sag:-.25,wet:1,swim:.015});
-  fish.userData.setLength(cm/100);fish.scale.setScalar(1);fish.userData.fishUniforms.uFInfo.value.w=cm/100; // shown at model scale, shaded at its true size
+  fish.scale.setScalar(1);fish.userData.fishUniforms.uFInfo.value.w=1; // shown at model scale, so shaded as a one-metre fish
   // the deeper the body, the further the camera stands back to fit it in
   const depth=(FISH[id].bodyDepth??1);camera.position.set(0,.02,1.55+depth*.12);camera.lookAt(0,0,0);
   scene.add(fish);canvas.setAttribute('aria-label',`3D model of the ${FISH[id].name}. Drag to turn it.`);

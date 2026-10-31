@@ -96,8 +96,16 @@ const SURFACES = {
   fittings: () => /* glsl */`{
  vec4 aux=vAux;vec3 c=vColor.rgb;vec2 u=vPdUv;vec3 p=vLocal;float rough=aux.x,bump=0.;
  float ropeShade=pdL(-.7,.7,sin((u.x/.07+u.y)*(6.28318*3.)))*.4+.6;c=mix(c,c*ropeShade,pdIs(aux.z,1.));
- // house flag: faded navy field with a pale hoist band, weathered and frayed toward the fly
- float flagK=pdIs(aux.z,2.),hoist=step(u.x,.16);vec3 flag=mix(vec3(.12,.2,.33),vec3(.86,.84,.78),hoist)*(1.-pdL(.55,1.,u.x)*.22)*(.92+.08*pdNoise(vec3(u*9.,1.)));c=mix(c,flag,flagK);
+ // South African flag (2:3): the green Y with white and gold borders, the black triangle at the hoist,
+ // red over blue; the pall's centre lines meet at the middle of the flag. Sun-faded toward the fly.
+ float flagK=pdIs(aux.z,2.);vec3 flag=vec3(0.);
+ if(flagK>.5){vec2 f=vec2(u.x*3.,u.y*2.-1.);
+  vec2 a1=vec2(0.,1.),a2=vec2(0.,-1.),jn=vec2(1.5,0.);
+  vec2 e1=jn-a1,e2=jn-a2;float d1=length(f-a1-e1*clamp(dot(f-a1,e1)/dot(e1,e1),0.,1.)),d2=length(f-a2-e2*clamp(dot(f-a2,e2)/dot(e2,e2),0.,1.)),d3=f.x>1.5?abs(f.y):length(f-jn);
+  float d=min(min(d1,d2),d3);bool tri=f.x<1.5*(1.-abs(f.y));
+  flag=d<.2?vec3(0.,.47,.29):d<.3333?(tri?vec3(1.,.72,.11):vec3(.96)):tri?vec3(.02):f.y>0.?vec3(.88,.24,.19):vec3(0.,.08,.54);
+  flag=mix(flag,flag*.82+.08,pdL(.6,1.,u.x)*.35)*(.93+.07*pdNoise(vec3(u*9.,1.)));}
+ c=mix(c,flag,flagK);
  // salt and corrosion on bare metal: a little bloom where spray dries
  float metalK=step(.5,aux.y)*(1.-step(3.5,aux.z)),salt=pdL(.35,.8,pdFbm(p*vec3(9.,14.,9.)))*metalK;
  c=mix(c,c*vec3(.82,.84,.8)+vec3(.05),salt*.35);rough+=salt*.25;
