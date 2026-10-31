@@ -155,7 +155,7 @@ export function createOcean(renderer, scene, skyUniforms) {
     uAmaSeg: { value: new THREE.Vector4(-2.1, -1.7, 2.1, 0.16) },
     uLantern: { value: new THREE.Vector4(0, -100, 0, 0) },
     uBio: { value: 0 },
-    uHullSpeed: { value: 0 },
+    uHullSpeed: { value: 0 }, uSunVis: { value: 1 },
     uWaveSet:{value:new THREE.Vector4(0,0,-1000,0)},uWaveSetDir:{value:new THREE.Vector2(0,-1)},uBoatMotion: { value: 0 }
   });
 
@@ -224,6 +224,7 @@ export function createOcean(renderer, scene, skyUniforms) {
       uniform float uBio;       // darkness-weighted bioluminescence strength
       uniform float uBoatMotion;
       uniform float uHullSpeed; // canoe speed through the water, m/s
+      uniform float uSunVis;    // direct sun not hidden by cloud, 0..1
       varying vec3 vWorld;
       varying vec2 vBase;
       varying float vH;
@@ -300,7 +301,32 @@ export function createOcean(renderer, scene, skyUniforms) {
         // Fine ripples travel with the wind; unequal scales prevent a sliding tile.
         vec2 slope=waterCross*windSlope.x+waterWind*windSlope.y;
         float gust = smoothstep(0.32, 0.78, fbm(vBase / 70.0 + vec2(t * 0.012, -t * 0.007), 3));
-        slope *= mix(0.55, 1.3, gust) * mix(1.0, 0.8, smoothstep(80.0, 3000.0, dist));
+        // Sea detail after Tidewater's SeaDetail (MIT): gusts roughen drifting patches, which read
+        // darker from a low eye; surface films lay long glassy slicks along the wind in light to
+        // moderate air; fresh wind lines foam up in windrows (Langmuir streaks).
+        float slickField=fbm(vec2(windUV.x*.011,windUV.y*.0016)+vec2(t*.0009,-t*.0021),3);
+        float seaSlick=smoothstep(.62,.80,slickField)*(1.0-smoothstep(7.0,13.0,uWind))*smoothstep(.6,2.5,uWind);
+        float rowWarp=noise(vec2(windUV.y*.008,t*.01))*9.0+noise(vec2(windUV.y*.03,1.7))*2.5;
+        float rowLine=1.0-smoothstep(.0,.055,abs(fract((windUV.x+rowWarp)/23.0)-.5));
+        float seaWindrow=rowLine*smoothstep(.35,.7,fbm(vec2(windUV.x*.05,windUV.y*.035-t*.02),2))*smoothstep(8.0,13.0,uWind)*(1.0-smoothstep(300.0,1600.0,dist));
+        slope *= mix(0.55, 1.3, gust) * mix(1.0, 0.22, seaSlick) * mix(1.0, 0.8, smoothstep(80.0, 3000.0, dist));
+        // Kelvin wake: two diverging arms at about 19.5 degrees and transverse waves between them,
+        // their wavelength set by the boat's speed. Fades with distance behind the stern.
+        float kelvinFoam=0.0;
+        if(uHull.w>.5&&uHullSpeed>.25&&dist<260.0){
+          vec2 rel=vWorld.xz-uHull.xy;float aft=-dot(rel,uHullAx.xy)-uHullSeg.x*.75;
+          vec2 side=vec2(-uHullAx.y,uHullAx.x);float across=dot(rel,side);
+          if(aft>0.0&&aft<180.0){
+            float kw=9.81/max(.4,uHullSpeed*uHullSpeed),arm=abs(across)-aft*.354-uHullSeg.y*.6,width=.35+aft*.045;
+            float decay=exp(-aft/(22.0+uHullSpeed*16.0))*smoothstep(.25,1.6,uHullSpeed);
+            float armWave=exp(-arm*arm/(width*width))*sin(kw*.75*length(vec2(aft,across)));
+            float inside=smoothstep(.0,1.5,-arm)*exp(-aft/(10.0+uHullSpeed*8.0));
+            float transverse=inside*sin(kw*aft);
+            slope+=(side*sign(across)*armWave*.10+(-uHullAx.xy)*transverse*.06)*decay;
+            kelvinFoam=exp(-arm*arm/(width*width*.6))*decay*smoothstep(1.2,4.0,uHullSpeed)*smoothstep(.45,.75,noise(vec2(aft*.6,across*1.4)-uWaveT*.3))*.55
+              +exp(-pow(across/(uHullSeg.y*1.2+aft*.05),2.))*exp(-aft/(6.0+uHullSpeed*3.0))*smoothstep(1.0,3.5,uHullSpeed)*.45;
+          }
+        }
 
         // Raindrops pock the surface
         if (uRain > 0.01) {
@@ -392,8 +418,18 @@ export function createOcean(renderer, scene, skyUniforms) {
         float moonExponent=1./(1./900.+opticalVariance);
         refl += vec3(0.85, 0.88, 0.95) * pow(max(dot(R, uMoonDir), 0.0), moonExponent) * (moonExponent/900.) * 2.2 * uMoonLight * moonUp;
         float sunUp = smoothstep(-0.03, 0.05, uSunDir.y);
-        float sunExponent=1./(1./2200.+opticalVariance);
-        refl += uSunCol * pow(max(dot(R, uSunDir), 0.0), sunExponent) * (sunExponent/2200.) * 5.0 * sunUp * (1.0 - uDarkness * 0.85);
+        // Sun glitter: a GGX highlight on the detailed surface normal (after Tidewater's water
+        // material). Each facet that tilts toward the sun flashes far brighter than the sky; the
+        // bright values are kept for the glow pass instead of being clipped to white.
+        vec3 sunH=normalize(V+uSunDir);
+        float sunNdH=max(dot(N,sunH),0.),sunNdL=max(dot(N,uSunDir),0.);
+        float sunAlpha=clamp(.045+windK*.035+sqrt(opticalVariance)*1.4,.04,.32)*mix(1.,.45,seaSlick),sunA2=sunAlpha*sunAlpha;
+        float sunDen=sunNdH*sunNdH*(sunA2-1.)+1.;
+        float sunD=sunA2/(3.14159*sunDen*sunDen);
+        float sunF=.02+.98*pow(1.-max(dot(V,sunH),0.),5.);
+        float sunG=1./(max(NdV,.08)*max(sunNdL,.08)+.0001);
+        float sparkle=1.0+1.6*smoothstep(.72,.98,noise(vBase*7.0+N.xz*30.0+vec2(t*1.7,-t*1.1)))*(1.0-smoothstep(20.0,220.0,dist));
+        vec3 sunSpec=uSunCol*min(sunD*sunF*sunG*sunNdL*.25*sparkle,48.)*sunUp*uSunVis*(1.0-uDarkness*.9)*(1.0-uSeaFog*.85)*1.3;
 
         // Fresnel, softened by the spread of wave slopes below the mesh resolution
         float F = 0.03 + 0.97 * pow(1.0 - NdV, 5.0);
@@ -409,7 +445,7 @@ export function createOcean(renderer, scene, skyUniforms) {
         float sss = pow(facing, 3.0) * clamp(vH / max(uHsWind, 0.3) * 1.5 + 0.35, 0.0, 1.0) * lightAmt;
         body += vec3(0.04, 0.19, 0.18) * sss * 0.7 * (1.0 - smoothstep(100.0, 1500.0, dist));
 
-        vec3 col = mix(body, refl, F);
+        vec3 col = mix(body, refl, F) + sunSpec;
         if(uBoatReflection>.5&&dist<45.){
           vec4 projected=uBoatReflectionMatrix*vec4(vWorld,1.);vec2 uv=projected.xy/max(.001,projected.w);
           uv+=N.xz*(.0013+.0025*clamp(uWind/22.,0.,1.));
@@ -462,7 +498,7 @@ export function createOcean(renderer, scene, skyUniforms) {
           foam=mix((crestFresh*1.35+crestHistory*.35)*breaking*fragments*uFoamActivity,eroded,uFoamDetail*.72);
           foam*=1.-smoothstep(150.,2200.,dist);
         }
-        foam+=waterWakeFoam*rippleFade*1.55;
+        foam+=waterWakeFoam*rippleFade*1.55+seaWindrow*.45+kelvinFoam;
         // Billow normals, crease occlusion and thin-film colour adapted from
         // Ultra-Water OceanSurface.js (Humpalumps 2026, MIT; retained notices).
         if(foam>.001){

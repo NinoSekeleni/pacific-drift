@@ -11,5 +11,5 @@ export function createBoatWater({canoe,ocean,spray,lensRain,audio}){
   // Emit by travelled distance, retaining each patch in world space.
   if(speed>.2){travel+=speed*dt;if(travel>.72){travel%=.72;const strength=Math.min(.065,Math.max(0,speed-.2)*.023);for(const side of [-1,1])ocean.addRipple(stern.x+direction.z*.24*side,stern.z-direction.x*.24*side,time,strength,{x:direction.x,z:direction.z},'hull');}}else travel=0;
   wet+=(Math.min(1,rain)-wet)*(1-Math.exp(-dt/(rain>wet?3:24)));dripBudget+=wet*dt*3;if(dripBudget>1){dripBudget%=1;const p=new THREE.Vector3((Math.random()<.5?-1:1)*.52,.28,(Math.random()-.5)*3).applyMatrix4(canoe.group.matrixWorld);spray.emit(p.x,p.y,p.z,0,-.06,0,1,.025);}
- },get wetness(){return wet;}};
+ },addWet(amount){wet=Math.min(1,wet+Math.max(0,amount));},get wetness(){return wet;}};
 }
